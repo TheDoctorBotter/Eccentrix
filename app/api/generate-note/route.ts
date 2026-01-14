@@ -1,8 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { NoteInputData, StyleSettings } from '@/lib/types';
 
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT = 10;
+const RATE_LIMIT_WINDOW = 60 * 1000;
+
+function checkRateLimit(identifier: string): boolean {
+  const now = Date.now();
+  const record = rateLimitMap.get(identifier);
+
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(identifier, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+
+  if (record.count >= RATE_LIMIT) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+}
+
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.ip || request.headers.get('x-forwarded-for') || 'unknown';
+
+    if (!checkRateLimit(ip)) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. Maximum 10 requests per minute. Please wait and try again.' },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const {
       noteType,
@@ -19,6 +49,13 @@ export async function POST(request: NextRequest) {
     if (!noteType || !inputData || !template) {
       return NextResponse.json(
         { error: 'Missing required fields: noteType, inputData, template' },
+        { status: 400 }
+      );
+    }
+
+    if (noteType !== 'daily_soap' && noteType !== 'pt_evaluation') {
+      return NextResponse.json(
+        { error: 'Invalid note type. Only daily_soap and pt_evaluation are supported.' },
         { status: 400 }
       );
     }

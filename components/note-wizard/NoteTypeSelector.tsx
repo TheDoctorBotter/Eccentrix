@@ -1,6 +1,6 @@
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { NoteType, NOTE_TYPE_LABELS } from '@/lib/types';
-import { FileText, ClipboardCheck, TrendingUp, CheckCircle, GraduationCap } from 'lucide-react';
+import { FileText, ClipboardCheck } from 'lucide-react';
 
 interface NoteTypeSelectorProps {
   onSelect: (type: NoteType) => void;
@@ -11,27 +11,12 @@ export default function NoteTypeSelector({ onSelect }: NoteTypeSelectorProps) {
     {
       type: 'daily_soap',
       icon: <FileText className="h-8 w-8" />,
-      description: 'Standard SOAP format for routine treatment sessions',
+      description: 'Standard SOAP format for routine outpatient treatment sessions',
     },
     {
       type: 'pt_evaluation',
       icon: <ClipboardCheck className="h-8 w-8" />,
-      description: 'Initial evaluation with comprehensive assessment',
-    },
-    {
-      type: 'progress_note',
-      icon: <TrendingUp className="h-8 w-8" />,
-      description: 'Periodic review of treatment progress and goals',
-    },
-    {
-      type: 'discharge_summary',
-      icon: <CheckCircle className="h-8 w-8" />,
-      description: 'Final summary documenting outcomes and recommendations',
-    },
-    {
-      type: 'school_iep',
-      icon: <GraduationCap className="h-8 w-8" />,
-      description: 'School-based IEP documentation with educational focus',
+      description: 'Comprehensive initial outpatient evaluation with full assessment',
     },
   ];
 

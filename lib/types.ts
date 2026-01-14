@@ -1,16 +1,10 @@
 export type NoteType =
   | 'daily_soap'
-  | 'pt_evaluation'
-  | 'progress_note'
-  | 'discharge_summary'
-  | 'school_iep';
+  | 'pt_evaluation';
 
 export const NOTE_TYPE_LABELS: Record<NoteType, string> = {
   daily_soap: 'Daily SOAP Note',
   pt_evaluation: 'PT Evaluation',
-  progress_note: 'Progress Note',
-  discharge_summary: 'Discharge Summary',
-  school_iep: 'School-Based IEP Note',
 };
 
 export interface Template {

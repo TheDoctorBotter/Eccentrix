@@ -1,16 +1,17 @@
 # PT Note Writer
 
-AI-powered physical therapy documentation assistant built with Next.js, TypeScript, React, and Supabase.
+AI-powered **outpatient** physical therapy documentation assistant built with Next.js, TypeScript, React, and Supabase.
 
 ## Features
 
-- **Multiple Note Types**: Daily SOAP notes, PT Evaluations, Progress Notes, Discharge Summaries, and School-Based IEP notes
+- **Outpatient Note Types**: Daily SOAP notes and PT Evaluations **only**
 - **Structured Input Forms**: Comprehensive forms with dropdowns, sliders, and multi-select options
-- **AI-Powered Generation**: Uses OpenAI-compatible LLMs to generate professional documentation
-- **Template Manager**: Create and customize templates for each note type
-- **Intervention Library**: Pre-loaded library of common PT interventions and exercises
-- **Export Options**: Copy to clipboard and export to PDF
-- **Safety Features**: Built-in PHI warnings and draft documentation alerts
+- **AI-Powered Generation**: Uses OpenAI LLM to generate professional documentation
+- **Template Manager**: Pre-configured templates optimized for outpatient settings
+- **Intervention Library**: 20+ pre-loaded common PT interventions and exercises
+- **Export Options**: Copy to clipboard for easy pasting into EMR systems
+- **Safety Features**: Prominent PHI warning banner and draft documentation alerts
+- **Rate Limiting**: Built-in protection (10 requests/minute) to prevent API abuse
 - **Data Persistence**: All notes and templates stored securely in Supabase
 
 ## Prerequisites
@@ -29,36 +30,54 @@ npm install
 
 ### 2. Configure Environment Variables
 
-**IMPORTANT**: You must add your OpenAI API key before the application will work.
+**CRITICAL**: You MUST add your OpenAI API key or the application will not generate notes.
 
-1. Copy the example environment file:
+#### Option A: Edit existing .env file
+The project includes a `.env` file. Edit it and add your OpenAI API key:
 
 ```bash
-cp .env.example .env
-```
-
-2. Edit `.env` and add your OpenAI API key:
-
-```env
+# Open .env and update:
 OPENAI_API_KEY=sk-your-actual-api-key-here
 ```
 
-**Get your OpenAI API key:**
-- Go to https://platform.openai.com/api-keys
-- Create a new API key
-- Copy and paste it into your `.env` file
+#### Option B: Create .env.local (recommended for local development)
+```bash
+# Copy example file
+cp .env.example .env.local
 
-**Note**: Supabase credentials (NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY) are automatically configured.
+# Edit .env.local and add your key
+OPENAI_API_KEY=sk-your-actual-api-key-here
+```
+
+**How to get your OpenAI API key:**
+1. Visit https://platform.openai.com/api-keys
+2. Sign up or log in to your OpenAI account
+3. Click "Create new secret key"
+4. Copy the key (starts with `sk-`)
+5. Paste it in your `.env` or `.env.local` file
+6. Restart the dev server
+
+**Important Notes:**
+- Supabase credentials are already configured
+- Never commit your API key to version control
+- The app will return a 500 error with a clear message if the key is missing
+- You need OpenAI API credits for the generation to work
 
 ### 3. Database Setup
 
 The database is pre-configured with Supabase and includes:
 - ✅ All tables created (templates, notes, intervention_library, user_settings)
-- ✅ Default templates for all 5 note types
-- ✅ 40+ pre-loaded PT interventions
+- ✅ Default templates for **Daily SOAP** and **PT Evaluation** (outpatient only)
+- ✅ 20+ pre-loaded PT interventions
 - ✅ Row Level Security (RLS) enabled
 
 No additional database setup required!
+
+**First-time setup:**
+The database will auto-initialize on first use. If needed, manually seed by visiting:
+```
+http://localhost:3000/api/seed
+```
 
 ### 4. Run Development Server
 
@@ -71,14 +90,18 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 ### 5. Test the Application
 
 1. Click "Create New Note"
-2. Select a note type (e.g., Daily SOAP Note)
+2. Select a note type (Daily SOAP Note or PT Evaluation)
 3. Fill out the form sections
 4. Click "Generate Note"
-5. View, copy, or export your generated note
+5. View and copy your generated note
 
-The application will be available at `http://localhost:3000`
+**What to expect:**
+- The app will display a red PHI warning banner at the top
+- Only 2 note types are available (outpatient focus)
+- Rate limiting: 10 requests per minute maximum
+- Generated notes are marked as DRAFT and must be clinician-reviewed
 
-### 5. Build for Production
+### 6. Build for Production
 
 ```bash
 npm run build
@@ -90,7 +113,7 @@ npm start
 ### Creating a Note
 
 1. **Dashboard**: Click "Create New Note" from the home page
-2. **Select Note Type**: Choose from Daily SOAP, PT Evaluation, Progress Note, Discharge Summary, or School IEP
+2. **Select Note Type**: Choose from **Daily SOAP** or **PT Evaluation** (outpatient only)
 3. **Fill Forms**: Complete the structured input forms:
    - Patient Context (diagnosis, reason for visit)
    - Subjective (symptoms, pain level, functional limits)
@@ -98,7 +121,7 @@ npm start
    - Assessment (progression, skilled need, response to treatment)
    - Plan (frequency, next session focus, HEP)
 4. **Generate**: Click "Generate Note" to create professional documentation
-5. **Review**: View, copy, or export the generated note
+5. **Review**: View and copy the generated note (marked as DRAFT)
 
 ### Managing Templates
 
@@ -189,6 +212,10 @@ This tool assists with documentation but does not replace:
 ### POST /api/generate-note
 Generates a note using the LLM.
 
+**Rate Limit**: 10 requests per minute per IP
+
+**Supported Note Types**: `daily_soap`, `pt_evaluation` only
+
 **Request Body:**
 ```json
 {
@@ -199,7 +226,7 @@ Generates a note using the LLM.
 }
 ```
 
-**Response:**
+**Response (200):**
 ```json
 {
   "note": "Generated note text",
@@ -207,6 +234,11 @@ Generates a note using the LLM.
   "hep_summary": "HEP summary"
 }
 ```
+
+**Error Responses:**
+- `400`: Missing fields or invalid note type
+- `429`: Rate limit exceeded (10/minute)
+- `500`: OpenAI API key not configured or API error
 
 ### GET /api/templates
 Fetches all templates, optionally filtered by note type.
