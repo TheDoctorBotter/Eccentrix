@@ -164,9 +164,10 @@ npm start
 
 **Storage Setup:**
 The Supabase Storage bucket "branding" is already created and configured. If you encounter upload errors:
-1. Verify `SUPABASE_SERVICE_ROLE_KEY` is set in `.env`
+1. Verify both `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set in `.env`
 2. Check that the "branding" bucket exists in Supabase Dashboard > Storage
 3. Ensure the bucket is set to "Public" for easier image access
+4. Restart the dev server after changing environment variables
 
 **Note:** Branding does not contain PHI. It's general clinic information only.
 
@@ -290,8 +291,9 @@ Seeds the database with default templates and interventions (runs automatically 
 | `OPENAI_API_KEY` | OpenAI API key for note generation | Yes |
 | `OPENAI_API_BASE` | Custom API base URL (optional) | No |
 | `OPENAI_MODEL` | Model to use (default: gpt-4-turbo-preview) | No |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | Auto-configured |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (client-side) | Auto-configured |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key (client-side) | Auto-configured |
+| `SUPABASE_URL` | Supabase project URL (server-side, for file uploads) | Auto-configured |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side, for file uploads) | Auto-configured |
 
 ## Troubleshooting
@@ -317,7 +319,9 @@ npm run lint       # Check for linting issues
 
 ### File Upload Errors (Branding)
 If you can't upload logo or letterhead files:
-1. **Check Environment Variable**: Ensure `SUPABASE_SERVICE_ROLE_KEY` is set in `.env`
+1. **Check Environment Variables**: Ensure both are set in `.env`:
+   - `SUPABASE_URL` (server-side URL)
+   - `SUPABASE_SERVICE_ROLE_KEY` (service role key)
 2. **Verify Storage Bucket**:
    - Go to Supabase Dashboard > Storage
    - Confirm "branding" bucket exists
@@ -326,8 +330,13 @@ If you can't upload logo or letterhead files:
    - Supported formats: PNG, JPEG, WebP
    - Maximum file size: 5MB
    - Valid file extension required
-4. **Console Errors**: Check browser console for detailed error messages
+4. **Console Errors**: Check browser console and server logs for detailed error messages
 5. **Restart Server**: After changing `.env`, restart the development server
+
+**Common Errors:**
+- "signature verification failed" → Check that `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` match your project
+- "Bucket not found" → Create the "branding" bucket in Supabase Dashboard > Storage
+- "Missing Supabase credentials" → Verify environment variables are set correctly
 
 ## License
 
