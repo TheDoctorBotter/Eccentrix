@@ -59,10 +59,11 @@ OPENAI_API_KEY=sk-your-actual-api-key-here
 6. Restart the dev server
 
 **Important Notes:**
-- Supabase credentials are already configured
+- Supabase credentials (including service role key) are already configured
 - Never commit your API key to version control
 - The app will return a 500 error with a clear message if the key is missing
 - You need OpenAI API credits for the generation to work
+- `SUPABASE_SERVICE_ROLE_KEY` is required for file uploads (branding assets)
 
 ### 3. Database Setup
 
@@ -146,8 +147,8 @@ npm start
 
 1. Navigate to **Settings** > **Manage Branding**
 2. Upload your assets:
-   - **Logo** (PNG/JPEG, max 5MB) - Displayed with contact info
-   - **Letterhead** (PNG/JPEG, max 5MB) - Full-width header image
+   - **Logo** (PNG/JPEG/WebP, max 5MB) - Displayed with contact info
+   - **Letterhead** (PNG/JPEG/WebP, max 5MB) - Full-width header image
 3. Enter clinic information:
    - Clinic name, address, phone, email, website
 4. Toggle **"Show branding in notes"** to enable/disable
@@ -159,6 +160,13 @@ npm start
 - ✅ Copy note with branding header using "Copy Note" button
 - ✅ Choose between logo+text or full letterhead display
 - ✅ All assets stored securely in Supabase Storage
+- ✅ Server-side uploads with proper authentication
+
+**Storage Setup:**
+The Supabase Storage bucket "branding" is already created and configured. If you encounter upload errors:
+1. Verify `SUPABASE_SERVICE_ROLE_KEY` is set in `.env`
+2. Check that the "branding" bucket exists in Supabase Dashboard > Storage
+3. Ensure the bucket is set to "Public" for easier image access
 
 **Note:** Branding does not contain PHI. It's general clinic information only.
 
@@ -283,7 +291,8 @@ Seeds the database with default templates and interventions (runs automatically 
 | `OPENAI_API_BASE` | Custom API base URL (optional) | No |
 | `OPENAI_MODEL` | Model to use (default: gpt-4-turbo-preview) | No |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | Auto-configured |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key | Auto-configured |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key (client-side) | Auto-configured |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side, for file uploads) | Auto-configured |
 
 ## Troubleshooting
 
@@ -305,6 +314,20 @@ If the build fails:
 npm run typecheck  # Check for TypeScript errors
 npm run lint       # Check for linting issues
 ```
+
+### File Upload Errors (Branding)
+If you can't upload logo or letterhead files:
+1. **Check Environment Variable**: Ensure `SUPABASE_SERVICE_ROLE_KEY` is set in `.env`
+2. **Verify Storage Bucket**:
+   - Go to Supabase Dashboard > Storage
+   - Confirm "branding" bucket exists
+   - Make sure it's set to "Public" access
+3. **Check File Requirements**:
+   - Supported formats: PNG, JPEG, WebP
+   - Maximum file size: 5MB
+   - Valid file extension required
+4. **Console Errors**: Check browser console for detailed error messages
+5. **Restart Server**: After changing `.env`, restart the development server
 
 ## License
 

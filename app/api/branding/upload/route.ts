@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
-const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
+const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     if (!ALLOWED_TYPES.includes(file.type)) {
       return NextResponse.json(
-        { error: 'Invalid file type. Only PNG and JPEG images are allowed' },
+        { error: 'Invalid file type. Only PNG, JPEG, and WebP images are allowed' },
         { status: 400 }
       );
     }
@@ -41,27 +41,36 @@ export async function POST(request: NextRequest) {
     const fileExt = file.name.split('.').pop();
     const timestamp = Date.now();
     const fileName = `${type}-${timestamp}.${fileExt}`;
-    const filePath = `${fileName}`;
+    const filePath = `clinic/${fileName}`;
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const { data, error } = await supabase.storage
+    const { data, error } = await supabaseAdmin.storage
       .from('branding')
       .upload(filePath, buffer, {
         contentType: file.type,
         upsert: true,
+        cacheControl: '3600',
       });
 
     if (error) {
-      console.error('Error uploading file:', error);
+      console.error('Error uploading file to Supabase Storage:', error);
+
+      if (error.message.includes('Bucket not found')) {
+        return NextResponse.json(
+          { error: 'Storage bucket not configured. Please see README for setup instructions.' },
+          { status: 500 }
+        );
+      }
+
       return NextResponse.json(
-        { error: 'Failed to upload file' },
+        { error: `Upload failed: ${error.message}` },
         { status: 500 }
       );
     }
 
-    const { data: publicUrlData } = supabase.storage
+    const { data: publicUrlData } = supabaseAdmin.storage
       .from('branding')
       .getPublicUrl(data.path);
 
@@ -71,8 +80,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error in branding upload:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

@@ -63,10 +63,10 @@ export default function BrandingSettingsPage() {
       return;
     }
 
-    if (!['image/png', 'image/jpeg', 'image/jpg'].includes(file.type)) {
+    if (!['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type)) {
       toast({
         title: 'Error',
-        description: 'Only PNG and JPEG images are allowed',
+        description: 'Only PNG, JPEG, and WebP images are allowed',
         variant: 'destructive',
       });
       return;
@@ -85,11 +85,12 @@ export default function BrandingSettingsPage() {
         body: formData,
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Upload failed');
+        throw new Error(data.error || 'Upload failed');
       }
 
-      const data = await response.json();
       setSettings(prev => ({
         ...prev,
         [type === 'logo' ? 'logo_url' : 'letterhead_url']: data.url,
@@ -101,9 +102,10 @@ export default function BrandingSettingsPage() {
       });
     } catch (error) {
       console.error('Error uploading file:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload file';
       toast({
         title: 'Error',
-        description: 'Failed to upload file',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -188,7 +190,7 @@ export default function BrandingSettingsPage() {
               <CardHeader>
                 <CardTitle>Logo Upload</CardTitle>
                 <CardDescription>
-                  Upload your clinic logo (PNG or JPEG, max 5MB)
+                  Upload your clinic logo (PNG, JPEG, or WebP, max 5MB)
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -219,7 +221,7 @@ export default function BrandingSettingsPage() {
                   <Input
                     id="logo-upload"
                     type="file"
-                    accept="image/png,image/jpeg,image/jpg"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
@@ -235,7 +237,7 @@ export default function BrandingSettingsPage() {
               <CardHeader>
                 <CardTitle>Letterhead Upload</CardTitle>
                 <CardDescription>
-                  Upload your clinic letterhead (PNG or JPEG, max 5MB)
+                  Upload your clinic letterhead (PNG, JPEG, or WebP, max 5MB)
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -266,7 +268,7 @@ export default function BrandingSettingsPage() {
                   <Input
                     id="letterhead-upload"
                     type="file"
-                    accept="image/png,image/jpeg,image/jpg"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
