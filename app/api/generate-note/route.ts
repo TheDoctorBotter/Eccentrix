@@ -34,6 +34,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    console.log('[Generate Note] Payload keys:', Object.keys(body));
+
     const {
       noteType,
       inputData,
@@ -46,14 +48,32 @@ export async function POST(request: NextRequest) {
       styleSettings: StyleSettings;
     } = body;
 
-    if (!noteType || !inputData || !template) {
+    if (!noteType) {
+      console.error('[Generate Note] Validation failed: Missing noteType');
       return NextResponse.json(
-        { error: 'Missing required fields: noteType, inputData, template' },
+        { error: 'Missing required field: noteType' },
+        { status: 400 }
+      );
+    }
+
+    if (!inputData) {
+      console.error('[Generate Note] Validation failed: Missing inputData');
+      return NextResponse.json(
+        { error: 'Missing required field: inputData' },
+        { status: 400 }
+      );
+    }
+
+    if (!template) {
+      console.error('[Generate Note] Validation failed: Missing template');
+      return NextResponse.json(
+        { error: 'Missing required field: template' },
         { status: 400 }
       );
     }
 
     if (noteType !== 'daily_soap' && noteType !== 'pt_evaluation') {
+      console.error('[Generate Note] Validation failed: Invalid noteType:', noteType);
       return NextResponse.json(
         { error: 'Invalid note type. Only daily_soap and pt_evaluation are supported.' },
         { status: 400 }
@@ -62,9 +82,9 @@ export async function POST(request: NextRequest) {
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      console.error('OPENAI_API_KEY is not configured in environment variables');
+      console.error('[Generate Note] OPENAI_API_KEY is not configured');
       return NextResponse.json(
-        { error: 'OpenAI API key not configured. Please add OPENAI_API_KEY to your .env file.' },
+        { error: 'Missing OPENAI_API_KEY. Please configure your OpenAI API key in the .env file.' },
         { status: 500 }
       );
     }
@@ -72,44 +92,95 @@ export async function POST(request: NextRequest) {
     const apiBase = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1';
     const model = process.env.OPENAI_MODEL || 'gpt-4-turbo-preview';
 
-    console.log(`[Generate Note] Type: ${noteType}, Model: ${model}`);
+    console.log(`[Generate Note] Request - Type: ${noteType}, Model: ${model}, API Base: ${apiBase}`);
 
     const systemPrompt = buildSystemPrompt(styleSettings);
     const userPrompt = buildUserPrompt(noteType, inputData, template);
 
-    const response = await fetch(`${apiBase}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.7,
-        max_tokens: 2000,
-      }),
-    });
+    console.log('[Generate Note] Calling OpenAI API...');
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('OpenAI API error:', response.status, errorData);
+    let response;
+    try {
+      response = await fetch(`${apiBase}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.7,
+          max_tokens: 2000,
+        }),
+      });
+    } catch (fetchError) {
+      console.error('[Generate Note] Network error calling OpenAI:', fetchError);
       return NextResponse.json(
-        { error: `OpenAI API error: ${response.status}. Check your API key and credits.` },
-        { status: response.status }
+        {
+          error: 'Network error connecting to OpenAI API',
+          details: fetchError instanceof Error ? fetchError.message : 'Unknown network error',
+        },
+        { status: 500 }
       );
     }
 
-    const data = await response.json();
-    const generatedText = data.choices[0]?.message?.content || '';
+    if (!response.ok) {
+      let errorData;
+      let errorMessage = `OpenAI API returned status ${response.status}`;
+
+      try {
+        errorData = await response.json();
+        console.error('[Generate Note] OpenAI API error:', response.status, JSON.stringify(errorData));
+
+        if (errorData.error?.message) {
+          errorMessage = errorData.error.message;
+        }
+
+        if (response.status === 401) {
+          errorMessage = 'Invalid OpenAI API key. Please check your OPENAI_API_KEY in .env file.';
+        } else if (response.status === 429) {
+          errorMessage = 'OpenAI rate limit exceeded or insufficient credits. Please check your OpenAI account.';
+        } else if (response.status === 404) {
+          errorMessage = `Model '${model}' not found. Please check your OPENAI_MODEL setting.`;
+        }
+      } catch (parseError) {
+        const textError = await response.text();
+        console.error('[Generate Note] Failed to parse error response:', textError);
+      }
+
+      return NextResponse.json(
+        {
+          error: errorMessage,
+          details: errorData?.error?.message || 'Check server logs for details',
+        },
+        { status: response.status >= 500 ? 500 : 400 }
+      );
+    }
+
+    let data;
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      console.error('[Generate Note] Failed to parse OpenAI response:', parseError);
+      return NextResponse.json(
+        {
+          error: 'Failed to parse OpenAI response',
+          details: parseError instanceof Error ? parseError.message : 'JSON parse error',
+        },
+        { status: 500 }
+      );
+    }
+
+    const generatedText = data.choices?.[0]?.message?.content || '';
 
     if (!generatedText) {
-      console.error('No content generated from OpenAI');
+      console.error('[Generate Note] No content in response:', JSON.stringify(data));
       return NextResponse.json(
-        { error: 'No content generated from AI model' },
+        { error: 'No content generated from AI model. Please try again.' },
         { status: 500 }
       );
     }
@@ -120,9 +191,17 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(parsedOutput);
   } catch (error) {
-    console.error('Error generating note:', error);
+    console.error('[Generate Note] Unexpected error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error generating note';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+
+    console.error('[Generate Note] Error stack:', errorStack);
+
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error generating note' },
+      {
+        error: errorMessage,
+        details: 'An unexpected error occurred. Check server logs for more information.',
+      },
       { status: 500 }
     );
   }

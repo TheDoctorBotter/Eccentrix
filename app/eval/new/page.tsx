@@ -59,7 +59,7 @@ export default function PtEvaluationNotePage() {
 
   const handleGenerateNote = async () => {
     if (!template) {
-      setError('Missing template');
+      setError('Missing template. Please refresh the page and try again.');
       return;
     }
 
@@ -67,6 +67,7 @@ export default function PtEvaluationNotePage() {
     setError(null);
 
     try {
+      console.log('[Frontend] Sending generate note request...');
       const response = await fetch('/api/generate-note', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -79,12 +80,31 @@ export default function PtEvaluationNotePage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to generate note');
+        let errorMessage = 'Failed to generate note';
+        try {
+          const errorData = await response.json();
+          console.error('[Frontend] API error response:', errorData);
+
+          errorMessage = errorData.error || errorMessage;
+
+          if (errorData.details) {
+            errorMessage += `. Details: ${errorData.details}`;
+          }
+        } catch (parseError) {
+          console.error('[Frontend] Failed to parse error response:', parseError);
+          errorMessage = `Server error (${response.status}). Please check the console logs.`;
+        }
+        throw new Error(errorMessage);
       }
 
+      console.log('[Frontend] Note generated successfully');
       const generated = await response.json();
 
+      if (!generated.note) {
+        throw new Error('Generated note is empty. Please try again.');
+      }
+
+      console.log('[Frontend] Saving note to database...');
       const saveResponse = await fetch('/api/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -99,14 +119,18 @@ export default function PtEvaluationNotePage() {
       });
 
       if (!saveResponse.ok) {
-        throw new Error('Failed to save note');
+        const saveErrorData = await saveResponse.json().catch(() => ({}));
+        console.error('[Frontend] Failed to save note:', saveErrorData);
+        throw new Error(saveErrorData.error || 'Failed to save note to database');
       }
 
       const savedNote = await saveResponse.json();
+      console.log('[Frontend] Note saved successfully, redirecting...');
       router.push(`/notes/${savedNote.id}`);
     } catch (err) {
-      console.error('Error generating note:', err);
-      setError(err instanceof Error ? err.message : 'An error occurred. Please try again.');
+      console.error('[Frontend] Error in handleGenerateNote:', err);
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred. Please try again.';
+      setError(errorMessage);
       setGenerating(false);
     }
   };

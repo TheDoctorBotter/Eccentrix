@@ -304,11 +304,36 @@ If templates or interventions aren't loading:
 2. Check for errors during initialization
 3. Manually trigger seeding by calling `/api/seed` via POST request
 
-### API Key Errors
-If note generation fails:
-1. Verify `OPENAI_API_KEY` is set in `.env`
-2. Check the API key is valid and has credits
-3. Restart the development server after changing `.env`
+### Note Generation Errors (500 Error)
+If you get an error when trying to generate notes:
+
+**Check Server Logs First** - The terminal/console will show detailed error messages:
+
+1. **Missing API Key Error**
+   - `[Generate Note] OPENAI_API_KEY is not configured`
+   - **Solution**: Add `OPENAI_API_KEY=sk-your-key-here` to `.env` file
+   - Get your key from https://platform.openai.com/api-keys
+
+2. **Invalid API Key Error**
+   - `Invalid OpenAI API key. Please check your OPENAI_API_KEY`
+   - **Solution**: Verify the API key is correct and active in your OpenAI account
+
+3. **Rate Limit or Credits Error**
+   - `OpenAI rate limit exceeded or insufficient credits`
+   - **Solution**: Check your OpenAI usage limits and billing at https://platform.openai.com/account/billing
+
+4. **Model Not Found Error**
+   - `Model 'xxx' not found`
+   - **Solution**: Update `OPENAI_MODEL` in `.env` to a valid model (default: gpt-4-turbo-preview)
+
+5. **Frontend Shows Error**
+   - Check browser console for detailed error messages
+   - The UI will display the specific error returned from the API
+
+**After making changes to `.env`:**
+- Always restart the development server
+- Clear browser cache if needed
+- Check server logs to confirm the new configuration is loaded
 
 ### Build Errors
 If the build fails:
