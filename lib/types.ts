@@ -35,10 +35,11 @@ export interface RequiredSections {
 }
 
 export interface NoteInputData {
-  patient_context?: {
-    identifier?: string;
+  patientDemographic?: {
+    patientName?: string;
+    dateOfBirth?: string;
     diagnosis?: string;
-    reason_for_visit?: string;
+    referralSource?: string;
   };
   subjective?: {
     symptoms?: string;

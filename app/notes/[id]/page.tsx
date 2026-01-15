@@ -224,8 +224,8 @@ export default function NoteDetailPage() {
           <div class="meta">
             Generated: ${format(new Date(note.created_at), 'MMMM d, yyyy h:mm a')}
             ${
-              note.input_data?.patient_context?.diagnosis
-                ? `<br>Diagnosis: ${note.input_data.patient_context.diagnosis}`
+              note.input_data?.patientDemographic?.diagnosis
+                ? `<br>Diagnosis: ${note.input_data.patientDemographic.diagnosis}`
                 : ''
             }
           </div>
@@ -333,28 +333,34 @@ export default function NoteDetailPage() {
           </AlertDescription>
         </Alert>
 
-        {note.input_data?.patient_context && (
+        {note.input_data?.patientDemographic && (
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle className="text-lg">Patient Context</CardTitle>
+              <CardTitle className="text-lg">Patient Demographic</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
-              {note.input_data.patient_context.identifier && (
+              {note.input_data.patientDemographic.patientName && (
                 <div>
-                  <span className="font-medium">Identifier:</span>{' '}
-                  {note.input_data.patient_context.identifier}
+                  <span className="font-medium">Patient Name:</span>{' '}
+                  {note.input_data.patientDemographic.patientName}
                 </div>
               )}
-              {note.input_data.patient_context.diagnosis && (
+              {note.input_data.patientDemographic.dateOfBirth && (
+                <div>
+                  <span className="font-medium">Date of Birth:</span>{' '}
+                  {note.input_data.patientDemographic.dateOfBirth}
+                </div>
+              )}
+              {note.input_data.patientDemographic.diagnosis && (
                 <div>
                   <span className="font-medium">Diagnosis:</span>{' '}
-                  {note.input_data.patient_context.diagnosis}
+                  {note.input_data.patientDemographic.diagnosis}
                 </div>
               )}
-              {note.input_data.patient_context.reason_for_visit && (
+              {note.input_data.patientDemographic.referralSource && (
                 <div>
-                  <span className="font-medium">Reason:</span>{' '}
-                  {note.input_data.patient_context.reason_for_visit}
+                  <span className="font-medium">Referral Source:</span>{' '}
+                  {note.input_data.patientDemographic.referralSource}
                 </div>
               )}
             </CardContent>

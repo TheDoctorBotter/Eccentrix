@@ -226,9 +226,9 @@ function buildSystemPrompt(styleSettings: StyleSettings): string {
 
 CRITICAL RULES:
 1. NEVER invent measurements, findings, or clinical data not provided
-2. If a field is missing or empty, write "Not assessed today" or omit that section
+2. If a field is missing or empty, write "Not provided" for demographic fields, or "Not assessed today" for clinical sections
 3. Use ONLY the information given in the user's input
-4. Follow the template structure exactly
+4. Follow the template structure exactly, replacing placeholders like {{patient_name}}, {{date_of_birth}}, {{diagnosis}}, {{referral_source}} with actual values or "Not provided"
 5. Include a brief "Skilled need" statement when generating daily notes (unless specifically excluded)
 6. If red flags are indicated, include appropriate referral language and safety warnings
 
@@ -259,16 +259,19 @@ function buildUserPrompt(
 
   prompt += `INPUT DATA:\n`;
 
-  if (inputData.patient_context) {
-    prompt += `\nPatient Context:\n`;
-    if (inputData.patient_context.identifier) {
-      prompt += `- Identifier: ${inputData.patient_context.identifier}\n`;
+  if (inputData.patientDemographic) {
+    prompt += `\nPatient Demographic:\n`;
+    if (inputData.patientDemographic.patientName) {
+      prompt += `- Patient Name: ${inputData.patientDemographic.patientName}\n`;
     }
-    if (inputData.patient_context.diagnosis) {
-      prompt += `- Diagnosis: ${inputData.patient_context.diagnosis}\n`;
+    if (inputData.patientDemographic.dateOfBirth) {
+      prompt += `- Date of Birth: ${inputData.patientDemographic.dateOfBirth}\n`;
     }
-    if (inputData.patient_context.reason_for_visit) {
-      prompt += `- Reason for Visit: ${inputData.patient_context.reason_for_visit}\n`;
+    if (inputData.patientDemographic.diagnosis) {
+      prompt += `- Diagnosis: ${inputData.patientDemographic.diagnosis}\n`;
+    }
+    if (inputData.patientDemographic.referralSource) {
+      prompt += `- Referral Source: ${inputData.patientDemographic.referralSource}\n`;
     }
   }
 

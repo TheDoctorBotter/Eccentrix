@@ -5,7 +5,13 @@ const DEFAULT_TEMPLATES = [
   {
     name: 'Standard Daily SOAP',
     note_type: 'daily_soap',
-    content: `SUBJECTIVE:
+    content: `PATIENT DEMOGRAPHIC:
+Name: {{patient_name}}
+DOB: {{date_of_birth}}
+Diagnosis: {{diagnosis}}
+Referral Source: {{referral_source}}
+
+SUBJECTIVE:
 {{subjective}}
 
 OBJECTIVE:
@@ -36,8 +42,11 @@ PLAN:
     note_type: 'pt_evaluation',
     content: `PHYSICAL THERAPY EVALUATION
 
-PATIENT INFORMATION:
-{{patient_context}}
+PATIENT DEMOGRAPHIC:
+Name: {{patient_name}}
+DOB: {{date_of_birth}}
+Diagnosis: {{diagnosis}}
+Referral Source: {{referral_source}}
 
 SUBJECTIVE:
 {{subjective}}

@@ -202,9 +202,9 @@ export default function Home() {
                           )}
                         </span>
                       </div>
-                      {note.input_data?.patient_context?.diagnosis && (
+                      {note.input_data?.patientDemographic?.diagnosis && (
                         <p className="text-sm text-slate-700">
-                          {note.input_data.patient_context.diagnosis}
+                          {note.input_data.patientDemographic.diagnosis}
                         </p>
                       )}
                     </div>

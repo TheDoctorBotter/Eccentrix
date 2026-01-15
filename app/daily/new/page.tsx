@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { NoteInputData, Template, Intervention } from '@/lib/types';
-import PatientContextForm from '@/components/note-wizard/PatientContextForm';
+import PatientDemographicForm from '@/components/note-wizard/PatientDemographicForm';
 import SubjectiveForm from '@/components/note-wizard/SubjectiveForm';
 import ObjectiveForm from '@/components/note-wizard/ObjectiveForm';
 import AssessmentForm from '@/components/note-wizard/AssessmentForm';
@@ -166,9 +166,9 @@ export default function DailySoapNotePage() {
         )}
 
         <div className="space-y-6">
-          <PatientContextForm
-            data={inputData.patient_context}
-            onChange={(data) => updateInputData('patient_context', data)}
+          <PatientDemographicForm
+            data={inputData.patientDemographic}
+            onChange={(data) => updateInputData('patientDemographic', data)}
           />
 
           <SubjectiveForm
