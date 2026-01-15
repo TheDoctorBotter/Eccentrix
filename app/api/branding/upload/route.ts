@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: 'Missing SUPABASE_URL',
-          details: 'Server configuration error. Please configure SUPABASE_URL in .env file.',
+          details: 'Server configuration error. SUPABASE_URL environment variable is not set in .env file.',
         },
         { status: 500 }
       );
@@ -30,7 +30,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: 'Missing SUPABASE_SERVICE_ROLE_KEY',
-          details: 'Server configuration error. Please configure SUPABASE_SERVICE_ROLE_KEY in .env file.',
+          details: 'Server configuration error. SUPABASE_SERVICE_ROLE_KEY environment variable is not set in .env file.',
+        },
+        { status: 500 }
+      );
+    }
+
+    console.log('[Branding Upload] Environment diagnostics:');
+    console.log('  - URL prefix:', supabaseUrl.substring(0, 35));
+    console.log('  - URL full length:', supabaseUrl.length);
+    console.log('  - Service key length:', supabaseServiceKey.length);
+    console.log('  - Service key prefix:', supabaseServiceKey.substring(0, 3));
+    console.log('  - Service key starts with eyJ:', supabaseServiceKey.startsWith('eyJ'));
+
+    if (!supabaseServiceKey.startsWith('eyJ')) {
+      console.error('[Branding Upload] Service key does not start with "eyJ" - likely malformed JWT');
+      return NextResponse.json(
+        {
+          error: 'Invalid SUPABASE_SERVICE_ROLE_KEY',
+          details: 'The service role key appears to be malformed. It should be a JWT token starting with "eyJ". Please verify you copied the complete key from Supabase Dashboard > Settings > API.',
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!supabaseUrl.startsWith('https://') || !supabaseUrl.includes('.supabase.co')) {
+      console.error('[Branding Upload] SUPABASE_URL appears malformed:', supabaseUrl.substring(0, 35));
+      return NextResponse.json(
+        {
+          error: 'Invalid SUPABASE_URL',
+          details: 'The Supabase URL appears to be malformed. It should be in the format: https://xxx.supabase.co',
         },
         { status: 500 }
       );
@@ -95,7 +124,7 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const fileData = new Uint8Array(arrayBuffer);
 
-    console.log('[Branding Upload] Uploading to Supabase Storage...');
+    console.log('[Branding Upload] Uploading to Supabase Storage bucket:', BUCKET_NAME);
     const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from(BUCKET_NAME)
       .upload(filePath, fileData, {
@@ -106,22 +135,35 @@ export async function POST(request: NextRequest) {
 
     if (uploadError) {
       console.error('[Branding Upload] Upload error:', JSON.stringify(uploadError));
+      console.error('[Branding Upload] Error name:', uploadError.name);
+      console.error('[Branding Upload] Error message:', uploadError.message);
 
       if (uploadError.message.includes('Bucket not found')) {
         return NextResponse.json(
           {
             error: 'Storage bucket not found',
-            details: 'The "branding" bucket does not exist. Please create it in Supabase Dashboard > Storage.',
+            details: `The "${BUCKET_NAME}" bucket does not exist. Please create it in Supabase Dashboard > Storage.`,
           },
           { status: 500 }
         );
       }
 
-      if (uploadError.message.includes('signature')) {
+      if (uploadError.message.includes('signature') || uploadError.message.includes('JWT')) {
+        console.error('[Branding Upload] Signature verification failed - credentials mismatch detected');
         return NextResponse.json(
           {
-            error: 'Authentication failed',
-            details: 'Invalid Supabase credentials. Please verify SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.',
+            error: 'Authentication failed - Signature verification failed',
+            details: 'The SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY do not match or belong to different projects. Please verify both values are from the same Supabase project at Dashboard > Settings > API.',
+          },
+          { status: 500 }
+        );
+      }
+
+      if (uploadError.message.includes('Invalid API key')) {
+        return NextResponse.json(
+          {
+            error: 'Invalid service role key',
+            details: 'The SUPABASE_SERVICE_ROLE_KEY is invalid or has been revoked. Please verify it matches the service_role key in Supabase Dashboard > Settings > API.',
           },
           { status: 500 }
         );
@@ -130,7 +172,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: 'Upload failed',
-          details: uploadError.message,
+          details: `Supabase Storage error: ${uploadError.message}`,
         },
         { status: 500 }
       );
