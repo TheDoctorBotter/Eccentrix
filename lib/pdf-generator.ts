@@ -8,20 +8,84 @@ interface PDFGenerationOptions {
   withBranding?: boolean;
 }
 
-async function loadImageAsDataURL(url: string): Promise<string> {
+interface ImageData {
+  dataURL: string;
+  format: 'PNG' | 'JPEG';
+}
+
+async function loadImageAsDataURL(url: string): Promise<ImageData> {
   try {
-    const response = await fetch(url);
+    const proxyUrl = `/api/branding/image?url=${encodeURIComponent(url)}`;
+    const response = await fetch(proxyUrl);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.status}`);
+    }
+
+    const contentType = response.headers.get('content-type') || 'image/png';
     const blob = await response.blob();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
+
+    let format: 'PNG' | 'JPEG' = 'PNG';
+    if (contentType.includes('image/jpeg') || contentType.includes('image/jpg')) {
+      format = 'JPEG';
+    } else if (contentType.includes('image/webp')) {
+      const convertedBlob = await convertWebPToPNG(blob);
+      const dataURL = await blobToDataURL(convertedBlob);
+      return { dataURL, format: 'PNG' };
+    }
+
+    const dataURL = await blobToDataURL(blob);
+    return { dataURL, format };
   } catch (error) {
     console.error('Error loading image:', error);
     throw error;
   }
+}
+
+async function blobToDataURL(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function convertWebPToPNG(blob: Blob): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+
+      canvas.toBlob((pngBlob) => {
+        if (pngBlob) {
+          resolve(pngBlob);
+        } else {
+          reject(new Error('Failed to convert WebP to PNG'));
+        }
+      }, 'image/png');
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Failed to load WebP image'));
+    };
+
+    img.src = url;
+  });
 }
 
 export async function generateNotePDF({
@@ -75,19 +139,19 @@ export async function generateNotePDF({
     if (withBranding && branding) {
       if (branding.letterhead_url) {
         try {
-          const dataURL = await loadImageAsDataURL(branding.letterhead_url);
+          const imageData = await loadImageAsDataURL(branding.letterhead_url);
           const imgWidth = contentWidth;
           const imgHeight = 40;
-          doc.addImage(dataURL, 'PNG', margin, yPosition, imgWidth, imgHeight);
+          doc.addImage(imageData.dataURL, imageData.format, margin, yPosition, imgWidth, imgHeight);
           yPosition += imgHeight + 10;
         } catch (error) {
-          console.error('Failed to load letterhead:', error);
+          console.error('Failed to load letterhead, continuing without it:', error);
         }
       } else if (branding.logo_url) {
         try {
-          const dataURL = await loadImageAsDataURL(branding.logo_url);
+          const imageData = await loadImageAsDataURL(branding.logo_url);
           const logoSize = 25;
-          doc.addImage(dataURL, 'PNG', margin, yPosition, logoSize, logoSize);
+          doc.addImage(imageData.dataURL, imageData.format, margin, yPosition, logoSize, logoSize);
 
           let textX = margin + logoSize + 10;
           let textY = yPosition;
@@ -127,7 +191,7 @@ export async function generateNotePDF({
 
           yPosition += Math.max(logoSize, textY - yPosition) + 5;
         } catch (error) {
-          console.error('Failed to load logo:', error);
+          console.error('Failed to load logo, continuing without it:', error);
         }
       } else if (branding.clinic_name) {
         doc.setFontSize(16);
