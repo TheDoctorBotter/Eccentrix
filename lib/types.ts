@@ -127,6 +127,10 @@ export interface BrandingSettings {
   logo_url: string | null;
   letterhead_url: string | null;
   show_in_notes: boolean;
+  provider_name: string;
+  provider_credentials: string;
+  provider_license: string;
+  signature_enabled: boolean;
   created_at?: string;
   updated_at?: string;
 }

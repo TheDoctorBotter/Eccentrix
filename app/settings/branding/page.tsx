@@ -28,6 +28,10 @@ export default function BrandingSettingsPage() {
     logo_url: null,
     letterhead_url: null,
     show_in_notes: true,
+    provider_name: '',
+    provider_credentials: '',
+    provider_license: '',
+    signature_enabled: true,
   });
 
   useEffect(() => {
@@ -357,6 +361,75 @@ export default function BrandingSettingsPage() {
                       setSettings({ ...settings, website: e.target.value })
                     }
                     placeholder="https://www.clinic.com"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Provider Signature</CardTitle>
+                <CardDescription>
+                  Add provider signature block to clinical notes
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="provider-name">Provider Name</Label>
+                  <Input
+                    id="provider-name"
+                    value={settings.provider_name}
+                    onChange={(e) =>
+                      setSettings({ ...settings, provider_name: e.target.value })
+                    }
+                    placeholder="Dr. Jane Smith"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="provider-credentials">Credentials</Label>
+                  <Input
+                    id="provider-credentials"
+                    value={settings.provider_credentials}
+                    onChange={(e) =>
+                      setSettings({ ...settings, provider_credentials: e.target.value })
+                    }
+                    placeholder="PT, DPT"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="provider-license">License / ID Number</Label>
+                  <Input
+                    id="provider-license"
+                    value={settings.provider_license}
+                    onChange={(e) =>
+                      setSettings({ ...settings, provider_license: e.target.value })
+                    }
+                    placeholder="#1215276"
+                  />
+                </div>
+                <div className="pt-2">
+                  <Label className="text-sm font-medium text-slate-700">Signature Preview</Label>
+                  <div className="mt-2 p-4 border rounded-lg bg-slate-50">
+                    <div className="border-t border-slate-900 pt-2">
+                      <div className="text-sm text-slate-900">
+                        {settings.provider_name || '___________________________'}{settings.provider_credentials ? `, ${settings.provider_credentials}` : ''}{settings.provider_license ? ` ${settings.provider_license}` : ''}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                  <div>
+                    <Label htmlFor="signature-enabled">Include signature block on notes</Label>
+                    <p className="text-sm text-slate-500 mt-1">
+                      Add provider signature to generated notes
+                    </p>
+                  </div>
+                  <Switch
+                    id="signature-enabled"
+                    checked={settings.signature_enabled}
+                    onCheckedChange={(checked) =>
+                      setSettings({ ...settings, signature_enabled: checked })
+                    }
                   />
                 </div>
               </CardContent>

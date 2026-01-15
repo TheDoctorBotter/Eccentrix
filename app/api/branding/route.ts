@@ -28,6 +28,10 @@ export async function GET() {
         logo_url: null,
         letterhead_url: null,
         show_in_notes: true,
+        provider_name: '',
+        provider_credentials: '',
+        provider_license: '',
+        signature_enabled: true,
       });
     }
 
@@ -53,6 +57,10 @@ export async function POST(request: NextRequest) {
       logo_url,
       letterhead_url,
       show_in_notes,
+      provider_name,
+      provider_credentials,
+      provider_license,
+      signature_enabled,
     } = body;
 
     const { data: existing } = await supabase
@@ -75,6 +83,10 @@ export async function POST(request: NextRequest) {
           logo_url: logo_url || null,
           letterhead_url: letterhead_url || null,
           show_in_notes: show_in_notes !== undefined ? show_in_notes : true,
+          provider_name: provider_name || '',
+          provider_credentials: provider_credentials || '',
+          provider_license: provider_license || '',
+          signature_enabled: signature_enabled !== undefined ? signature_enabled : true,
           updated_at: new Date().toISOString(),
         })
         .eq('id', existing.id)
@@ -92,6 +104,10 @@ export async function POST(request: NextRequest) {
           logo_url: logo_url || null,
           letterhead_url: letterhead_url || null,
           show_in_notes: show_in_notes !== undefined ? show_in_notes : true,
+          provider_name: provider_name || '',
+          provider_credentials: provider_credentials || '',
+          provider_license: provider_license || '',
+          signature_enabled: signature_enabled !== undefined ? signature_enabled : true,
         })
         .select()
         .single();
