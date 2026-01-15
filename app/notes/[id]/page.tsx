@@ -20,10 +20,12 @@ import {
   Check,
   AlertCircle,
   FileText,
+  Loader2,
 } from 'lucide-react';
 import { Note, NOTE_TYPE_LABELS, BrandingSettings } from '@/lib/types';
 import { format } from 'date-fns';
 import BrandingHeader from '@/components/BrandingHeader';
+import { generateNotePDF } from '@/lib/pdf-generator';
 
 export default function NoteDetailPage() {
   const params = useParams();
@@ -32,6 +34,8 @@ export default function NoteDetailPage() {
   const [branding, setBranding] = useState<BrandingSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [exportingPDF, setExportingPDF] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   useEffect(() => {
     if (params.id) {
@@ -112,154 +116,28 @@ export default function NoteDetailPage() {
     return parts.join('\n');
   };
 
-  const exportToPDF = (withBranding = false) => {
+  const exportToPDF = async (withBranding = false) => {
     if (!note) return;
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    setExportingPDF(true);
+    setPdfError(null);
 
-    let brandingHTML = '';
-    if (withBranding && branding) {
-      if (branding.letterhead_url) {
-        brandingHTML = `
-          <div style="border-bottom: 2px solid #1e293b; padding-bottom: 20px; margin-bottom: 30px;">
-            <img src="${branding.letterhead_url}" alt="Clinic Letterhead" style="width: 100%; max-height: 200px; object-fit: contain;" />
-          </div>
-        `;
-      } else if (branding.logo_url) {
-        brandingHTML = `
-          <div style="border-bottom: 2px solid #1e293b; padding-bottom: 20px; margin-bottom: 30px; display: flex; gap: 20px; align-items: start;">
-            <img src="${branding.logo_url}" alt="Clinic Logo" style="height: 64px; width: 64px; object-fit: contain; flex-shrink: 0;" />
-            <div style="flex: 1;">
-              ${branding.clinic_name ? `<h2 style="margin: 0 0 8px 0; font-size: 20px; color: #1e293b;">${branding.clinic_name}</h2>` : ''}
-              ${branding.address ? `<p style="margin: 0 0 8px 0; font-size: 13px; white-space: pre-line; color: #475569;">${branding.address}</p>` : ''}
-              <div style="font-size: 13px; color: #64748b;">
-                ${branding.phone ? `<div>Phone: ${branding.phone}</div>` : ''}
-                ${branding.email ? `<div>Email: ${branding.email}</div>` : ''}
-                ${branding.website ? `<div>Web: ${branding.website}</div>` : ''}
-              </div>
-            </div>
-          </div>
-        `;
-      } else {
-        const brandingText = generateBrandingText(branding);
-        if (brandingText) {
-          brandingHTML = `
-            <div style="border-bottom: 2px solid #1e293b; padding-bottom: 20px; margin-bottom: 30px; text-align: center;">
-              ${branding.clinic_name ? `<h2 style="margin: 0 0 8px 0; font-size: 20px; color: #1e293b;">${branding.clinic_name}</h2>` : ''}
-              ${branding.address ? `<p style="margin: 0 0 8px 0; font-size: 13px; white-space: pre-line; color: #475569;">${branding.address}</p>` : ''}
-              <div style="font-size: 13px; color: #64748b;">
-                ${branding.phone ? `<div>Phone: ${branding.phone}</div>` : ''}
-                ${branding.email ? `<div>Email: ${branding.email}</div>` : ''}
-                ${branding.website ? `<div>Web: ${branding.website}</div>` : ''}
-              </div>
-            </div>
-          `;
-        }
-      }
+    try {
+      await generateNotePDF({
+        note,
+        branding: withBranding ? branding : null,
+        withBranding,
+      });
+    } catch (error) {
+      console.error('PDF export error:', error);
+      setPdfError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to export PDF. Please try again.'
+      );
+    } finally {
+      setExportingPDF(false);
     }
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>${NOTE_TYPE_LABELS[note.note_type]} - ${format(
-      new Date(note.created_at),
-      'MMM d, yyyy'
-    )}</title>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              line-height: 1.6;
-              padding: 40px;
-              max-width: 800px;
-              margin: 0 auto;
-            }
-            h1 {
-              color: #1e293b;
-              border-bottom: 3px solid #3b82f6;
-              padding-bottom: 10px;
-              margin-bottom: 20px;
-            }
-            .meta {
-              color: #64748b;
-              margin-bottom: 30px;
-            }
-            .note-content {
-              white-space: pre-wrap;
-              font-size: 14px;
-              line-height: 1.8;
-            }
-            .section {
-              margin-top: 30px;
-              padding: 15px;
-              background: #f8fafc;
-              border-left: 4px solid #3b82f6;
-            }
-            .section-title {
-              font-weight: bold;
-              color: #1e293b;
-              margin-bottom: 10px;
-            }
-            .warning {
-              background: #fef3c7;
-              border: 1px solid #f59e0b;
-              padding: 15px;
-              margin-bottom: 20px;
-              border-radius: 5px;
-            }
-            @media print {
-              body {
-                padding: 20px;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          ${brandingHTML}
-          <div class="warning">
-            <strong>DRAFT DOCUMENTATION</strong> - This note must be reviewed and approved by a licensed clinician before use.
-          </div>
-          <h1>${NOTE_TYPE_LABELS[note.note_type]}</h1>
-          <div class="meta">
-            Generated: ${format(new Date(note.created_at), 'MMMM d, yyyy h:mm a')}
-            ${
-              note.input_data?.patientDemographic?.diagnosis
-                ? `<br>Diagnosis: ${note.input_data.patientDemographic.diagnosis}`
-                : ''
-            }
-          </div>
-          <div class="note-content">${note.output_text.replace(/\n/g, '<br>')}</div>
-          ${
-            note.billing_justification
-              ? `
-          <div class="section">
-            <div class="section-title">Billing/Skilled Justification</div>
-            <div>${note.billing_justification}</div>
-          </div>
-          `
-              : ''
-          }
-          ${
-            note.hep_summary
-              ? `
-          <div class="section">
-            <div class="section-title">HEP Summary</div>
-            <div>${note.hep_summary}</div>
-          </div>
-          `
-              : ''
-          }
-        </body>
-      </html>
-    `;
-
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-    }, 250);
   };
 
   if (loading) {
@@ -299,7 +177,7 @@ export default function NoteDetailPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={copyToClipboard}>
+            <Button variant="outline" onClick={copyToClipboard} disabled={exportingPDF}>
               {copied ? (
                 <>
                   <Check className="mr-2 h-4 w-4" />
@@ -312,18 +190,50 @@ export default function NoteDetailPage() {
                 </>
               )}
             </Button>
-            <Button variant="outline" onClick={() => exportToPDF(false)}>
-              <Download className="mr-2 h-4 w-4" />
-              Export PDF
+            <Button
+              variant="outline"
+              onClick={() => exportToPDF(false)}
+              disabled={exportingPDF}
+            >
+              {exportingPDF ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <Download className="mr-2 h-4 w-4" />
+                  Export PDF
+                </>
+              )}
             </Button>
             {branding && (branding.logo_url || branding.letterhead_url || branding.clinic_name) && (
-              <Button onClick={() => exportToPDF(true)}>
-                <FileText className="mr-2 h-4 w-4" />
-                Branded PDF
+              <Button
+                onClick={() => exportToPDF(true)}
+                disabled={exportingPDF}
+              >
+                {exportingPDF ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="mr-2 h-4 w-4" />
+                    Branded PDF
+                  </>
+                )}
               </Button>
             )}
           </div>
         </div>
+
+        {pdfError && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{pdfError}</AlertDescription>
+          </Alert>
+        )}
 
         <Alert className="mb-6 border-orange-200 bg-orange-50">
           <AlertCircle className="h-4 w-4 text-orange-600" />
