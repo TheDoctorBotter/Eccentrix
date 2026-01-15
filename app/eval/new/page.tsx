@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { NoteInputData, Template, Intervention } from '@/lib/types';
+import DateOfServiceForm from '@/components/note-wizard/DateOfServiceForm';
 import PatientDemographicForm from '@/components/note-wizard/PatientDemographicForm';
 import SubjectiveForm from '@/components/note-wizard/SubjectiveForm';
 import ObjectiveForm from '@/components/note-wizard/ObjectiveForm';
@@ -136,10 +137,17 @@ export default function PtEvaluationNotePage() {
   };
 
   const updateInputData = (section: keyof NoteInputData, data: any) => {
-    setInputData((prev) => ({
-      ...prev,
-      [section]: { ...prev[section], ...data },
-    }));
+    setInputData((prev) => {
+      const currentSection = prev[section];
+      const updatedSection = typeof currentSection === 'object' && currentSection !== null
+        ? { ...currentSection, ...data }
+        : data;
+
+      return {
+        ...prev,
+        [section]: updatedSection,
+      };
+    });
   };
 
   return (
@@ -166,6 +174,11 @@ export default function PtEvaluationNotePage() {
         )}
 
         <div className="space-y-6">
+          <DateOfServiceForm
+            value={inputData.dateOfService}
+            onChange={(value) => setInputData((prev) => ({ ...prev, dateOfService: value }))}
+          />
+
           <PatientDemographicForm
             data={inputData.patientDemographic}
             onChange={(data) => updateInputData('patientDemographic', data)}

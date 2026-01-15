@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { formatNoteTitle } from '@/lib/note-utils';
+import { NoteType } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,10 +33,22 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
+    const patientName = body.input_data?.patientDemographic?.patientName;
+    const dateOfService = body.input_data?.dateOfService;
+
+    const title = formatNoteTitle(
+      patientName,
+      body.note_type as NoteType,
+      dateOfService,
+      new Date().toISOString()
+    );
+
     const { data, error } = await supabase
       .from('notes')
       .insert({
         note_type: body.note_type,
+        title: title,
+        date_of_service: dateOfService || null,
         input_data: body.input_data,
         output_text: body.output_text,
         billing_justification: body.billing_justification,

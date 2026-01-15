@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { Note, NOTE_TYPE_LABELS, BrandingSettings } from './types';
 import { format } from 'date-fns';
+import { formatSafePDFFilename } from './note-utils';
 
 interface PDFGenerationOptions {
   note: Note;
@@ -241,6 +242,13 @@ export async function generateNotePDF({
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 116, 139);
+
+    const dateOfService = note.date_of_service || note.input_data?.dateOfService;
+    if (dateOfService) {
+      doc.text(`Date of Service: ${format(new Date(dateOfService), 'MMMM d, yyyy')}`, margin, yPosition);
+      yPosition += 5;
+    }
+
     doc.text(`Generated: ${format(new Date(note.created_at), 'MMMM d, yyyy h:mm a')}`, margin, yPosition);
     yPosition += 10;
 
@@ -367,11 +375,13 @@ export async function generateNotePDF({
       });
     }
 
-    const patientName = note.input_data?.patientDemographic?.patientName || 'patient';
-    const safePatientName = patientName.replace(/[^a-zA-Z0-9-]/g, '_');
-    const dateStr = format(new Date(note.created_at), 'yyyy-MM-dd');
-    const noteTypeStr = note.note_type === 'daily_soap' ? 'DailySoap' : 'PTEvaluation';
-    const filename = `${noteTypeStr}-${safePatientName}-${dateStr}.pdf`;
+    const patientName = note.input_data?.patientDemographic?.patientName;
+    const filename = formatSafePDFFilename(
+      patientName,
+      note.note_type,
+      dateOfService,
+      note.created_at
+    );
 
     doc.save(filename);
   } catch (error) {

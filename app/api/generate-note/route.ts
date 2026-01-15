@@ -228,9 +228,10 @@ CRITICAL RULES:
 1. NEVER invent measurements, findings, or clinical data not provided
 2. If a field is missing or empty, write "Not provided" for demographic fields, or "Not assessed today" for clinical sections
 3. Use ONLY the information given in the user's input
-4. Follow the template structure exactly, replacing placeholders like {{patient_name}}, {{date_of_birth}}, {{diagnosis}}, {{referral_source}} with actual values or "Not provided"
-5. Include a brief "Skilled need" statement when generating daily notes (unless specifically excluded)
-6. If red flags are indicated, include appropriate referral language and safety warnings
+4. Follow the template structure exactly, replacing placeholders like {{patient_name}}, {{date_of_birth}}, {{diagnosis}}, {{referral_source}}, {{date_of_service}} with actual values or "Not provided"
+5. ALWAYS include "Date of Service: [date]" near the top of the note if provided, otherwise write "Date of Service: Not provided"
+6. Include a brief "Skilled need" statement when generating daily notes (unless specifically excluded)
+7. If red flags are indicated, include appropriate referral language and safety warnings
 
 STYLE PREFERENCES:
 - ${verbosityInstruction}
@@ -258,6 +259,10 @@ function buildUserPrompt(
   prompt += `TEMPLATE:\n${template}\n\n`;
 
   prompt += `INPUT DATA:\n`;
+
+  if (inputData.dateOfService) {
+    prompt += `\nDate of Service: ${inputData.dateOfService}\n`;
+  }
 
   if (inputData.patientDemographic) {
     prompt += `\nPatient Demographic:\n`;

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Note, NOTE_TYPE_LABELS } from '@/lib/types';
 import { format } from 'date-fns';
+import { formatNoteTitle } from '@/lib/note-utils';
 
 export default function Home() {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -191,19 +192,36 @@ export default function Home() {
                     className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors"
                   >
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <Badge variant="outline">
+                      <div className="font-medium text-slate-900 mb-2">
+                        {note.title ||
+                          formatNoteTitle(
+                            note.input_data?.patientDemographic?.patientName,
+                            note.note_type,
+                            note.date_of_service || note.input_data?.dateOfService,
+                            note.created_at
+                          )}
+                      </div>
+                      <div className="flex items-center gap-3 mb-1">
+                        <Badge variant="outline" className="text-xs">
                           {NOTE_TYPE_LABELS[note.note_type]}
                         </Badge>
-                        <span className="text-sm text-slate-500">
-                          {format(
-                            new Date(note.created_at),
-                            'MMM d, yyyy h:mm a'
-                          )}
+                        <span className="text-xs text-slate-500">
+                          Created {format(new Date(note.created_at), 'MMM d, yyyy')}
                         </span>
+                        {(note.date_of_service || note.input_data?.dateOfService) && (
+                          <span className="text-xs text-slate-500">
+                            Service:{' '}
+                            {format(
+                              new Date(
+                                note.date_of_service || note.input_data.dateOfService!
+                              ),
+                              'MMM d, yyyy'
+                            )}
+                          </span>
+                        )}
                       </div>
                       {note.input_data?.patientDemographic?.diagnosis && (
-                        <p className="text-sm text-slate-700">
+                        <p className="text-sm text-slate-600">
                           {note.input_data.patientDemographic.diagnosis}
                         </p>
                       )}

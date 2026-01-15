@@ -26,6 +26,7 @@ import { Note, NOTE_TYPE_LABELS, BrandingSettings } from '@/lib/types';
 import { format } from 'date-fns';
 import BrandingHeader from '@/components/BrandingHeader';
 import { generateNotePDF } from '@/lib/pdf-generator';
+import { formatNoteTitle } from '@/lib/note-utils';
 
 export default function NoteDetailPage() {
   const params = useParams();
@@ -166,15 +167,32 @@ export default function NoteDetailPage() {
           <div>
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-3xl font-bold text-slate-900">
-                Generated Note
+                {note.title ||
+                  formatNoteTitle(
+                    note.input_data?.patientDemographic?.patientName,
+                    note.note_type,
+                    note.date_of_service || note.input_data?.dateOfService,
+                    note.created_at
+                  )}
               </h1>
               <Badge variant="outline" className="text-base px-3 py-1">
                 {NOTE_TYPE_LABELS[note.note_type]}
               </Badge>
             </div>
-            <p className="text-slate-600">
-              Created {format(new Date(note.created_at), 'MMMM d, yyyy h:mm a')}
-            </p>
+            <div className="space-y-1 text-slate-600">
+              {(note.date_of_service || note.input_data?.dateOfService) && (
+                <p className="text-sm">
+                  Service Date:{' '}
+                  {format(
+                    new Date(note.date_of_service || note.input_data.dateOfService!),
+                    'MMMM d, yyyy'
+                  )}
+                </p>
+              )}
+              <p className="text-sm">
+                Created {format(new Date(note.created_at), 'MMMM d, yyyy h:mm a')}
+              </p>
+            </div>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={copyToClipboard} disabled={exportingPDF}>

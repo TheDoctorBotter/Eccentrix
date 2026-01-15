@@ -14,7 +14,21 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(data);
+    const dedupedMap = new Map();
+
+    if (data) {
+      for (const intervention of data) {
+        const key = `${intervention.category}|${intervention.name.toLowerCase().trim()}`;
+
+        if (!dedupedMap.has(key)) {
+          dedupedMap.set(key, intervention);
+        }
+      }
+    }
+
+    const dedupedData = Array.from(dedupedMap.values());
+
+    return NextResponse.json(dedupedData);
   } catch (error) {
     console.error('Error fetching interventions:', error);
     return NextResponse.json(

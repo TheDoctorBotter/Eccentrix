@@ -35,6 +35,7 @@ export interface RequiredSections {
 }
 
 export interface NoteInputData {
+  dateOfService?: string;
   patientDemographic?: {
     patientName?: string;
     dateOfBirth?: string;
@@ -72,6 +73,7 @@ export interface NoteInputData {
 export interface InterventionDetail {
   id: string;
   name: string;
+  category?: string;
   dosage?: string;
   cues?: string;
 }
@@ -88,6 +90,8 @@ export type AssistLevel =
 export interface Note {
   id: string;
   note_type: NoteType;
+  title?: string | null;
+  date_of_service?: string | null;
   input_data: NoteInputData;
   output_text: string;
   billing_justification: string | null;
