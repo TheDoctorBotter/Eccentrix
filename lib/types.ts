@@ -94,6 +94,8 @@ export interface Note {
   date_of_service?: string | null;
   input_data: NoteInputData;
   output_text: string;
+  /** Rich text content (JSON) - stores formatted note content for editing/export */
+  rich_content?: string | null;
   billing_justification: string | null;
   hep_summary: string | null;
   template_id: string | null;
