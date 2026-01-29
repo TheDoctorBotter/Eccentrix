@@ -47,6 +47,8 @@ import {
   updateRichNoteContent,
   isContentModified,
 } from '@/lib/rich-text/content-converter';
+import { TemplateExport, noteToTemplateData } from '@/components/TemplateExport';
+import { Building2 } from 'lucide-react';
 
 type ViewMode = 'view' | 'edit';
 
@@ -69,6 +71,7 @@ export default function NoteDetailPage() {
 
   // Export preview state
   const [showExportPreview, setShowExportPreview] = useState(false);
+  const [showTemplateExport, setShowTemplateExport] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
@@ -424,11 +427,19 @@ export default function NoteDetailPage() {
                   Edit
                 </Button>
                 <Button
+                  variant="outline"
                   onClick={() => setShowExportPreview(true)}
                   disabled={isExporting}
                 >
                   <Download className="mr-2 h-4 w-4" />
-                  Export
+                  Quick Export
+                </Button>
+                <Button
+                  onClick={() => setShowTemplateExport(true)}
+                  disabled={isExporting}
+                >
+                  <Building2 className="mr-2 h-4 w-4" />
+                  Export with Template
                 </Button>
               </>
             )}
@@ -571,7 +582,7 @@ export default function NoteDetailPage() {
           </Card>
         )}
 
-        {/* Export Preview Dialog */}
+        {/* Export Preview Dialog (Quick Export) */}
         <ExportPreview
           open={showExportPreview}
           onOpenChange={setShowExportPreview}
@@ -579,6 +590,15 @@ export default function NoteDetailPage() {
           onExportPDF={exportToPDF}
           onExportWord={exportToWord}
           isExporting={isExporting}
+        />
+
+        {/* Template Export Dialog */}
+        <TemplateExport
+          open={showTemplateExport}
+          onOpenChange={setShowTemplateExport}
+          note={note}
+          noteData={noteToTemplateData(note)}
+          defaultClinic={note.clinic_name || undefined}
         />
       </div>
     </div>

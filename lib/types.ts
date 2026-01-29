@@ -99,6 +99,10 @@ export interface Note {
   billing_justification: string | null;
   hep_summary: string | null;
   template_id: string | null;
+  /** Clinic/brand name for template-based export */
+  clinic_name?: string | null;
+  /** Document template used for export */
+  document_template_id?: string | null;
   created_at: string;
 }
 
