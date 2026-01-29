@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
 import { fillDocxTemplate, fillDocxTemplateRaw } from '@/lib/templates/docx-engine';
 import { NoteTemplateData, ExportFormat } from '@/lib/templates/types';
 
@@ -27,6 +28,10 @@ interface ExportRequestBody {
 
 export async function POST(request: NextRequest) {
   try {
+    // Use admin client if service role key is available (bypasses RLS)
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const client = serviceRoleKey ? supabaseAdmin : supabase;
+
     const body: ExportRequestBody = await request.json();
     const { template_id, format, note_data, note_id } = body;
 
@@ -53,28 +58,44 @@ export async function POST(request: NextRequest) {
     }
 
     // Get template from database
-    const { data: template, error: templateError } = await supabase
+    const { data: template, error: templateError } = await client
       .from('document_templates')
       .select('*')
       .eq('id', template_id)
       .single();
 
-    if (templateError || !template) {
+    if (templateError) {
+      console.error('Template query error:', templateError);
       return NextResponse.json(
-        { error: 'Template not found' },
+        { error: `Database error: ${templateError.message}. Code: ${templateError.code}` },
+        { status: 404 }
+      );
+    }
+
+    if (!template) {
+      return NextResponse.json(
+        { error: `Template not found for ID: ${template_id}` },
         { status: 404 }
       );
     }
 
     // Download template file from storage
-    const { data: fileData, error: downloadError } = await supabase.storage
+    console.log('Downloading template from:', STORAGE_BUCKET, template.file_key);
+    const { data: fileData, error: downloadError } = await client.storage
       .from(STORAGE_BUCKET)
       .download(template.file_key);
 
-    if (downloadError || !fileData) {
+    if (downloadError) {
       console.error('Error downloading template:', downloadError);
       return NextResponse.json(
-        { error: 'Failed to download template file' },
+        { error: `Storage download failed: ${downloadError.message}. Bucket: ${STORAGE_BUCKET}, Key: ${template.file_key}` },
+        { status: 500 }
+      );
+    }
+
+    if (!fileData) {
+      return NextResponse.json(
+        { error: `Template file is empty. Key: ${template.file_key}` },
         { status: 500 }
       );
     }
@@ -114,7 +135,7 @@ export async function POST(request: NextRequest) {
     if (format === 'docx') {
       // Update note with template reference if note_id provided
       if (note_id) {
-        await supabase
+        await client
           .from('notes')
           .update({
             document_template_id: template_id,
@@ -145,7 +166,7 @@ export async function POST(request: NextRequest) {
 
       // Update note with template reference if note_id provided
       if (note_id) {
-        await supabase
+        await client
           .from('notes')
           .update({
             document_template_id: template_id,
