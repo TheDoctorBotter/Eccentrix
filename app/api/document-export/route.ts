@@ -59,22 +59,38 @@ export async function POST(request: NextRequest) {
       .eq('id', template_id)
       .single();
 
-    if (templateError || !template) {
+    if (templateError) {
+      console.error('Template query error:', templateError);
       return NextResponse.json(
-        { error: 'Template not found' },
+        { error: `Database error: ${templateError.message}. Code: ${templateError.code}` },
+        { status: 404 }
+      );
+    }
+
+    if (!template) {
+      return NextResponse.json(
+        { error: `Template not found for ID: ${template_id}` },
         { status: 404 }
       );
     }
 
     // Download template file from storage
+    console.log('Downloading template from:', STORAGE_BUCKET, template.file_key);
     const { data: fileData, error: downloadError } = await supabase.storage
       .from(STORAGE_BUCKET)
       .download(template.file_key);
 
-    if (downloadError || !fileData) {
+    if (downloadError) {
       console.error('Error downloading template:', downloadError);
       return NextResponse.json(
-        { error: 'Failed to download template file' },
+        { error: `Storage download failed: ${downloadError.message}. Bucket: ${STORAGE_BUCKET}, Key: ${template.file_key}` },
+        { status: 500 }
+      );
+    }
+
+    if (!fileData) {
+      return NextResponse.json(
+        { error: `Template file is empty. Key: ${template.file_key}` },
         { status: 500 }
       );
     }
