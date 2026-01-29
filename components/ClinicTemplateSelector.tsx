@@ -73,14 +73,16 @@ export function ClinicTemplateSelector({
     async function fetchTemplates() {
       try {
         const response = await fetch('/api/templates/document');
+        const data = await response.json();
+
         if (response.ok) {
-          const data = await response.json();
           setTemplates(data);
         } else {
-          setError('Failed to load templates');
+          // Show the actual error from the API
+          setError(data.error || `Failed to load templates (${response.status})`);
         }
       } catch (err) {
-        setError('Failed to load templates');
+        setError(`Network error: ${err instanceof Error ? err.message : 'Failed to load templates'}`);
       } finally {
         setLoading(false);
       }
