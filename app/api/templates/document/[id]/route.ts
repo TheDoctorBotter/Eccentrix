@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
 
 const STORAGE_BUCKET = 'document-templates';
 
@@ -16,11 +17,13 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const client = serviceRoleKey ? supabaseAdmin : supabase;
     const { searchParams } = new URL(request.url);
     const download = searchParams.get('download') === 'true';
 
     // Get template metadata
-    const { data: template, error } = await supabase
+    const { data: template, error } = await client
       .from('document_templates')
       .select('*')
       .eq('id', params.id)
@@ -32,7 +35,7 @@ export async function GET(
 
     // If download requested, return the file
     if (download) {
-      const { data: fileData, error: downloadError } = await supabase.storage
+      const { data: fileData, error: downloadError } = await client.storage
         .from(STORAGE_BUCKET)
         .download(template.file_key);
 
@@ -71,11 +74,13 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const client = serviceRoleKey ? supabaseAdmin : supabase;
     const body = await request.json();
     const { template_name, description, is_default } = body;
 
     // Get current template
-    const { data: currentTemplate, error: fetchError } = await supabase
+    const { data: currentTemplate, error: fetchError } = await client
       .from('document_templates')
       .select('*')
       .eq('id', params.id)
@@ -87,7 +92,7 @@ export async function PATCH(
 
     // If setting as default, unset other defaults for same clinic + note_type
     if (is_default === true) {
-      await supabase
+      await client
         .from('document_templates')
         .update({ is_default: false })
         .eq('clinic_name', currentTemplate.clinic_name)
@@ -108,7 +113,7 @@ export async function PATCH(
       );
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('document_templates')
       .update(updateData)
       .eq('id', params.id)
@@ -135,8 +140,10 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const client = serviceRoleKey ? supabaseAdmin : supabase;
     // Get template to find file_key
-    const { data: template, error: fetchError } = await supabase
+    const { data: template, error: fetchError } = await client
       .from('document_templates')
       .select('file_key')
       .eq('id', params.id)
@@ -147,7 +154,7 @@ export async function DELETE(
     }
 
     // Delete from storage
-    const { error: storageError } = await supabase.storage
+    const { error: storageError } = await client.storage
       .from(STORAGE_BUCKET)
       .remove([template.file_key]);
 
@@ -157,7 +164,7 @@ export async function DELETE(
     }
 
     // Delete from database
-    const { error: dbError } = await supabase
+    const { error: dbError } = await client
       .from('document_templates')
       .delete()
       .eq('id', params.id);

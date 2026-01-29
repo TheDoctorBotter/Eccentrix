@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
 import { detectPlaceholdersFromXml } from '@/lib/templates/docx-engine';
 import { DocumentNoteType } from '@/lib/templates/types';
 
@@ -14,11 +15,13 @@ const STORAGE_BUCKET = 'document-templates';
 
 export async function GET(request: NextRequest) {
   try {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const client = serviceRoleKey ? supabaseAdmin : supabase;
     const { searchParams } = new URL(request.url);
     const clinicName = searchParams.get('clinic_name');
     const noteType = searchParams.get('note_type') as DocumentNoteType | null;
 
-    let query = supabase
+    let query = client
       .from('document_templates')
       .select('*')
       .order('clinic_name', { ascending: true })
@@ -52,6 +55,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const client = serviceRoleKey ? supabaseAdmin : supabase;
+
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const clinicName = formData.get('clinic_name') as string | null;
@@ -111,7 +117,7 @@ export async function POST(request: NextRequest) {
     const fileKey = `${sanitizedClinic}/${noteType}/${sanitizedName}_${timestamp}.docx`;
 
     // Upload to Supabase Storage
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await client.storage
       .from(STORAGE_BUCKET)
       .upload(fileKey, fileBuffer, {
         contentType:
@@ -121,6 +127,29 @@ export async function POST(request: NextRequest) {
 
     if (uploadError) {
       console.error('Error uploading file:', uploadError);
+      if (uploadError.message.includes('Bucket not found')) {
+        return NextResponse.json(
+          {
+            error: 'Storage bucket not found',
+            details: serviceRoleKey
+              ? `The "${STORAGE_BUCKET}" bucket does not exist. Please create it in Supabase Dashboard > Storage.`
+              : `The "${STORAGE_BUCKET}" bucket is not accessible. Verify the bucket exists in the same Supabase project as your NEXT_PUBLIC_SUPABASE_URL, and either set SUPABASE_SERVICE_ROLE_KEY or allow uploads via storage policies.`,
+          },
+          { status: 500 }
+        );
+      }
+
+      if (uploadError.message.includes('signature') || uploadError.message.includes('JWT')) {
+        return NextResponse.json(
+          {
+            error: 'Authentication failed - Signature verification failed',
+            details:
+              'The SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY do not match or belong to different projects. Please verify both values are from the same Supabase project.',
+          },
+          { status: 500 }
+        );
+      }
+
       return NextResponse.json(
         { error: `Failed to upload file: ${uploadError.message}` },
         { status: 500 }
@@ -129,7 +158,7 @@ export async function POST(request: NextRequest) {
 
     // If this should be the default, unset any existing defaults
     if (isDefault) {
-      await supabase
+      await client
         .from('document_templates')
         .update({ is_default: false })
         .eq('clinic_name', clinicName)
@@ -137,7 +166,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create database record
-    const { data, error: dbError } = await supabase
+    const { data, error: dbError } = await client
       .from('document_templates')
       .insert({
         clinic_name: clinicName,
@@ -155,7 +184,7 @@ export async function POST(request: NextRequest) {
 
     if (dbError) {
       // Clean up uploaded file if DB insert fails
-      await supabase.storage.from(STORAGE_BUCKET).remove([fileKey]);
+      await client.storage.from(STORAGE_BUCKET).remove([fileKey]);
 
       console.error('Error creating template record:', dbError);
       return NextResponse.json({ error: dbError.message }, { status: 500 });
