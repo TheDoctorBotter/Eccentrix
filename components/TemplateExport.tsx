@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,7 @@ import {
   NoteTemplateData,
   ExportFormat,
 } from '@/lib/templates/types';
-import { Note } from '@/lib/types';
+import { Note, BrandingSettings } from '@/lib/types';
 
 interface TemplateExportProps {
   open: boolean;
@@ -51,6 +51,17 @@ export function TemplateExport({
   const [exportFormat, setExportFormat] = useState<ExportFormat | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [branding, setBranding] = useState<BrandingSettings | null>(null);
+
+  // Fetch branding settings for provider/signature info
+  useEffect(() => {
+    if (open) {
+      fetch('/api/branding')
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => setBranding(data))
+        .catch(() => setBranding(null));
+    }
+  }, [open]);
 
   const handleExport = async (format: ExportFormat) => {
     if (!selectedTemplate) {
@@ -64,13 +75,31 @@ export function TemplateExport({
     setSuccess(null);
 
     try {
+      // Merge branding/provider info with note data
+      const exportData: NoteTemplateData = {
+        ...noteData,
+        // Provider/Signature info from branding settings
+        therapistName: branding?.provider_name || '',
+        therapistCredentials: branding?.provider_credentials || '',
+        therapistLicense: branding?.provider_license || '',
+        signatureDate: new Date().toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        }),
+        // Clinic info from branding
+        clinicName: branding?.clinic_name || '',
+        clinicAddress: branding?.address || '',
+        clinicPhone: branding?.phone || '',
+      };
+
       const response = await fetch('/api/document-export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           template_id: selectedTemplate.id,
           format,
-          note_data: noteData,
+          note_data: exportData,
           note_id: note.id,
         }),
       });
