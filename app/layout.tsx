@@ -2,12 +2,13 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { AlertTriangle } from 'lucide-react';
+import { AuthProvider } from '@/lib/auth-context';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'PT Note Writer',
-  description: 'AI-powered physical therapy documentation assistant',
+  title: 'Buckeye EMR',
+  description: 'Electronic Medical Records for Physical Therapy',
   openGraph: {
     images: [
       {
@@ -33,12 +34,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <div className="bg-red-600 text-white py-2 px-4 flex items-center justify-center gap-2 text-sm font-medium sticky top-0 z-50 shadow-md">
-          <AlertTriangle className="h-4 w-4" />
-          <span>DRAFT DOCUMENTATION – Clinician must review all generated content. Do not enter PHI or protected health information.</span>
-          <AlertTriangle className="h-4 w-4" />
-        </div>
-        {children}
+        <AuthProvider>
+          <div className="bg-red-600 text-white py-2 px-4 flex items-center justify-center gap-2 text-sm font-medium sticky top-0 z-50 shadow-md">
+            <AlertTriangle className="h-4 w-4" />
+            <span>DRAFT DOCUMENTATION – Clinician must review all generated content. Do not enter PHI or protected health information.</span>
+            <AlertTriangle className="h-4 w-4" />
+          </div>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

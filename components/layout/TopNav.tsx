@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
 import {
   Home,
   Settings,
@@ -19,8 +20,13 @@ import {
   Building2,
   User,
   LogOut,
+  Shield,
+  Stethoscope,
+  UserCog,
+  Briefcase,
 } from 'lucide-react';
 import { Clinic } from '@/lib/types';
+import { useAuth } from '@/lib/auth-context';
 
 interface TopNavProps {
   activeClinic?: Clinic | null;
@@ -30,10 +36,62 @@ interface TopNavProps {
 
 export function TopNav({ activeClinic, clinics = [], onClinicChange }: TopNavProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, currentClinic, memberships, signOut, setCurrentClinic } = useAuth();
 
   const isActive = (path: string) => {
     if (path === '/') return pathname === '/';
     return pathname.startsWith(path);
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/auth/sign-in');
+  };
+
+  const getRoleIcon = (role: string) => {
+    switch (role) {
+      case 'admin':
+        return <Shield className="h-3 w-3" />;
+      case 'pt':
+        return <Stethoscope className="h-3 w-3" />;
+      case 'pta':
+        return <UserCog className="h-3 w-3" />;
+      case 'front_office':
+        return <Briefcase className="h-3 w-3" />;
+      default:
+        return <User className="h-3 w-3" />;
+    }
+  };
+
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'admin':
+        return 'Admin';
+      case 'pt':
+        return 'PT';
+      case 'pta':
+        return 'PTA';
+      case 'front_office':
+        return 'Front Office';
+      default:
+        return role;
+    }
+  };
+
+  const getRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case 'admin':
+        return 'bg-purple-100 text-purple-700 border-purple-200';
+      case 'pt':
+        return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      case 'pta':
+        return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'front_office':
+        return 'bg-slate-100 text-slate-700 border-slate-200';
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
   };
 
   return (
@@ -110,11 +168,66 @@ export function TopNav({ activeClinic, clinics = [], onClinicChange }: TopNavPro
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="gap-2">
                   <User className="h-4 w-4" />
-                  <span className="hidden sm:inline">Account</span>
+                  <span className="hidden sm:inline">
+                    {user?.email ? user.email.split('@')[0] : 'Account'}
+                  </span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-2">
+                    <p className="text-sm font-medium leading-none">
+                      {user?.email || 'Not signed in'}
+                    </p>
+                    {currentClinic && (
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className={`text-xs gap-1 ${getRoleBadgeColor(currentClinic.role)}`}
+                          >
+                            {getRoleIcon(currentClinic.role)}
+                            {getRoleLabel(currentClinic.role)}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-slate-500 flex items-center gap-1">
+                          <Building2 className="h-3 w-3" />
+                          {currentClinic.clinic_name}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </DropdownMenuLabel>
+
+                {memberships.length > 1 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-xs text-slate-500 font-normal">
+                      Switch Clinic
+                    </DropdownMenuLabel>
+                    {memberships.map((membership) => (
+                      <DropdownMenuItem
+                        key={membership.id}
+                        onClick={() => setCurrentClinic(membership)}
+                        className={currentClinic?.id === membership.id ? 'bg-slate-100' : ''}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4" />
+                            <span className="text-sm">{membership.clinic_name}</span>
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${getRoleBadgeColor(membership.role)}`}
+                          >
+                            {getRoleLabel(membership.role)}
+                          </Badge>
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                )}
+
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link href="/settings">
@@ -123,7 +236,10 @@ export function TopNav({ activeClinic, clinics = [], onClinicChange }: TopNavPro
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-600">
+                <DropdownMenuItem
+                  onClick={handleSignOut}
+                  className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                >
                   <LogOut className="mr-2 h-4 w-4" />
                   Sign Out
                 </DropdownMenuItem>
