@@ -436,8 +436,12 @@ USING (
 
 -- Templates table
 ALTER TABLE IF EXISTS templates ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "templates_select" ON templates FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "templates_all_admin" ON templates FOR ALL
+
+DROP POLICY IF EXISTS "templates_select" ON templates;
+CREATE POLICY "templates_select" ON templates FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "templates_all_admin" ON templates;
+CREATE POLICY "templates_all_admin" ON templates FOR ALL
 USING (
   EXISTS (
     SELECT 1 FROM clinic_memberships
@@ -449,7 +453,9 @@ USING (
 
 -- Document templates table
 ALTER TABLE IF EXISTS document_templates ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "document_templates_select" ON document_templates FOR SELECT USING (
+
+DROP POLICY IF EXISTS "document_templates_select" ON document_templates;
+CREATE POLICY "document_templates_select" ON document_templates FOR SELECT USING (
   EXISTS (
     SELECT 1 FROM clinic_memberships
     WHERE user_id = auth.uid()
@@ -458,7 +464,9 @@ CREATE POLICY IF NOT EXISTS "document_templates_select" ON document_templates FO
       AND is_active = true
   )
 );
-CREATE POLICY IF NOT EXISTS "document_templates_all_admin" ON document_templates FOR ALL
+
+DROP POLICY IF EXISTS "document_templates_all_admin" ON document_templates;
+CREATE POLICY "document_templates_all_admin" ON document_templates FOR ALL
 USING (
   EXISTS (
     SELECT 1 FROM clinic_memberships
@@ -472,7 +480,9 @@ USING (
 
 -- Branding settings table
 ALTER TABLE IF EXISTS branding_settings ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "branding_settings_select" ON branding_settings FOR SELECT USING (
+
+DROP POLICY IF EXISTS "branding_settings_select" ON branding_settings;
+CREATE POLICY "branding_settings_select" ON branding_settings FOR SELECT USING (
   EXISTS (
     SELECT 1 FROM clinic_memberships
     WHERE user_id = auth.uid()
@@ -481,7 +491,9 @@ CREATE POLICY IF NOT EXISTS "branding_settings_select" ON branding_settings FOR 
       AND is_active = true
   )
 );
-CREATE POLICY IF NOT EXISTS "branding_settings_all_admin" ON branding_settings FOR ALL
+
+DROP POLICY IF EXISTS "branding_settings_all_admin" ON branding_settings;
+CREATE POLICY "branding_settings_all_admin" ON branding_settings FOR ALL
 USING (
   EXISTS (
     SELECT 1 FROM clinic_memberships
