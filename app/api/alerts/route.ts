@@ -126,7 +126,9 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching draft evaluations:', draftsError);
     } else if (draftEvals) {
       for (const doc of draftEvals) {
-        const patient = doc.patients as { first_name: string; last_name: string } | null;
+        // Handle both array and object responses from Supabase join
+        const patientsData = doc.patients as { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null;
+        const patient = Array.isArray(patientsData) ? patientsData[0] : patientsData;
         if (patient) {
           alerts.push({
             id: `draft-${doc.id}`,
