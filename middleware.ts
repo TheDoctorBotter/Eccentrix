@@ -1,36 +1,39 @@
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
-  const supabase = createMiddlewareClient({ req, res });
 
-  // Refresh session if expired
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  // Get the pathname
+  const path = req.nextUrl.pathname;
 
-  const isAuthPage = req.nextUrl.pathname.startsWith('/auth');
-  const isPublicFile = req.nextUrl.pathname.match(/\.(ico|png|jpg|jpeg|svg|css|js)$/);
-
-  // Allow public files
-  if (isPublicFile) {
+  // Allow all auth routes
+  if (path.startsWith('/auth')) {
     return res;
   }
 
-  // If user is not signed in and trying to access protected route
-  if (!session && !isAuthPage) {
-    const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = '/auth/sign-in';
-    redirectUrl.searchParams.set('redirectTo', req.nextUrl.pathname);
-    return NextResponse.redirect(redirectUrl);
+  // Allow API routes (they handle their own auth)
+  if (path.startsWith('/api')) {
+    return res;
   }
 
-  // If user is signed in and trying to access auth pages
-  if (session && isAuthPage) {
-    const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = '/';
+  // Allow public files
+  if (
+    path.match(/\.(ico|png|jpg|jpeg|svg|gif|webp|css|js|woff|woff2|ttf|eot)$/) ||
+    path.startsWith('/_next') ||
+    path.startsWith('/favicon')
+  ) {
+    return res;
+  }
+
+  // Check for session cookie
+  const supabaseToken = req.cookies.get('sb-access-token');
+  const hasSession = !!supabaseToken;
+
+  // If no session, redirect to sign-in
+  if (!hasSession) {
+    const redirectUrl = new URL('/auth/sign-in', req.url);
+    redirectUrl.searchParams.set('redirectTo', path);
     return NextResponse.redirect(redirectUrl);
   }
 
@@ -44,8 +47,9 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public files (public folder)
+     * - public files (images, etc)
      */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
+
