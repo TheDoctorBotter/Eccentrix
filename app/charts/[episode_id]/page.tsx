@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,16 +35,11 @@ import {
 import { format } from 'date-fns';
 
 interface PageProps {
-  params: Promise<{ episode_id: string }>;
+  params: { episode_id: string };
 }
 
 export default function PatientChartPage({ params }: PageProps) {
-  // Safely unwrap async params with null check
-  if (!params) {
-    throw new Error('Missing params');
-  }
-  const resolvedParams = use(params);
-  const episodeId = resolvedParams.episode_id;
+  const episodeId = params.episode_id;
 
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [activeClinic, setActiveClinic] = useState<Clinic | null>(null);
