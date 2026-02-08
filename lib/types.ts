@@ -7,6 +7,69 @@ export const NOTE_TYPE_LABELS: Record<NoteType, string> = {
   pt_evaluation: 'PT Evaluation',
 };
 
+// ============================================================================
+// Clinical Finalization Types
+// ============================================================================
+
+// Clinical document types for finalization rules
+export type ClinicalDocType =
+  | 'daily_note'
+  | 'evaluation'
+  | 're_evaluation'
+  | 'progress_summary'
+  | 'discharge_summary'
+  | 'uploaded_document';
+
+export const CLINICAL_DOC_TYPE_LABELS: Record<ClinicalDocType, string> = {
+  daily_note: 'Daily Note',
+  evaluation: 'Initial Evaluation',
+  re_evaluation: 'Re-Evaluation',
+  progress_summary: 'Progress Summary',
+  discharge_summary: 'Discharge Summary',
+  uploaded_document: 'Uploaded Document',
+};
+
+// Document types that require PT to finalize
+export const PT_ONLY_FINALIZATION_TYPES: ClinicalDocType[] = [
+  'evaluation',
+  're_evaluation',
+  'progress_summary',
+  'discharge_summary',
+];
+
+// Document status
+export type DocumentStatus = 'draft' | 'final';
+
+// Clinic roles
+export type ClinicRole = 'pt' | 'pta' | 'admin' | 'front_office';
+
+export const CLINIC_ROLE_LABELS: Record<ClinicRole, string> = {
+  pt: 'Physical Therapist',
+  pta: 'Physical Therapist Assistant',
+  admin: 'Administrator',
+  front_office: 'Front Office',
+};
+
+// Clinic membership
+export interface ClinicMembership {
+  id: string;
+  user_id: string;
+  clinic_id?: string | null;
+  clinic_name: string;
+  role: ClinicRole;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Helper to check if user can finalize a doc type
+export function canUserFinalize(role: ClinicRole, docType: ClinicalDocType): boolean {
+  if (role === 'pt') return true;
+  if (PT_ONLY_FINALIZATION_TYPES.includes(docType)) return false;
+  // PTA can finalize daily notes only (not implemented yet - return false for now)
+  return false;
+}
+
 export interface Template {
   id: string;
   name: string;
@@ -104,6 +167,16 @@ export interface Note {
   /** Document template used for export */
   document_template_id?: string | null;
   created_at: string;
+
+  // Finalization fields
+  /** Document status: draft or final */
+  status?: DocumentStatus;
+  /** Clinical document type for finalization rules */
+  doc_type?: ClinicalDocType | null;
+  /** Timestamp when document was finalized */
+  finalized_at?: string | null;
+  /** User ID who finalized the document */
+  finalized_by?: string | null;
 }
 
 export interface Intervention {
