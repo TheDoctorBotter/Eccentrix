@@ -217,3 +217,128 @@ export interface BrandingSettings {
   created_at?: string;
   updated_at?: string;
 }
+
+// ============================================================================
+// EMR Core Types
+// ============================================================================
+
+export interface Clinic {
+  id: string;
+  name: string;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  logo_url?: string | null;
+  letterhead_url?: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Patient {
+  id: string;
+  clinic_id: string;
+  first_name: string;
+  last_name: string;
+  date_of_birth?: string | null;
+  gender?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  primary_diagnosis?: string | null;
+  secondary_diagnoses?: string[] | null;
+  referring_physician?: string | null;
+  insurance_id?: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type EpisodeStatus = 'active' | 'discharged' | 'on_hold';
+
+export interface Episode {
+  id: string;
+  patient_id: string;
+  clinic_id: string;
+  start_date: string;
+  end_date?: string | null;
+  status: EpisodeStatus;
+  diagnosis?: string | null;
+  diagnosis_codes?: string[] | null;
+  frequency?: string | null;
+  duration?: string | null;
+  primary_pt_id?: string | null;
+  care_team_ids?: string[] | null;
+  discharged_at?: string | null;
+  discharged_by?: string | null;
+  discharge_reason?: string | null;
+  created_at: string;
+  updated_at: string;
+
+  // Joined fields from views
+  patient?: Patient;
+  first_name?: string;
+  last_name?: string;
+  date_of_birth?: string;
+  primary_diagnosis?: string;
+  referring_physician?: string;
+}
+
+export interface Document {
+  id: string;
+  episode_id: string;
+  clinic_id: string;
+  patient_id: string;
+  doc_type: ClinicalDocType;
+  legacy_note_id?: string | null;
+  title?: string | null;
+  date_of_service: string;
+  input_data?: NoteInputData | null;
+  output_text?: string | null;
+  rich_content?: unknown | null;
+  billing_justification?: string | null;
+  hep_summary?: string | null;
+  template_id?: string | null;
+  document_template_id?: string | null;
+  status: DocumentStatus;
+  finalized_at?: string | null;
+  finalized_by?: string | null;
+  file_url?: string | null;
+  file_name?: string | null;
+  file_size?: number | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+
+  // Joined fields
+  episode?: Episode;
+  patient?: Patient;
+  first_name?: string;
+  last_name?: string;
+}
+
+// Alert types for documentation due
+export type AlertType =
+  | 'daily_note_due'
+  | 'eval_draft'
+  | 're_eval_due'
+  | 'progress_note_due';
+
+export interface DocumentationAlert {
+  id: string;
+  patient_id: string;
+  episode_id: string;
+  patient_name: string;
+  alert_type: AlertType;
+  alert_message: string;
+  due_date?: string;
+}
+
+export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
+  daily_note_due: 'Daily note due today',
+  eval_draft: 'Evaluation draft not finalized',
+  re_eval_due: 'Re-evaluation due',
+  progress_note_due: 'Progress note due',
+};
+
