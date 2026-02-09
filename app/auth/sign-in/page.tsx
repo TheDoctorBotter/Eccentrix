@@ -16,31 +16,40 @@ export default function SignInPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
+
+  const addDebug = (message: string) => {
+    setDebugInfo(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setDebugInfo([]);
 
     try {
-      // Test network connectivity first
-      console.log('Attempting sign in with:', { email, supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL });
+      addDebug('Starting sign in...');
+      addDebug(`Supabase URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL || 'MISSING'}`);
+      addDebug(`Has API key: ${!!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`);
 
+      addDebug('Calling signInWithPassword...');
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      console.log('Sign in response:', { data: !!data, error: error?.message });
+      addDebug(`Response received - User: ${!!data?.user}, Error: ${!!error}`);
 
       if (error) {
-        console.error('Supabase auth error:', error);
+        addDebug(`Auth error: ${error.message}`);
         setError(error.message);
         return;
       }
 
       if (data.user) {
-        // Check if user has any clinic memberships
+        addDebug('User authenticated, checking memberships...');
+
         const { data: memberships, error: membershipError } = await supabase
           .from('clinic_memberships')
           .select('*')
@@ -48,29 +57,30 @@ export default function SignInPage() {
           .eq('is_active', true)
           .limit(1);
 
-        console.log('Memberships check:', { memberships: !!memberships, error: membershipError?.message });
+        addDebug(`Memberships: ${memberships?.length || 0}, Error: ${!!membershipError}`);
 
         if (membershipError) {
-          console.error('Error checking memberships:', membershipError);
+          addDebug(`Membership error: ${membershipError.message}`);
           setError('Error checking account permissions. Please try again.');
           await supabase.auth.signOut();
           return;
         }
 
         if (!memberships || memberships.length === 0) {
+          addDebug('No clinic memberships found');
           setError('Your account is not assigned to any clinic. Please contact your administrator.');
           await supabase.auth.signOut();
           return;
         }
 
-        // Redirect to home
-        console.log('Sign in successful, redirecting...');
+        addDebug('Sign in successful, redirecting...');
         router.push('/');
         router.refresh();
       }
     } catch (err: any) {
-      console.error('Sign in exception:', err);
-      setError(`Network error: ${err.message || 'Please check your connection and try again.'}`);
+      const errorMsg = err?.message || String(err);
+      addDebug(`Exception caught: ${errorMsg}`);
+      setError(`Network error: ${errorMsg}`);
     } finally {
       setLoading(false);
     }
@@ -159,6 +169,20 @@ export default function SignInPage() {
                   Forgot your password?
                 </Link>
               </div>
+
+              {/* Debug Info - visible on mobile */}
+              {debugInfo.length > 0 && (
+                <div className="mt-4 p-3 bg-slate-50 rounded border border-slate-200">
+                  <p className="text-xs font-semibold mb-2">Debug Log:</p>
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {debugInfo.map((msg, i) => (
+                      <p key={i} className="text-xs text-slate-600 font-mono break-all">
+                        {msg}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
             </form>
           </CardContent>
         </Card>
