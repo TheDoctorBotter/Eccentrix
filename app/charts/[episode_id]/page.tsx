@@ -259,7 +259,7 @@ export default function PatientChartPage({ params }: PageProps) {
                     <FileText className="h-5 w-5 text-emerald-600" />
                     <CardTitle className="text-lg">Documents</CardTitle>
                   </div>
-                  <Link href={`/notes/new?episode_id=${episodeId}`}>
+                  <Link href={`/charts/${episodeId}/documents/new`}>
                     <Button size="sm" className="gap-1">
                       <Plus className="h-4 w-4" />
                       Add Document
@@ -330,28 +330,22 @@ export default function PatientChartPage({ params }: PageProps) {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
-                  <Link href={`/notes/new?episode_id=${episodeId}&type=daily_note`}>
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <FileText className="h-4 w-4" />
-                      Daily Note
-                    </Button>
-                  </Link>
-                  <Link href={`/notes/new?episode_id=${episodeId}&type=progress_summary`}>
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <Clock className="h-4 w-4" />
-                      Progress Summary
-                    </Button>
-                  </Link>
-                  <Link href={`/notes/new?episode_id=${episodeId}&type=re_evaluation`}>
+                  <Link href={`/charts/${episodeId}/documents/new?type=evaluation`}>
                     <Button variant="outline" size="sm" className="gap-2">
                       <Stethoscope className="h-4 w-4" />
-                      Re-Evaluation
+                      New Evaluation
                     </Button>
                   </Link>
-                  <Link href={`/notes/new?episode_id=${episodeId}&type=discharge_summary`}>
+                  <Link href={`/charts/${episodeId}/documents/new?type=daily_note`}>
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <FileText className="h-4 w-4" />
+                      New Daily Note
+                    </Button>
+                  </Link>
+                  <Link href={`/charts/${episodeId}/documents/new?type=discharge_summary`}>
                     <Button variant="outline" size="sm" className="gap-2">
                       <CheckCircle2 className="h-4 w-4" />
-                      Discharge Summary
+                      New Discharge
                     </Button>
                   </Link>
                 </div>
