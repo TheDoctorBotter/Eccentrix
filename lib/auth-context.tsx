@@ -59,28 +59,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) throw error;
 
+      console.log('AuthContext - Fetched memberships:', data);
       setMemberships(data || []);
 
       // Try to restore previously selected clinic from cookie
       const savedClinicId = getCookie(ACTIVE_CLINIC_COOKIE);
+      console.log('AuthContext - Saved clinic ID from cookie:', savedClinicId);
       let clinicToSet: ClinicMembership | null = null;
 
       if (savedClinicId && data) {
         // Check if saved clinic is still in user's memberships
         clinicToSet = data.find((m) => m.clinic_id === savedClinicId) || null;
+        console.log('AuthContext - Found saved clinic in memberships:', clinicToSet);
       }
 
       // Fall back to first clinic if saved clinic not found
       if (!clinicToSet && data && data.length > 0) {
         clinicToSet = data[0];
+        console.log('AuthContext - Falling back to first clinic:', clinicToSet);
       }
 
       if (clinicToSet) {
+        console.log('AuthContext - Setting current clinic:', clinicToSet);
         setCurrentClinicState(clinicToSet);
         // Ensure cookie is set
         if (clinicToSet.clinic_id) {
           setCookie(ACTIVE_CLINIC_COOKIE, clinicToSet.clinic_id);
         }
+      } else {
+        console.log('AuthContext - No clinic to set!');
       }
     } catch (error) {
       console.error('Error fetching memberships:', error);

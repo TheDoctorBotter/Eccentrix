@@ -36,9 +36,14 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log('Homepage useEffect - currentClinic:', currentClinic);
+    console.log('Homepage useEffect - authLoading:', authLoading);
     if (currentClinic?.clinic_id) {
+      console.log('Fetching caseload for clinic:', currentClinic.clinic_id);
       fetchCaseload(currentClinic.clinic_id);
       fetchAlerts(currentClinic.clinic_id);
+    } else {
+      console.log('Not fetching - currentClinic or clinic_id is null');
     }
   }, [currentClinic]);
 
