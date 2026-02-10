@@ -26,8 +26,8 @@ import {
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import { DeletePatientDialog } from '@/components/DeletePatientDialog';
+import { useAuth } from '@/lib/auth-context';
 import {
-  Clinic,
   Episode,
   Document,
   ClinicalDocType,
@@ -41,16 +41,11 @@ interface PageProps {
 
 export default function PatientChartPage({ params }: PageProps) {
   const episodeId = params.episode_id;
+  const { currentClinic } = useAuth();
 
-  const [clinics, setClinics] = useState<Clinic[]>([]);
-  const [activeClinic, setActiveClinic] = useState<Clinic | null>(null);
   const [episode, setEpisode] = useState<Episode | null>(null);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    initializeApp();
-  }, []);
 
   useEffect(() => {
     if (episodeId) {
@@ -58,21 +53,6 @@ export default function PatientChartPage({ params }: PageProps) {
       fetchDocuments();
     }
   }, [episodeId]);
-
-  const initializeApp = async () => {
-    try {
-      const clinicsRes = await fetch('/api/clinics');
-      if (clinicsRes.ok) {
-        const clinicsData = await clinicsRes.json();
-        setClinics(clinicsData);
-        if (clinicsData.length > 0) {
-          setActiveClinic(clinicsData[0]);
-        }
-      }
-    } catch (error) {
-      console.error('Error initializing app:', error);
-    }
-  };
 
   const fetchEpisodeDetails = async () => {
     setLoading(true);
@@ -100,10 +80,6 @@ export default function PatientChartPage({ params }: PageProps) {
       console.error('Error fetching documents:', error);
       setDocuments([]);
     }
-  };
-
-  const handleClinicChange = (clinic: Clinic) => {
-    setActiveClinic(clinic);
   };
 
   const calculateAge = (dob: string | null | undefined): string => {
@@ -151,11 +127,7 @@ export default function PatientChartPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
-      <TopNav
-        activeClinic={activeClinic}
-        clinics={clinics}
-        onClinicChange={handleClinicChange}
-      />
+      <TopNav />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Button */}
