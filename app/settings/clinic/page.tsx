@@ -14,11 +14,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Building2, Loader2, Plus, Trash2 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
-import { Clinic } from '@/lib/types';
+import { useAuth } from '@/lib/auth-context';
 
 export default function ClinicSettingsPage() {
-  const [clinics, setClinics] = useState<Clinic[]>([]);
-  const [activeClinic, setActiveClinic] = useState<Clinic | null>(null);
+  const { currentClinic, memberships } = useAuth();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -32,38 +31,30 @@ export default function ClinicSettingsPage() {
   });
 
   useEffect(() => {
-    initializeApp();
-  }, []);
-
-  useEffect(() => {
-    if (activeClinic) {
-      setFormData({
-        name: activeClinic.name || '',
-        address: activeClinic.address || '',
-        phone: activeClinic.phone || '',
-        email: activeClinic.email || '',
-        website: activeClinic.website || '',
-      });
+    if (currentClinic) {
+      // Fetch clinic details
+      fetchClinicDetails();
     }
-  }, [activeClinic]);
+  }, [currentClinic]);
 
-  const initializeApp = async () => {
+  const fetchClinicDetails = async () => {
+    if (!currentClinic) return;
+
     try {
-      const clinicsRes = await fetch('/api/clinics');
-      if (clinicsRes.ok) {
-        const clinicsData = await clinicsRes.json();
-        setClinics(clinicsData);
-        if (clinicsData.length > 0) {
-          setActiveClinic(clinicsData[0]);
-        }
+      const response = await fetch(`/api/clinics/${currentClinic.clinic_id}`);
+      if (response.ok) {
+        const clinic = await response.json();
+        setFormData({
+          name: clinic.name || '',
+          address: clinic.address || '',
+          phone: clinic.phone || '',
+          email: clinic.email || '',
+          website: clinic.website || '',
+        });
       }
     } catch (error) {
-      console.error('Error initializing app:', error);
+      console.error('Error fetching clinic details:', error);
     }
-  };
-
-  const handleClinicChange = (clinic: Clinic) => {
-    setActiveClinic(clinic);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -72,25 +63,22 @@ export default function ClinicSettingsPage() {
   };
 
   const handleSave = async () => {
-    if (!activeClinic) return;
+    if (!currentClinic) return;
 
     setSaving(true);
     setMessage(null);
 
     try {
-      const res = await fetch(`/api/clinics/${activeClinic.id}`, {
+      const res = await fetch(`/api/clinics/${currentClinic.clinic_id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
 
       if (res.ok) {
-        const updated = await res.json();
-        setClinics((prev) =>
-          prev.map((c) => (c.id === updated.id ? updated : c))
-        );
-        setActiveClinic(updated);
         setMessage({ type: 'success', text: 'Clinic settings saved successfully' });
+        // Refresh clinic details
+        fetchClinicDetails();
       } else {
         const error = await res.json();
         setMessage({ type: 'error', text: error.error || 'Failed to save clinic settings' });
@@ -115,10 +103,7 @@ export default function ClinicSettingsPage() {
       });
 
       if (res.ok) {
-        const newClinic = await res.json();
-        setClinics((prev) => [...prev, newClinic]);
-        setActiveClinic(newClinic);
-        setMessage({ type: 'success', text: 'Clinic created successfully' });
+        setMessage({ type: 'success', text: 'Clinic created successfully. Use the clinic switcher to select it.' });
       } else {
         const error = await res.json();
         setMessage({ type: 'error', text: error.error || 'Failed to create clinic' });
@@ -131,11 +116,7 @@ export default function ClinicSettingsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
-      <TopNav
-        activeClinic={activeClinic}
-        clinics={clinics}
-        onClinicChange={handleClinicChange}
-      />
+      <TopNav />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Button */}
@@ -181,7 +162,7 @@ export default function ClinicSettingsPage() {
               </div>
             )}
 
-            {!activeClinic ? (
+            {!currentClinic ? (
               <div className="text-center py-8 text-slate-500">
                 <Building2 className="h-12 w-12 mx-auto mb-4 text-slate-300" />
                 <p className="mb-4">No clinic selected</p>
@@ -261,7 +242,7 @@ export default function ClinicSettingsPage() {
         </Card>
 
         {/* Clinic List */}
-        {clinics.length > 1 && (
+        {memberships.length > 1 && (
           <Card className="mt-6">
             <CardHeader>
               <CardTitle className="text-base">All Clinics</CardTitle>
@@ -271,22 +252,20 @@ export default function ClinicSettingsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {clinics.map((clinic) => (
+                {memberships.map((membership) => (
                   <div
-                    key={clinic.id}
+                    key={membership.clinic_id}
                     className={`flex items-center justify-between p-3 border rounded-lg ${
-                      activeClinic?.id === clinic.id
+                      currentClinic?.clinic_id === membership.clinic_id
                         ? 'border-emerald-200 bg-emerald-50'
                         : ''
                     }`}
                   >
                     <div>
-                      <p className="font-medium">{clinic.name}</p>
-                      {clinic.address && (
-                        <p className="text-sm text-slate-500">{clinic.address}</p>
-                      )}
+                      <p className="font-medium">{membership.clinic_name}</p>
+                      <p className="text-sm text-slate-500 capitalize">{membership.role}</p>
                     </div>
-                    {activeClinic?.id === clinic.id && (
+                    {currentClinic?.clinic_id === membership.clinic_id && (
                       <span className="text-xs text-emerald-600 font-medium">
                         Currently Editing
                       </span>

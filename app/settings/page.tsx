@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,34 +20,8 @@ import {
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
-import { Clinic } from '@/lib/types';
 
 export default function SettingsPage() {
-  const [clinics, setClinics] = useState<Clinic[]>([]);
-  const [activeClinic, setActiveClinic] = useState<Clinic | null>(null);
-
-  useEffect(() => {
-    initializeApp();
-  }, []);
-
-  const initializeApp = async () => {
-    try {
-      const clinicsRes = await fetch('/api/clinics');
-      if (clinicsRes.ok) {
-        const clinicsData = await clinicsRes.json();
-        setClinics(clinicsData);
-        if (clinicsData.length > 0) {
-          setActiveClinic(clinicsData[0]);
-        }
-      }
-    } catch (error) {
-      console.error('Error initializing app:', error);
-    }
-  };
-
-  const handleClinicChange = (clinic: Clinic) => {
-    setActiveClinic(clinic);
-  };
 
   const settingsCards = [
     {
@@ -87,11 +60,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
-      <TopNav
-        activeClinic={activeClinic}
-        clinics={clinics}
-        onClinicChange={handleClinicChange}
-      />
+      <TopNav />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}

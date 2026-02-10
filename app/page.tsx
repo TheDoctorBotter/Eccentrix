@@ -36,7 +36,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (currentClinic) {
+    if (currentClinic?.clinic_id) {
       fetchCaseload(currentClinic.clinic_id);
       fetchAlerts(currentClinic.clinic_id);
     }
