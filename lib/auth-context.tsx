@@ -49,6 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Fetch user's memberships
   const fetchMemberships = async (userId: string) => {
+    console.log('AuthContext - fetchMemberships called with userId:', userId);
     try {
       const { data, error } = await supabase
         .from('clinic_memberships')
@@ -57,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
+      console.log('AuthContext - Supabase query result:', { data, error });
       if (error) throw error;
 
       console.log('AuthContext - Fetched memberships:', data);
