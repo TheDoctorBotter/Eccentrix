@@ -74,6 +74,10 @@ export default function SignInPage() {
         }
 
         addDebug('Sign in successful, redirecting...');
+
+        // Wait for cookie to be set before redirecting
+        await new Promise(resolve => setTimeout(resolve, 500));
+
         router.push('/');
         router.refresh();
       }
