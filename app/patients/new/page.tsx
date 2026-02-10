@@ -24,6 +24,7 @@ import {
 import { ArrowLeft, UserPlus, Loader2 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
+import { ICD10CodeInput, type ICD10Code } from '@/components/ICD10CodeInput';
 
 export default function AddPatientPage() {
   const router = useRouter();
@@ -47,6 +48,10 @@ export default function AddPatientPage() {
     episode_diagnosis: '',
     frequency: '',
   });
+
+  // ICD-10 codes state
+  const [primaryDiagnosisCodes, setPrimaryDiagnosisCodes] = useState<ICD10Code[]>([]);
+  const [treatmentDiagnosisCodes, setTreatmentDiagnosisCodes] = useState<ICD10Code[]>([]);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -111,6 +116,8 @@ export default function AddPatientPage() {
           clinic_id: currentClinic.clinic_id,
           diagnosis: formData.episode_diagnosis || formData.primary_diagnosis || null,
           frequency: formData.frequency || null,
+          primary_diagnosis_codes: primaryDiagnosisCodes,
+          treatment_diagnosis_codes: treatmentDiagnosisCodes,
         }),
       });
 
@@ -307,8 +314,8 @@ export default function AddPatientPage() {
               {/* Episode of Care */}
               <div>
                 <h3 className="font-medium text-slate-900 mb-4">Episode of Care</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2 md:col-span-2">
+                <div className="space-y-4">
+                  <div className="space-y-2">
                     <Label htmlFor="episode_diagnosis">Episode Diagnosis</Label>
                     <Input
                       id="episode_diagnosis"
@@ -318,6 +325,7 @@ export default function AddPatientPage() {
                       placeholder="Specific diagnosis for this episode (defaults to primary diagnosis)"
                     />
                   </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="frequency">Treatment Frequency</Label>
                     <Select
@@ -336,6 +344,28 @@ export default function AddPatientPage() {
                         <SelectItem value="PRN">PRN</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <ICD10CodeInput
+                      label="Primary Diagnosis ICD-10 Codes"
+                      description="Up to 5 ICD-10 codes for primary diagnosis"
+                      codes={primaryDiagnosisCodes}
+                      onChange={setPrimaryDiagnosisCodes}
+                      maxCodes={5}
+                      diagnosisText={formData.primary_diagnosis || formData.episode_diagnosis}
+                    />
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <ICD10CodeInput
+                      label="Treatment Diagnosis ICD-10 Codes"
+                      description="Up to 5 ICD-10 codes for treatment diagnosis"
+                      codes={treatmentDiagnosisCodes}
+                      onChange={setTreatmentDiagnosisCodes}
+                      maxCodes={5}
+                      diagnosisText={formData.episode_diagnosis || formData.primary_diagnosis}
+                    />
                   </div>
                 </div>
               </div>
