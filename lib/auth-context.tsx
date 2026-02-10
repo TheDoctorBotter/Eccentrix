@@ -78,7 +78,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (clinicToSet) {
         setCurrentClinicState(clinicToSet);
         // Ensure cookie is set
-        setCookie(ACTIVE_CLINIC_COOKIE, clinicToSet.clinic_id);
+        if (clinicToSet.clinic_id) {
+          setCookie(ACTIVE_CLINIC_COOKIE, clinicToSet.clinic_id);
+        }
       }
     } catch (error) {
       console.error('Error fetching memberships:', error);
@@ -129,7 +131,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setCurrentClinic = (membership: ClinicMembership) => {
     setCurrentClinicState(membership);
     // Persist to cookie
-    setCookie(ACTIVE_CLINIC_COOKIE, membership.clinic_id);
+    if (membership.clinic_id) {
+      setCookie(ACTIVE_CLINIC_COOKIE, membership.clinic_id);
+    }
   };
 
   const hasRole = (roles: ClinicRole[]): boolean => {
