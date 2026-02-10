@@ -76,10 +76,10 @@ export default function SignInPage() {
         addDebug('Sign in successful, redirecting...');
 
         // Wait for cookie to be set before redirecting
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        router.push('/');
-        router.refresh();
+        // Use full page reload to ensure session is loaded
+        window.location.href = '/';
       }
     } catch (err: any) {
       const errorMsg = err?.message || String(err);
