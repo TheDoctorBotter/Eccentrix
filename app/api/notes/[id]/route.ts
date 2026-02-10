@@ -6,13 +6,38 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { data, error } = await supabase
+    // First try legacy notes table
+    let { data, error } = await supabase
       .from('notes')
       .select('*')
       .eq('id', params.id)
       .single();
 
-    if (error) {
+    // If not found in notes, try clinical_documents table
+    if (error && error.code === 'PGRST116') {
+      const docResult = await supabase
+        .from('clinical_documents')
+        .select('*')
+        .eq('id', params.id)
+        .single();
+
+      if (docResult.error) {
+        console.error('Error fetching document:', docResult.error);
+        return NextResponse.json({ error: 'Note not found' }, { status: 404 });
+      }
+
+      // Map clinical_document to note format for compatibility
+      data = {
+        id: docResult.data.id,
+        note_type: docResult.data.doc_type,
+        output_text: docResult.data.content || '',
+        rich_content: docResult.data.rich_content,
+        billing_justification: null,
+        hep_summary: null,
+        template_id: null,
+        created_at: docResult.data.created_at,
+      };
+    } else if (error) {
       console.error('Error fetching note:', error);
       return NextResponse.json({ error: error.message }, { status: 404 });
     }
@@ -83,14 +108,34 @@ export async function PATCH(
       updateData.output_text = output_text;
     }
 
-    const { data, error } = await supabase
+    // Try updating legacy notes table first
+    let { data, error } = await supabase
       .from('notes')
       .update(updateData)
       .eq('id', params.id)
       .select()
       .single();
 
-    if (error) {
+    // If not in notes table, try clinical_documents
+    if (error && error.code === 'PGRST116') {
+      const docUpdateData: Record<string, unknown> = {};
+      if (rich_content) docUpdateData.rich_content = updateData.rich_content;
+      if (output_text) docUpdateData.content = output_text;
+
+      const docResult = await supabase
+        .from('clinical_documents')
+        .update(docUpdateData)
+        .eq('id', params.id)
+        .select()
+        .single();
+
+      if (docResult.error) {
+        console.error('Error updating document:', docResult.error);
+        return NextResponse.json({ error: docResult.error.message }, { status: 500 });
+      }
+
+      data = docResult.data;
+    } else if (error) {
       console.error('Error updating note:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
