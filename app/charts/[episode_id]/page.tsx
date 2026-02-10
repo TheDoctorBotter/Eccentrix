@@ -289,7 +289,7 @@ export default function PatientChartPage({ params }: PageProps) {
                               </Button>
                             </Link>
                             {doc.status === 'draft' && (
-                              <Link href={`/notes/${doc.legacy_note_id || doc.id}/edit`}>
+                              <Link href={`/notes/${doc.legacy_note_id || doc.id}`}>
                                 <Button variant="ghost" size="icon">
                                   <Edit2 className="h-4 w-4" />
                                 </Button>
