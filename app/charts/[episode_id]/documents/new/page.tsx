@@ -75,6 +75,7 @@ export default function NewDocumentPage({ params }: PageProps) {
       daily_note: 'Daily Note',
       progress_summary: 'Progress Summary',
       discharge_summary: 'Discharge Summary',
+      uploaded_document: 'Uploaded Document',
     };
     return titles[type] || 'Document';
   };
