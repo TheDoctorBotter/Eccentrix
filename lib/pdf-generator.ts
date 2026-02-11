@@ -239,15 +239,6 @@ export async function generateNotePDF({
       yPosition += 3;
     }
 
-    doc.setFillColor(254, 243, 199);
-    doc.rect(margin, yPosition, contentWidth, 12, 'F');
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(180, 83, 9);
-    doc.text('DRAFT DOCUMENTATION - This note must be reviewed and approved by a licensed clinician before use.',
-      pageWidth / 2, yPosition + 7, { align: 'center' });
-    yPosition += 17;
-
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 41, 59);
@@ -722,20 +713,6 @@ export async function generateRichNotePDF({
       addLine(1, [30, 41, 59]);
       yPosition += 3;
     }
-
-    // Draft warning
-    doc.setFillColor(254, 243, 199);
-    doc.rect(margin, yPosition, contentWidth, 12, 'F');
-    doc.setFontSize(9);
-    doc.setFont('times', 'bold');
-    doc.setTextColor(180, 83, 9);
-    doc.text(
-      'DRAFT DOCUMENTATION - This note must be reviewed and approved by a licensed clinician before use.',
-      pageWidth / 2,
-      yPosition + 7,
-      { align: 'center' }
-    );
-    yPosition += 17;
 
     // Title
     doc.setFontSize(18);
