@@ -145,7 +145,7 @@ export function TemplateExport({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px] h-[520px] flex flex-col">
         <DialogHeader>
           <DialogTitle>Export with Template</DialogTitle>
           <DialogDescription>
@@ -153,7 +153,7 @@ export function TemplateExport({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="py-4">
+        <div className="flex-1 overflow-y-auto py-4">
           {/* Template Selector */}
           <ClinicTemplateSelector
             onTemplateSelect={setSelectedTemplate}

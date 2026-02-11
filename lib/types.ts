@@ -3,7 +3,7 @@ export type NoteType =
   | 'pt_evaluation';
 
 export const NOTE_TYPE_LABELS: Record<NoteType, string> = {
-  daily_soap: 'Daily SOAP Note',
+  daily_soap: 'Physical Therapy Daily Note',
   pt_evaluation: 'PT Evaluation',
 };
 

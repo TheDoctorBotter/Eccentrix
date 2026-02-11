@@ -316,7 +316,7 @@ function DailySoapNoteContent() {
             </Button>
           </Link>
           <Badge variant="outline" className="text-lg px-4 py-2">
-            Daily SOAP Note
+            Physical Therapy Daily Note
           </Badge>
         </div>
 
@@ -392,7 +392,7 @@ function DailySoapNoteContent() {
             </CardHeader>
             <CardContent>
               <p className="text-slate-600 mb-4">
-                Review your inputs above, then click the button below to generate your professional Daily SOAP note.
+                Review your inputs above, then click the button below to generate your Physical Therapy Daily Note.
               </p>
               <Button onClick={handleGenerateNote} disabled={generating || loadingEpisode} size="lg" className="w-full">
                 {generating ? (
@@ -401,7 +401,7 @@ function DailySoapNoteContent() {
                     Generating Note...
                   </>
                 ) : (
-                  'Generate Daily SOAP Note'
+                  'Generate Daily Note'
                 )}
               </Button>
             </CardContent>

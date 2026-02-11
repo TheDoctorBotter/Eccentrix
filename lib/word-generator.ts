@@ -669,9 +669,6 @@ export async function generateNoteWord({
     children.push(...createBrandingParagraphs(branding, settings));
   }
 
-  // Draft warning
-  children.push(createDraftWarning(settings));
-
   // Title
   children.push(createTitleParagraph(note, settings));
 
@@ -843,7 +840,6 @@ export async function generateNoteWordBlob({
     children.push(...createBrandingParagraphs(branding, settings));
   }
 
-  children.push(createDraftWarning(settings));
   children.push(createTitleParagraph(note, settings));
   children.push(...createMetadataParagraphs(note, settings));
   children.push(...createDemographicParagraphs(note, settings));

@@ -543,14 +543,6 @@ export default function NoteDetailPage() {
           </Alert>
         )}
 
-        <Alert className="mb-6 border-orange-200 bg-orange-50">
-          <AlertCircle className="h-4 w-4 text-orange-600" />
-          <AlertDescription className="text-orange-800">
-            <strong>Draft Documentation:</strong> This note must be reviewed and
-            approved by a licensed clinician before use in patient records.
-          </AlertDescription>
-        </Alert>
-
         {note.input_data?.patientDemographic && (
           <Card className="mb-6">
             <CardHeader>
