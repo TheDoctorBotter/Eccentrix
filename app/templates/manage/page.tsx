@@ -274,7 +274,7 @@ export default function TemplateManagementPage() {
                 Upload Template
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col">
               <DialogHeader>
                 <DialogTitle>Upload Document Template</DialogTitle>
                 <DialogDescription>
@@ -282,7 +282,7 @@ export default function TemplateManagementPage() {
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-4 py-4">
+              <div className="space-y-4 py-4 overflow-y-auto flex-1 pr-1">
                 <div className="space-y-2">
                   <Label htmlFor="clinic_name">Clinic/Brand Name *</Label>
                   <Input
@@ -333,6 +333,7 @@ export default function TemplateManagementPage() {
                   <Textarea
                     id="description"
                     placeholder="Optional description..."
+                    rows={2}
                     value={uploadForm.description}
                     onChange={(e) =>
                       setUploadForm((prev) => ({ ...prev, description: e.target.value }))
