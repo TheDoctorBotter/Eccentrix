@@ -332,7 +332,13 @@ function buildUserPrompt(
       prompt += `- Progression since last visit: ${inputData.assessment.progression}\n`;
     }
     if (inputData.assessment.impairments) {
-      prompt += `- Impairments: ${inputData.assessment.impairments}\n`;
+      const impairmentsList = Array.isArray(inputData.assessment.impairments)
+        ? inputData.assessment.impairments.join(', ')
+        : inputData.assessment.impairments;
+      prompt += `- Impairments: ${impairmentsList}\n`;
+      if (!inputData.assessment.skilled_need) {
+        prompt += `- Generate a skilled need statement justifying continued skilled PT services to address these impairments.\n`;
+      }
     }
     if (inputData.assessment.skilled_need) {
       prompt += `- Skilled Need: ${inputData.assessment.skilled_need}\n`;
@@ -348,7 +354,10 @@ function buildUserPrompt(
       prompt += `- Frequency/Duration: ${inputData.plan.frequency_duration}\n`;
     }
     if (inputData.plan.next_session_focus) {
-      prompt += `- Next Session Focus: ${inputData.plan.next_session_focus}\n`;
+      const focusList = Array.isArray(inputData.plan.next_session_focus)
+        ? inputData.plan.next_session_focus.join(', ')
+        : inputData.plan.next_session_focus;
+      prompt += `- Next Session Focus: ${focusList}\n`;
     }
     if (inputData.plan.hep) {
       prompt += `- Home Exercise Program: ${inputData.plan.hep}\n`;

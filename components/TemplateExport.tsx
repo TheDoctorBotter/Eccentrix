@@ -298,7 +298,7 @@ export function noteToTemplateData(note: Note): NoteTemplateData {
     assessment: extractSection(note.output_text, 'ASSESSMENT') ||
                 assessment?.response_to_treatment || '',
     plan: extractSection(note.output_text, 'PLAN') ||
-          plan?.next_session_focus || '',
+          (Array.isArray(plan?.next_session_focus) ? plan.next_session_focus.join(', ') : plan?.next_session_focus) || '',
 
     // Plan of Care
     frequency: plan?.frequency_duration || '',
