@@ -360,6 +360,32 @@ export default function TemplateManagementPage() {
                     }
                   />
                 </div>
+
+                <details className="text-xs text-slate-500 border rounded-md p-2">
+                  <summary className="cursor-pointer font-medium text-slate-600">
+                    Supported placeholders (click to expand)
+                  </summary>
+                  <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-0.5">
+                    <span>{`{{PATIENT_NAME}}`}</span>
+                    <span>{`{{DOB}}`} / {`{{AGE}}`}</span>
+                    <span>{`{{REFERRING_MD}}`}</span>
+                    <span>{`{{INSURANCE_ID}}`}</span>
+                    <span>{`{{MEDICAL_DX}}`}</span>
+                    <span>{`{{TREATMENT_DX}}`}</span>
+                    <span>{`{{ALLERGIES}}`}</span>
+                    <span>{`{{PRECAUTIONS}}`}</span>
+                    <span>{`{{DATE_OF_SERVICE}}`}</span>
+                    <span>{`{{TIME_IN}}`} / {`{{TIME_OUT}}`}</span>
+                    <span>{`{{TOTAL_TIME}}`}</span>
+                    <span>{`{{UNITS}}`}</span>
+                    <span>{`{{SUBJECTIVE}}`}</span>
+                    <span>{`{{OBJECTIVE}}`}</span>
+                    <span>{`{{ASSESSMENT}}`}</span>
+                    <span>{`{{PLAN}}`}</span>
+                    <span>{`{{THERAPIST_NAME}}`}</span>
+                    <span>{`{{THERAPIST_CREDENTIALS}}`}</span>
+                  </div>
+                </details>
               </div>
 
               <DialogFooter>

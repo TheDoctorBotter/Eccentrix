@@ -108,12 +108,26 @@ function DailySoapNoteContent() {
           dateOfBirth: dob,
           diagnosis: diagnosis,
           referralSource: episodeData.referring_physician || undefined,
+          insuranceId: episodeData.insurance_id || undefined,
+          allergies: episodeData.allergies || undefined,
+          precautions: episodeData.precautions || undefined,
         },
       };
 
       // Fetch the most recent note for this episode to carry forward ALL data
       const prevNoteData = await fetchPreviousNoteData(epId);
       if (prevNoteData) {
+        // Carry forward demographic fields that aren't set from episode
+        if (prevNoteData.patientDemographic) {
+          prePopulatedData.patientDemographic = {
+            ...prePopulatedData.patientDemographic,
+            treatmentDiagnosis: prePopulatedData.patientDemographic?.treatmentDiagnosis || prevNoteData.patientDemographic.treatmentDiagnosis,
+            allergies: prePopulatedData.patientDemographic?.allergies || prevNoteData.patientDemographic.allergies,
+            precautions: prePopulatedData.patientDemographic?.precautions || prevNoteData.patientDemographic.precautions,
+            insuranceId: prePopulatedData.patientDemographic?.insuranceId || prevNoteData.patientDemographic.insuranceId,
+          };
+        }
+
         // Carry forward objective data (interventions, assist level, tolerance)
         if (prevNoteData.objective) {
           prePopulatedData.objective = {

@@ -16,7 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Edit, Trash2, Plus, Save } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Plus, Save, Upload } from 'lucide-react';
 import { Template, NoteType, NOTE_TYPE_LABELS, StyleSettings } from '@/lib/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
@@ -156,6 +156,13 @@ export default function TemplatesPage() {
               Create and edit note templates with custom formatting
             </p>
           </div>
+          <div className="flex gap-3">
+          <Link href="/templates/manage">
+            <Button variant="outline" size="lg">
+              <Upload className="mr-2 h-5 w-5" />
+              Upload DOCX Template
+            </Button>
+          </Link>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button size="lg" onClick={openCreateDialog}>
@@ -305,6 +312,7 @@ export default function TemplatesPage() {
               </div>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {loading ? (

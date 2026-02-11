@@ -569,8 +569,32 @@ export default function NoteDetailPage() {
               )}
               {note.input_data.patientDemographic.referralSource && (
                 <div>
-                  <span className="font-medium">Referral Source:</span>{' '}
+                  <span className="font-medium">Referring MD:</span>{' '}
                   {note.input_data.patientDemographic.referralSource}
+                </div>
+              )}
+              {note.input_data.patientDemographic.treatmentDiagnosis && (
+                <div>
+                  <span className="font-medium">Treatment Diagnosis:</span>{' '}
+                  {note.input_data.patientDemographic.treatmentDiagnosis}
+                </div>
+              )}
+              {note.input_data.patientDemographic.insuranceId && (
+                <div>
+                  <span className="font-medium">Insurance ID:</span>{' '}
+                  {note.input_data.patientDemographic.insuranceId}
+                </div>
+              )}
+              {note.input_data.patientDemographic.allergies && (
+                <div>
+                  <span className="font-medium">Allergies:</span>{' '}
+                  {note.input_data.patientDemographic.allergies}
+                </div>
+              )}
+              {note.input_data.patientDemographic.precautions && (
+                <div>
+                  <span className="font-medium">Precautions:</span>{' '}
+                  {note.input_data.patientDemographic.precautions}
                 </div>
               )}
             </CardContent>

@@ -50,9 +50,9 @@ export default function SettingsPage() {
     },
     {
       title: 'Document Templates',
-      description: 'Manage note templates and export document templates',
+      description: 'Upload and manage your clinic .docx templates for note export',
       icon: FileText,
-      href: '/templates',
+      href: '/templates/manage',
       iconColor: 'text-amber-600',
       bgColor: 'bg-amber-100',
     },
