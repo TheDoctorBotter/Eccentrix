@@ -274,6 +274,34 @@ export function noteToTemplateData(note: Note): NoteTemplateData {
     }
   }
 
+  // Calculate session times
+  const startTime = note.input_data?.startTime || '';
+  const endTime = note.input_data?.endTime || '';
+  let totalTime = '';
+  let units = '';
+  if (startTime && endTime) {
+    const [sH, sM] = startTime.split(':').map(Number);
+    const [eH, eM] = endTime.split(':').map(Number);
+    const diff = (eH * 60 + eM) - (sH * 60 + sM);
+    if (diff > 0) {
+      const h = Math.floor(diff / 60);
+      const m = diff % 60;
+      totalTime = h > 0 ? `${h}h ${m}m` : `${m}m`;
+      // Calculate billable units (1 unit = 15 min, 8-min rule)
+      units = String(Math.ceil((diff - 7) / 15));
+      if (Number(units) < 1) units = '1';
+    }
+  }
+
+  // Format time for display (convert 24h to 12h)
+  const formatTime12h = (time: string): string => {
+    if (!time) return '';
+    const [h, m] = time.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return `${hour12}:${String(m).padStart(2, '0')} ${ampm}`;
+  };
+
   return {
     // Patient Info
     patientName: demographic?.patientName || '',
@@ -282,13 +310,21 @@ export function noteToTemplateData(note: Note): NoteTemplateData {
     dob: demographic?.dateOfBirth || '',
     age,
     medicalDx: demographic?.diagnosis || '',
+    treatmentDx: demographic?.treatmentDiagnosis || '',
     referringMd: demographic?.referralSource || '',
+    insuranceId: demographic?.insuranceId || '',
+    allergies: demographic?.allergies || '',
+    precautions: demographic?.precautions || '',
 
     // Session Info
     dateOfService:
       note.date_of_service ||
       note.input_data?.dateOfService ||
       new Date().toISOString().split('T')[0],
+    timeIn: formatTime12h(startTime),
+    timeOut: formatTime12h(endTime),
+    totalTime,
+    units,
 
     // SOAP Sections (from generated output)
     subjective: extractSection(note.output_text, 'SUBJECTIVE') ||

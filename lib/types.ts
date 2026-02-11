@@ -105,7 +105,11 @@ export interface NoteInputData {
     patientName?: string;
     dateOfBirth?: string;
     diagnosis?: string;
+    treatmentDiagnosis?: string;
     referralSource?: string;
+    insuranceId?: string;
+    allergies?: string;
+    precautions?: string;
   };
   subjective?: {
     symptoms?: string;
@@ -337,6 +341,9 @@ export interface Episode {
   date_of_birth?: string;
   primary_diagnosis?: string;
   referring_physician?: string;
+  insurance_id?: string;
+  allergies?: string;
+  precautions?: string;
 }
 
 export interface Document {
