@@ -26,6 +26,7 @@ import {
   Eye,
   Save,
   FileType,
+  Trash2,
 } from 'lucide-react';
 import { Note, NOTE_TYPE_LABELS, BrandingSettings } from '@/lib/types';
 import { format } from 'date-fns';
@@ -73,6 +74,10 @@ export default function NoteDetailPage() {
   const [showExportPreview, setShowExportPreview] = useState(false);
   const [showTemplateExport, setShowTemplateExport] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+
+  // Delete state
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (params.id) {
@@ -321,6 +326,31 @@ export default function NoteDetailPage() {
     setViewMode('view');
   };
 
+  // Delete note
+  const handleDelete = async () => {
+    if (!note) return;
+
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/notes/${note.id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        router.push('/');
+      } else {
+        const data = await response.json().catch(() => ({}));
+        setPdfError(data.error || 'Failed to delete note');
+      }
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      setPdfError('Failed to delete note. Please try again.');
+    } finally {
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center">
@@ -441,6 +471,43 @@ export default function NoteDetailPage() {
                   <Building2 className="mr-2 h-4 w-4" />
                   Export with Template
                 </Button>
+                {!confirmDelete ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => setConfirmDelete(true)}
+                    disabled={isExporting}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </Button>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setConfirmDelete(false)}
+                      disabled={deleting}
+                      size="sm"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      size="sm"
+                    >
+                      {deleting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        'Confirm Delete'
+                      )}
+                    </Button>
+                  </div>
+                )}
               </>
             )}
           </div>

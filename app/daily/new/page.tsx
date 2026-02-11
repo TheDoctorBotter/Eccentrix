@@ -111,13 +111,34 @@ function DailySoapNoteContent() {
         },
       };
 
-      // Fetch the most recent note for this episode to carry forward plan data
+      // Fetch the most recent note for this episode to carry forward ALL data
       const prevNoteData = await fetchPreviousNoteData(epId);
       if (prevNoteData) {
-        // Carry forward frequency/duration from the previous note's plan
+        // Carry forward objective data (interventions, assist level, tolerance)
+        if (prevNoteData.objective) {
+          prePopulatedData.objective = {
+            interventions: prevNoteData.objective.interventions,
+            assist_level: prevNoteData.objective.assist_level,
+            tolerance: prevNoteData.objective.tolerance,
+            // Don't carry forward key_measures - those are session-specific
+          };
+        }
+
+        // Carry forward assessment data (impairments, progression)
+        if (prevNoteData.assessment) {
+          prePopulatedData.assessment = {
+            impairments: prevNoteData.assessment.impairments,
+            // Don't carry forward progression, response_to_treatment, or skilled_need - session-specific
+          };
+        }
+
+        // Carry forward plan data (frequency, next session focus, hep)
         if (prevNoteData.plan) {
           prePopulatedData.plan = {
             frequency_duration: prevNoteData.plan.frequency_duration || episodeData.frequency || undefined,
+            next_session_focus: prevNoteData.plan.next_session_focus,
+            hep: prevNoteData.plan.hep,
+            education_provided: prevNoteData.plan.education_provided,
           };
         } else if (episodeData.frequency) {
           prePopulatedData.plan = {

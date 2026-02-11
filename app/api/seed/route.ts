@@ -83,6 +83,7 @@ Good for achievement of stated goals with consistent participation in skilled ph
 ];
 
 const DEFAULT_INTERVENTIONS = [
+  // Therapeutic Exercise
   {
     name: 'Therapeutic Exercise - Strengthening',
     category: 'Therapeutic Exercise',
@@ -102,6 +103,25 @@ const DEFAULT_INTERVENTIONS = [
     default_cues: 'Tactile cues for neutral spine',
   },
   {
+    name: 'Passive Range of Motion / Stretching',
+    category: 'Therapeutic Exercise',
+    default_dosage: '3 x 30 seconds each',
+    default_cues: 'Gentle sustained stretch, verbal cues for relaxation',
+  },
+  {
+    name: 'Core Strengthening / Stabilization',
+    category: 'Therapeutic Exercise',
+    default_dosage: '3 x 10 reps',
+    default_cues: 'Verbal and tactile cues for trunk activation',
+  },
+  {
+    name: 'Therapy Ball Activities',
+    category: 'Therapeutic Exercise',
+    default_dosage: '10 minutes',
+    default_cues: 'Verbal cues for posture and engagement; SBA/CGA as needed',
+  },
+  // Manual Therapy
+  {
     name: 'Manual Therapy - Joint Mobilization',
     category: 'Manual Therapy',
     default_dosage: '5 minutes',
@@ -113,6 +133,7 @@ const DEFAULT_INTERVENTIONS = [
     default_dosage: '10 minutes',
     default_cues: null,
   },
+  // Gait Training
   {
     name: 'Gait Training',
     category: 'Gait Training',
@@ -125,6 +146,7 @@ const DEFAULT_INTERVENTIONS = [
     default_dosage: '200 feet x 2',
     default_cues: 'Verbal cues for proper device use',
   },
+  // Balance Training
   {
     name: 'Balance Training - Static',
     category: 'Balance Training',
@@ -138,22 +160,36 @@ const DEFAULT_INTERVENTIONS = [
     default_cues: 'CGA with verbal cues',
   },
   {
+    name: 'Balance Beam Activities',
+    category: 'Balance Training',
+    default_dosage: '5 passes',
+    default_cues: 'SBA/CGA; verbal cues for upright posture and foot placement',
+  },
+  // Neuromuscular Re-education
+  {
     name: 'Neuromuscular Re-education',
     category: 'Neuromuscular Re-education',
     default_dosage: '15 minutes',
     default_cues: 'Verbal, visual, and tactile cues',
   },
+  // Functional Training
   {
-    name: 'Functional Training - Transfers',
+    name: 'Functional Mobility - Sit to Stand Transitions',
     category: 'Functional Training',
     default_dosage: '10 repetitions',
-    default_cues: 'Verbal cues for safety',
+    default_cues: 'Verbal cues for weight shifting and lower extremity alignment',
   },
   {
-    name: 'Functional Training - Stairs',
+    name: 'Functional Mobility - Floor to Stand Transitions',
+    category: 'Functional Training',
+    default_dosage: '5 repetitions',
+    default_cues: 'Verbal and tactile cues for sequencing',
+  },
+  {
+    name: 'Functional Mobility - Stair Negotiation',
     category: 'Functional Training',
     default_dosage: '1 flight x 3',
-    default_cues: 'CGA with verbal cues',
+    default_cues: 'CGA with verbal cues for reciprocal pattern and rail use',
   },
   {
     name: 'Functional Training - ADL Simulation',
@@ -161,12 +197,38 @@ const DEFAULT_INTERVENTIONS = [
     default_dosage: '15 minutes',
     default_cues: 'Task-specific verbal cues',
   },
+  // Therapeutic Activities
   {
-    name: 'Therapeutic Activities',
-    category: 'Functional Training',
-    default_dosage: '20 minutes',
-    default_cues: 'Activity-specific cueing',
+    name: 'Obstacle Course Navigation',
+    category: 'Therapeutic Activities',
+    default_dosage: '10 minutes',
+    default_cues: 'Verbal cues for motor planning, sequencing, and safety awareness',
   },
+  {
+    name: 'Trampoline Activities',
+    category: 'Therapeutic Activities',
+    default_dosage: '5 minutes',
+    default_cues: 'Verbal and tactile cues for postural control and bilateral coordination',
+  },
+  {
+    name: 'Scooter Board Activities',
+    category: 'Therapeutic Activities',
+    default_dosage: '10 minutes',
+    default_cues: 'Verbal cues for upper extremity strengthening and prone extension',
+  },
+  {
+    name: 'Pedal Bike / Cycling Activities',
+    category: 'Therapeutic Activities',
+    default_dosage: '10 minutes',
+    default_cues: 'Verbal cues for bilateral coordination and endurance',
+  },
+  {
+    name: 'Therapeutic Play Activities',
+    category: 'Therapeutic Activities',
+    default_dosage: '15 minutes',
+    default_cues: 'Activity-specific cueing for motor skill development',
+  },
+  // Modalities
   {
     name: 'Modalities - Ice',
     category: 'Modalities',
@@ -191,6 +253,7 @@ const DEFAULT_INTERVENTIONS = [
     default_dosage: '8 minutes',
     default_cues: null,
   },
+  // Patient Education
   {
     name: 'Patient Education - Home Exercise Program',
     category: 'Patient Education',
@@ -208,6 +271,12 @@ const DEFAULT_INTERVENTIONS = [
     category: 'Patient Education',
     default_dosage: '15 minutes',
     default_cues: 'Environmental assessment and recommendations',
+  },
+  {
+    name: 'Patient/Caregiver Education - Activity Modifications',
+    category: 'Patient Education',
+    default_dosage: '10 minutes',
+    default_cues: 'Verbal instruction and handout',
   },
 ];
 

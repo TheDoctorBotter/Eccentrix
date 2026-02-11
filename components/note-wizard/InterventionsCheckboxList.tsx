@@ -92,10 +92,11 @@ export default function InterventionsCheckboxList({
     'Manual Therapy',
     'Neuromuscular Re-education',
     'Functional Training',
-    'Modalities',
-    'Patient Education',
+    'Therapeutic Activities',
     'Gait Training',
     'Balance Training',
+    'Modalities',
+    'Patient Education',
     'Other',
   ];
 

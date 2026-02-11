@@ -1,29 +1,29 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Intervention, InterventionDetail, AssistLevel } from '@/lib/types';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Intervention, InterventionDetail, AssistLevel, ToleranceLevel, TOLERANCE_OPTIONS } from '@/lib/types';
 import InterventionsCheckboxList from './InterventionsCheckboxList';
 
 interface ObjectiveFormProps {
   data?: {
     interventions?: InterventionDetail[];
     assist_level?: AssistLevel;
-    tolerance?: string;
+    tolerance?: ToleranceLevel;
     key_measures?: string;
   };
   interventions: Intervention[];
   onChange: (data: any) => void;
 }
 
-const ASSIST_LEVELS: AssistLevel[] = [
-  'Independent',
-  'SBA',
-  'CGA',
-  'Min',
-  'Mod',
-  'Max',
-  'Dependent',
+const ASSIST_LEVELS: { value: AssistLevel; label: string }[] = [
+  { value: 'Independent', label: 'Independent' },
+  { value: 'SBA', label: 'SBA - Stand-by Assist' },
+  { value: 'CGA', label: 'CGA - Contact Guard Assist' },
+  { value: 'Min', label: 'Min - Minimal Assist' },
+  { value: 'Mod', label: 'Mod - Moderate Assist' },
+  { value: 'Max', label: 'Max - Maximal Assist' },
+  { value: 'Dependent', label: 'Dependent' },
 ];
 
 export default function ObjectiveForm({
@@ -47,7 +47,7 @@ export default function ObjectiveForm({
           Interventions performed, measurements, and observations
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         <div className="space-y-2">
           <Label>Interventions Performed</Label>
           <InterventionsCheckboxList
@@ -57,40 +57,62 @@ export default function ObjectiveForm({
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="assist_level">Assist Level</Label>
-          <Select
-            value={data.assist_level}
-            onValueChange={(value) => handleChange('assist_level', value)}
-          >
-            <SelectTrigger id="assist_level">
-              <SelectValue placeholder="Select assist level" />
-            </SelectTrigger>
-            <SelectContent>
-              {ASSIST_LEVELS.map((level) => (
-                <SelectItem key={level} value={level}>
-                  {level}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="space-y-3">
+          <Label>Assist Level</Label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {ASSIST_LEVELS.map((level) => (
+              <div
+                key={level.value}
+                className={`flex items-center gap-2 p-2 rounded-md border cursor-pointer transition-colors ${
+                  data.assist_level === level.value
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-slate-200 hover:bg-slate-50'
+                }`}
+                onClick={() => handleChange('assist_level', level.value)}
+              >
+                <Checkbox
+                  id={`assist_${level.value}`}
+                  checked={data.assist_level === level.value}
+                  onCheckedChange={() => handleChange('assist_level', level.value)}
+                />
+                <Label
+                  htmlFor={`assist_${level.value}`}
+                  className="text-sm cursor-pointer flex-1"
+                >
+                  {level.label}
+                </Label>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="tolerance">Tolerance to Treatment</Label>
-          <Select
-            value={data.tolerance}
-            onValueChange={(value) => handleChange('tolerance', value)}
-          >
-            <SelectTrigger id="tolerance">
-              <SelectValue placeholder="Select tolerance" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Good">Good - minimal symptoms</SelectItem>
-              <SelectItem value="Fair">Fair - moderate symptoms</SelectItem>
-              <SelectItem value="Poor">Poor - significant symptoms</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="space-y-3">
+          <Label>Tolerance to Treatment</Label>
+          <div className="space-y-2">
+            {TOLERANCE_OPTIONS.map((option) => (
+              <div
+                key={option.value}
+                className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
+                  data.tolerance === option.value
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-slate-200 hover:bg-slate-50'
+                }`}
+                onClick={() => handleChange('tolerance', option.value)}
+              >
+                <Checkbox
+                  id={`tolerance_${option.value}`}
+                  checked={data.tolerance === option.value}
+                  onCheckedChange={() => handleChange('tolerance', option.value)}
+                />
+                <Label
+                  htmlFor={`tolerance_${option.value}`}
+                  className="text-sm cursor-pointer flex-1"
+                >
+                  {option.label}
+                </Label>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="space-y-2">

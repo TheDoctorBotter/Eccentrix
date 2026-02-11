@@ -57,11 +57,29 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { error } = await supabase.from('notes').delete().eq('id', params.id);
+    // Try deleting from legacy notes table
+    const { error: notesError } = await supabase
+      .from('notes')
+      .delete()
+      .eq('id', params.id);
 
-    if (error) {
-      console.error('Error deleting note:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    // Also try deleting any linked document record
+    const { error: docsError } = await supabase
+      .from('documents')
+      .delete()
+      .eq('legacy_note_id', params.id);
+
+    // If note wasn't in notes table, try documents table directly
+    if (notesError) {
+      const { error: docDirectError } = await supabase
+        .from('documents')
+        .delete()
+        .eq('id', params.id);
+
+      if (docDirectError) {
+        console.error('Error deleting note:', notesError, docDirectError);
+        return NextResponse.json({ error: 'Failed to delete note' }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ success: true });

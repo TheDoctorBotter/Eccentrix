@@ -116,22 +116,74 @@ export interface NoteInputData {
   objective?: {
     interventions?: InterventionDetail[];
     assist_level?: AssistLevel;
-    tolerance?: string;
+    tolerance?: ToleranceLevel;
     key_measures?: string;
   };
   assessment?: {
-    progression?: 'better' | 'same' | 'worse';
-    impairments?: string;
+    progression?: ProgressionStatus;
+    impairments?: string[];
     skilled_need?: string;
     response_to_treatment?: string;
   };
   plan?: {
     frequency_duration?: string;
-    next_session_focus?: string;
+    next_session_focus?: string[];
     hep?: string;
     education_provided?: string;
   };
 }
+
+// ============================================================================
+// Checkbox Option Constants
+// ============================================================================
+
+export type ToleranceLevel = 'Good' | 'Fair' | 'Poor';
+
+export const TOLERANCE_OPTIONS: { value: ToleranceLevel; label: string }[] = [
+  { value: 'Good', label: 'Good - minimal symptoms, tolerated well' },
+  { value: 'Fair', label: 'Fair - moderate symptoms, required rest breaks' },
+  { value: 'Poor', label: 'Poor - significant symptoms, limited participation' },
+];
+
+export type ProgressionStatus = 'better' | 'same' | 'worse';
+
+export const PROGRESSION_OPTIONS: { value: ProgressionStatus; label: string }[] = [
+  { value: 'better', label: 'Improved - showing progress toward goals' },
+  { value: 'same', label: 'Plateau - no significant change' },
+  { value: 'worse', label: 'Regression - increased symptoms or decline' },
+];
+
+export const IMPAIRMENT_OPTIONS = [
+  'Decreased range of motion',
+  'Decreased functional strength',
+  'Impaired balance/postural control',
+  'Impaired gross motor coordination',
+  'Impaired fine motor coordination',
+  'Decreased endurance/activity tolerance',
+  'Impaired gait pattern',
+  'Impaired functional mobility',
+  'Impaired sensory processing',
+  'Decreased core stability',
+  'Impaired weight bearing tolerance',
+  'Delayed developmental milestones',
+  'Impaired body awareness/proprioception',
+  'Decreased flexibility',
+  'Abnormal muscle tone',
+] as const;
+
+export const NEXT_SESSION_FOCUS_OPTIONS = [
+  'Progressing functional transitions',
+  'Progressing weight bearing',
+  'Progressing gait training',
+  'Improving proximal strength',
+  'Improving range of motion',
+  'Improving pain tolerance',
+  'Improving balance and coordination',
+  'Improving core stability',
+  'Improving endurance',
+  'Progressing gross motor skills',
+  'Progressing home exercise program',
+] as const;
 
 export interface InterventionDetail {
   id: string;

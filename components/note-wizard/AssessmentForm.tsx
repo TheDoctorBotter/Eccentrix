@@ -1,12 +1,17 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  ProgressionStatus,
+  PROGRESSION_OPTIONS,
+  IMPAIRMENT_OPTIONS,
+} from '@/lib/types';
 
 interface AssessmentFormProps {
   data?: {
-    progression?: 'better' | 'same' | 'worse';
-    impairments?: string;
+    progression?: ProgressionStatus;
+    impairments?: string[];
     skilled_need?: string;
     response_to_treatment?: string;
   };
@@ -21,6 +26,19 @@ export default function AssessmentForm({
     onChange({ ...data, [field]: value });
   };
 
+  const impairments = data.impairments || [];
+
+  const toggleImpairment = (impairment: string) => {
+    const current = [...impairments];
+    const index = current.indexOf(impairment);
+    if (index >= 0) {
+      current.splice(index, 1);
+    } else {
+      current.push(impairment);
+    }
+    handleChange('impairments', current);
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -29,28 +47,34 @@ export default function AssessmentForm({
           Clinical impression, progression, and skilled justification
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="progression">Progression Since Last Visit</Label>
-          <Select
-            value={data.progression}
-            onValueChange={(value) => handleChange('progression', value)}
-          >
-            <SelectTrigger id="progression">
-              <SelectValue placeholder="Select progression status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="better">
-                Better - showing improvement
-              </SelectItem>
-              <SelectItem value="same">
-                Same - plateau or no significant change
-              </SelectItem>
-              <SelectItem value="worse">
-                Worse - regression or increased symptoms
-              </SelectItem>
-            </SelectContent>
-          </Select>
+      <CardContent className="space-y-6">
+        <div className="space-y-3">
+          <Label>Progression Since Last Visit</Label>
+          <div className="space-y-2">
+            {PROGRESSION_OPTIONS.map((option) => (
+              <div
+                key={option.value}
+                className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
+                  data.progression === option.value
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-slate-200 hover:bg-slate-50'
+                }`}
+                onClick={() => handleChange('progression', option.value)}
+              >
+                <Checkbox
+                  id={`progression_${option.value}`}
+                  checked={data.progression === option.value}
+                  onCheckedChange={() => handleChange('progression', option.value)}
+                />
+                <Label
+                  htmlFor={`progression_${option.value}`}
+                  className="text-sm cursor-pointer flex-1"
+                >
+                  {option.label}
+                </Label>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -64,32 +88,61 @@ export default function AssessmentForm({
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="impairments">Key Impairments/Deficits</Label>
-          <Textarea
-            id="impairments"
-            placeholder="e.g., Decreased knee flexion ROM, 4/5 quad strength, impaired single leg stance"
-            value={data.impairments || ''}
-            onChange={(e) => handleChange('impairments', e.target.value)}
-            rows={3}
-          />
+        <div className="space-y-3">
+          <Label className="flex items-center gap-2">
+            Key Impairments/Deficits
+            <span className="text-red-500">*</span>
+          </Label>
+          <p className="text-sm text-slate-500">
+            Select impairments to generate a skilled need statement for billing justification.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {IMPAIRMENT_OPTIONS.map((impairment) => (
+              <div
+                key={impairment}
+                className={`flex items-center gap-2 p-2 rounded-md border cursor-pointer transition-colors ${
+                  impairments.includes(impairment)
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-slate-200 hover:bg-slate-50'
+                }`}
+                onClick={() => toggleImpairment(impairment)}
+              >
+                <Checkbox
+                  id={`impairment_${impairment}`}
+                  checked={impairments.includes(impairment)}
+                  onCheckedChange={() => toggleImpairment(impairment)}
+                />
+                <Label
+                  htmlFor={`impairment_${impairment}`}
+                  className="text-sm cursor-pointer flex-1"
+                >
+                  {impairment}
+                </Label>
+              </div>
+            ))}
+          </div>
+          {impairments.length > 0 && (
+            <div className="text-sm text-blue-700 bg-blue-50 p-3 rounded-md border border-blue-200">
+              {impairments.length} impairment{impairments.length !== 1 ? 's' : ''} selected.
+              AI will generate a skilled need statement based on these selections.
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="skilled_need" className="flex items-center gap-2">
-            Skilled Need Statement
-            <span className="text-red-500">*</span>
+            Skilled Need Statement (Optional Override)
           </Label>
           <Textarea
             id="skilled_need"
-            placeholder="Explain why skilled PT services are necessary (required for billing justification). e.g., Skilled therapeutic exercise and neuromuscular re-education required to address impaired movement patterns and functional deficits"
+            placeholder="Leave blank to auto-generate from selected impairments, or type a custom statement"
             value={data.skilled_need || ''}
             onChange={(e) => handleChange('skilled_need', e.target.value)}
             rows={3}
             className="border-blue-300"
           />
           <p className="text-sm text-slate-500">
-            This statement justifies the medical necessity of skilled PT services for insurance billing.
+            If left blank, AI will generate a skilled need statement from your selected impairments above.
           </p>
         </div>
       </CardContent>

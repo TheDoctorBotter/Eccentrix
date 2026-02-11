@@ -2,11 +2,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { NEXT_SESSION_FOCUS_OPTIONS } from '@/lib/types';
 
 interface PlanFormProps {
   data?: {
     frequency_duration?: string;
-    next_session_focus?: string;
+    next_session_focus?: string[];
     hep?: string;
     education_provided?: string;
   };
@@ -17,8 +19,21 @@ export default function PlanForm({
   data = {},
   onChange,
 }: PlanFormProps) {
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: any) => {
     onChange({ ...data, [field]: value });
+  };
+
+  const selectedFocus = data.next_session_focus || [];
+
+  const toggleFocus = (focus: string) => {
+    const current = [...selectedFocus];
+    const index = current.indexOf(focus);
+    if (index >= 0) {
+      current.splice(index, 1);
+    } else {
+      current.push(focus);
+    }
+    handleChange('next_session_focus', current);
   };
 
   return (
@@ -29,7 +44,7 @@ export default function PlanForm({
           Treatment plan, frequency, and patient education
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         <div className="space-y-2">
           <Label htmlFor="frequency">Frequency & Duration</Label>
           <Input
@@ -40,15 +55,33 @@ export default function PlanForm({
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="next_session">Next Session Focus</Label>
-          <Textarea
-            id="next_session"
-            placeholder="e.g., Continue strengthening progression, advance balance activities, reassess ROM"
-            value={data.next_session_focus || ''}
-            onChange={(e) => handleChange('next_session_focus', e.target.value)}
-            rows={2}
-          />
+        <div className="space-y-3">
+          <Label>Next Session Focus</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {NEXT_SESSION_FOCUS_OPTIONS.map((focus) => (
+              <div
+                key={focus}
+                className={`flex items-center gap-2 p-2 rounded-md border cursor-pointer transition-colors ${
+                  selectedFocus.includes(focus)
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-slate-200 hover:bg-slate-50'
+                }`}
+                onClick={() => toggleFocus(focus)}
+              >
+                <Checkbox
+                  id={`focus_${focus}`}
+                  checked={selectedFocus.includes(focus)}
+                  onCheckedChange={() => toggleFocus(focus)}
+                />
+                <Label
+                  htmlFor={`focus_${focus}`}
+                  className="text-sm cursor-pointer flex-1"
+                >
+                  {focus}
+                </Label>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="space-y-2">
