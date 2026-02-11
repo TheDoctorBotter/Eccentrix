@@ -44,6 +44,8 @@ export default function AddPatientPage() {
     primary_diagnosis: '',
     referring_physician: '',
     insurance_id: '',
+    allergies: '',
+    precautions: '',
     // Episode fields
     episode_diagnosis: '',
     frequency: '',
@@ -97,6 +99,8 @@ export default function AddPatientPage() {
           primary_diagnosis: formData.primary_diagnosis || null,
           referring_physician: formData.referring_physician || null,
           insurance_id: formData.insurance_id || null,
+          allergies: formData.allergies || null,
+          precautions: formData.precautions || null,
         }),
       });
 
@@ -306,6 +310,26 @@ export default function AddPatientPage() {
                       name="insurance_id"
                       value={formData.insurance_id}
                       onChange={handleInputChange}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="allergies">Allergies</Label>
+                    <Input
+                      id="allergies"
+                      name="allergies"
+                      value={formData.allergies}
+                      onChange={handleInputChange}
+                      placeholder="e.g., NKDA, Penicillin, Latex"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="precautions">Precautions</Label>
+                    <Input
+                      id="precautions"
+                      name="precautions"
+                      value={formData.precautions}
+                      onChange={handleInputChange}
+                      placeholder="e.g., Fall risk, WB restrictions"
                     />
                   </div>
                 </div>

@@ -65,6 +65,8 @@ export async function POST(request: NextRequest) {
       secondary_diagnoses,
       referring_physician,
       insurance_id,
+      allergies,
+      precautions,
     } = body;
 
     if (!clinic_id || !first_name || !last_name) {
@@ -89,6 +91,8 @@ export async function POST(request: NextRequest) {
         secondary_diagnoses,
         referring_physician,
         insurance_id,
+        allergies,
+        precautions,
         is_active: true,
       })
       .select()

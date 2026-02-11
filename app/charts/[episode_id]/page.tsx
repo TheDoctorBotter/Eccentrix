@@ -12,6 +12,8 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   ArrowLeft,
   FileText,
@@ -23,6 +25,9 @@ import {
   CheckCircle2,
   Edit2,
   Eye,
+  Loader2,
+  Save,
+  Pencil,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import { DeletePatientDialog } from '@/components/DeletePatientDialog';
@@ -47,6 +52,16 @@ export default function PatientChartPage({ params }: PageProps) {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Patient detail editing
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [patientDetails, setPatientDetails] = useState({
+    insurance_id: '',
+    allergies: '',
+    precautions: '',
+    referring_physician: '',
+  });
+
   useEffect(() => {
     if (episodeId) {
       fetchEpisodeDetails();
@@ -61,6 +76,12 @@ export default function PatientChartPage({ params }: PageProps) {
       if (res.ok) {
         const data = await res.json();
         setEpisode(data);
+        setPatientDetails({
+          insurance_id: data.insurance_id || '',
+          allergies: data.allergies || '',
+          precautions: data.precautions || '',
+          referring_physician: data.referring_physician || '',
+        });
       }
     } catch (error) {
       console.error('Error fetching episode:', error);
@@ -92,6 +113,27 @@ export default function PatientChartPage({ params }: PageProps) {
       age--;
     }
     return `${age} years old`;
+  };
+
+  const handleSavePatientDetails = async () => {
+    if (!episode?.patient_id) return;
+    setSavingDetails(true);
+    try {
+      const res = await fetch(`/api/patients/${episode.patient_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patientDetails),
+      });
+      if (res.ok) {
+        // Refresh episode data so the header updates too
+        await fetchEpisodeDetails();
+        setEditingDetails(false);
+      }
+    } catch (error) {
+      console.error('Error saving patient details:', error);
+    } finally {
+      setSavingDetails(false);
+    }
   };
 
   const getDocTypeIcon = (docType: ClinicalDocType) => {
@@ -229,6 +271,107 @@ export default function PatientChartPage({ params }: PageProps) {
                     </p>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Patient Details (editable) */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Patient Details</CardTitle>
+                  {!editingDetails ? (
+                    <Button variant="outline" size="sm" className="gap-1" onClick={() => setEditingDetails(true)}>
+                      <Pencil className="h-3 w-3" />
+                      Edit
+                    </Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => {
+                        setEditingDetails(false);
+                        // Reset to current episode data
+                        setPatientDetails({
+                          insurance_id: episode.insurance_id || '',
+                          allergies: episode.allergies || '',
+                          precautions: episode.precautions || '',
+                          referring_physician: episode.referring_physician || '',
+                        });
+                      }}>
+                        Cancel
+                      </Button>
+                      <Button size="sm" className="gap-1" onClick={handleSavePatientDetails} disabled={savingDetails}>
+                        {savingDetails ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                        Save
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {editingDetails ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="referring_physician">Referring MD</Label>
+                      <Input
+                        id="referring_physician"
+                        value={patientDetails.referring_physician}
+                        onChange={(e) => setPatientDetails(prev => ({ ...prev, referring_physician: e.target.value }))}
+                        placeholder="e.g., Dr. Smith"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="insurance_id">Insurance ID</Label>
+                      <Input
+                        id="insurance_id"
+                        value={patientDetails.insurance_id}
+                        onChange={(e) => setPatientDetails(prev => ({ ...prev, insurance_id: e.target.value }))}
+                        placeholder="e.g., BCBS 12345678"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="allergies">Allergies</Label>
+                      <Input
+                        id="allergies"
+                        value={patientDetails.allergies}
+                        onChange={(e) => setPatientDetails(prev => ({ ...prev, allergies: e.target.value }))}
+                        placeholder="e.g., NKDA, Penicillin"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="precautions">Precautions</Label>
+                      <Input
+                        id="precautions"
+                        value={patientDetails.precautions}
+                        onChange={(e) => setPatientDetails(prev => ({ ...prev, precautions: e.target.value }))}
+                        placeholder="e.g., Fall risk, WB restrictions"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                      <p className="text-xs text-slate-500">Referring MD</p>
+                      <p className="text-sm font-medium text-slate-900">{episode.referring_physician || '—'}</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                      <p className="text-xs text-slate-500">Insurance ID</p>
+                      <p className="text-sm font-medium text-slate-900">{episode.insurance_id || '—'}</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                      <p className="text-xs text-slate-500">Allergies</p>
+                      <p className="text-sm font-medium text-slate-900">{episode.allergies || '—'}</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                      <p className="text-xs text-slate-500">Precautions</p>
+                      <p className="text-sm font-medium text-slate-900">{episode.precautions || '—'}</p>
+                    </div>
+                    {episode.diagnosis_codes && episode.diagnosis_codes.length > 0 && (
+                      <div className="p-3 bg-slate-50 rounded-lg md:col-span-4">
+                        <p className="text-xs text-slate-500">ICD-10 Codes</p>
+                        <p className="text-sm font-medium text-slate-900">{episode.diagnosis_codes.join(', ')}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 

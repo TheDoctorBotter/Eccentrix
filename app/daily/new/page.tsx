@@ -97,8 +97,11 @@ function DailySoapNoteContent() {
         ? new Date(episodeData.date_of_birth).toLocaleDateString('en-US')
         : undefined;
 
-      // Determine diagnosis from episode or patient data
-      const diagnosis = episodeData.diagnosis || episodeData.primary_diagnosis || undefined;
+      // Use ICD-10 codes from episode when available, fall back to text diagnosis
+      const diagnosisCodes = episodeData.diagnosis_codes as string[] | null;
+      const medicalDx = diagnosisCodes && diagnosisCodes.length > 0
+        ? diagnosisCodes.join(', ')
+        : (episodeData.diagnosis || episodeData.primary_diagnosis || undefined);
 
       // Pre-populate the form with patient demographics and today's date
       const prePopulatedData: NoteInputData = {
@@ -106,7 +109,7 @@ function DailySoapNoteContent() {
         patientDemographic: {
           patientName: patientName || undefined,
           dateOfBirth: dob,
-          diagnosis: diagnosis,
+          diagnosis: medicalDx,
           referralSource: episodeData.referring_physician || undefined,
           insuranceId: episodeData.insurance_id || undefined,
           allergies: episodeData.allergies || undefined,

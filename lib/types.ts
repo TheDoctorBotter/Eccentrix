@@ -308,6 +308,8 @@ export interface Patient {
   secondary_diagnoses?: string[] | null;
   referring_physician?: string | null;
   insurance_id?: string | null;
+  allergies?: string | null;
+  precautions?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

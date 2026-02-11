@@ -341,6 +341,7 @@ export function noteToTemplateData(note: Note): NoteTemplateData {
     hep: plan?.hep || '',
 
     // Billing
+    dxCodes: demographic?.diagnosis || '',
     billingJustification: note.billing_justification || '',
   };
 }
