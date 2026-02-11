@@ -92,9 +92,9 @@ function DailySoapNoteContent() {
         .filter(Boolean)
         .join(' ');
 
-      // Format DOB if present
+      // Format DOB as YYYY-MM-DD for the date input field
       const dob = episodeData.date_of_birth
-        ? new Date(episodeData.date_of_birth).toLocaleDateString('en-US')
+        ? new Date(episodeData.date_of_birth).toISOString().split('T')[0]
         : undefined;
 
       // Use ICD-10 codes from episode when available, fall back to text diagnosis
@@ -103,6 +103,12 @@ function DailySoapNoteContent() {
         ? diagnosisCodes.join(', ')
         : (episodeData.diagnosis || episodeData.primary_diagnosis || undefined);
 
+      // Extract treatment diagnosis from ICD-10 codes if available
+      const treatmentDxCodes = episodeData.treatment_diagnosis_codes as Array<{ code: string; description: string }> | null;
+      const treatmentDx = treatmentDxCodes && treatmentDxCodes.length > 0
+        ? treatmentDxCodes.map(d => `${d.code} - ${d.description}`).join(', ')
+        : undefined;
+
       // Pre-populate the form with patient demographics and today's date
       const prePopulatedData: NoteInputData = {
         dateOfService: new Date().toISOString().split('T')[0],
@@ -110,6 +116,7 @@ function DailySoapNoteContent() {
           patientName: patientName || undefined,
           dateOfBirth: dob,
           diagnosis: medicalDx,
+          treatmentDiagnosis: treatmentDx,
           referralSource: episodeData.referring_physician || undefined,
           insuranceId: episodeData.insurance_id || undefined,
           allergies: episodeData.allergies || undefined,
