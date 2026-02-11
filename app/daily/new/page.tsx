@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import ObjectiveForm from '@/components/note-wizard/ObjectiveForm';
 import AssessmentForm from '@/components/note-wizard/AssessmentForm';
 import PlanForm from '@/components/note-wizard/PlanForm';
 
-export default function DailySoapNotePage() {
+function DailySoapNoteContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { currentClinic } = useAuth();
@@ -384,5 +384,17 @@ export default function DailySoapNotePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DailySoapNotePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    }>
+      <DailySoapNoteContent />
+    </Suspense>
   );
 }
