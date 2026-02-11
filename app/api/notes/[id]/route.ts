@@ -13,10 +13,10 @@ export async function GET(
       .eq('id', params.id)
       .single();
 
-    // If not found in notes, try clinical_documents table
+    // If not found in notes, try documents table
     if (error && error.code === 'PGRST116') {
       const docResult = await supabase
-        .from('clinical_documents')
+        .from('documents')
         .select('*')
         .eq('id', params.id)
         .single();
@@ -116,14 +116,14 @@ export async function PATCH(
       .select()
       .single();
 
-    // If not in notes table, try clinical_documents
+    // If not in notes table, try documents
     if (error && error.code === 'PGRST116') {
       const docUpdateData: Record<string, unknown> = {};
       if (rich_content) docUpdateData.rich_content = updateData.rich_content;
       if (output_text) docUpdateData.content = output_text;
 
       const docResult = await supabase
-        .from('clinical_documents')
+        .from('documents')
         .update(docUpdateData)
         .eq('id', params.id)
         .select()
