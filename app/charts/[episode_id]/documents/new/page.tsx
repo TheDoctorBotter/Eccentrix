@@ -20,10 +20,16 @@ export default function NewDocumentPage({ params }: PageProps) {
   const docType = (searchParams.get('type') || 'daily_note') as ClinicalDocType;
 
   useEffect(() => {
+    // For daily notes, redirect to the SOAP form with auto-load
+    if (docType === 'daily_note') {
+      router.replace(`/daily/new?episode_id=${episodeId}`);
+      return;
+    }
+
     if (currentClinic && episodeId) {
       createDocument();
     }
-  }, [currentClinic, episodeId]);
+  }, [currentClinic, episodeId, docType]);
 
   const createDocument = async () => {
     if (!currentClinic) {

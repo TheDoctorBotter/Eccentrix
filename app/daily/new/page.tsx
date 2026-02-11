@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Loader2 } from 'lucide-react';
-import { NoteInputData, Template, Intervention } from '@/lib/types';
+import { ArrowLeft, Loader2, UserCheck } from 'lucide-react';
+import { NoteInputData, Template, Intervention, Episode } from '@/lib/types';
+import { useAuth } from '@/lib/auth-context';
 import DateOfServiceForm from '@/components/note-wizard/DateOfServiceForm';
 import PatientDemographicForm from '@/components/note-wizard/PatientDemographicForm';
 import SubjectiveForm from '@/components/note-wizard/SubjectiveForm';
@@ -18,16 +19,33 @@ import PlanForm from '@/components/note-wizard/PlanForm';
 
 export default function DailySoapNotePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { currentClinic } = useAuth();
+
+  const episodeId = searchParams.get('episode_id');
+
   const [inputData, setInputData] = useState<NoteInputData>({});
   const [template, setTemplate] = useState<Template | null>(null);
   const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Episode context state
+  const [episode, setEpisode] = useState<Episode | null>(null);
+  const [loadingEpisode, setLoadingEpisode] = useState(!!episodeId);
+  const [autoLoaded, setAutoLoaded] = useState(false);
+
   useEffect(() => {
     fetchInterventions();
     fetchDefaultTemplate();
   }, []);
+
+  // Auto-load patient data when episode_id is present
+  useEffect(() => {
+    if (episodeId) {
+      fetchEpisodeAndPrePopulate(episodeId);
+    }
+  }, [episodeId]);
 
   const fetchInterventions = async () => {
     try {
@@ -55,6 +73,88 @@ export default function DailySoapNotePage() {
       }
     } catch (error) {
       console.error('Error fetching template:', error);
+    }
+  };
+
+  const fetchEpisodeAndPrePopulate = async (epId: string) => {
+    setLoadingEpisode(true);
+    try {
+      // Fetch episode with patient data
+      const episodeRes = await fetch(`/api/episodes/${epId}`);
+      if (!episodeRes.ok) {
+        throw new Error('Failed to fetch episode details');
+      }
+      const episodeData: Episode = await episodeRes.json();
+      setEpisode(episodeData);
+
+      // Build patient name from episode data
+      const patientName = [episodeData.first_name, episodeData.last_name]
+        .filter(Boolean)
+        .join(' ');
+
+      // Format DOB if present
+      const dob = episodeData.date_of_birth
+        ? new Date(episodeData.date_of_birth).toLocaleDateString('en-US')
+        : undefined;
+
+      // Determine diagnosis from episode or patient data
+      const diagnosis = episodeData.diagnosis || episodeData.primary_diagnosis || undefined;
+
+      // Pre-populate the form with patient demographics and today's date
+      const prePopulatedData: NoteInputData = {
+        dateOfService: new Date().toISOString().split('T')[0],
+        patientDemographic: {
+          patientName: patientName || undefined,
+          dateOfBirth: dob,
+          diagnosis: diagnosis,
+          referralSource: episodeData.referring_physician || undefined,
+        },
+      };
+
+      // Fetch the most recent note for this episode to carry forward plan data
+      const prevNoteData = await fetchPreviousNoteData(epId);
+      if (prevNoteData) {
+        // Carry forward frequency/duration from the previous note's plan
+        if (prevNoteData.plan) {
+          prePopulatedData.plan = {
+            frequency_duration: prevNoteData.plan.frequency_duration || episodeData.frequency || undefined,
+          };
+        } else if (episodeData.frequency) {
+          prePopulatedData.plan = {
+            frequency_duration: episodeData.frequency,
+          };
+        }
+      } else if (episodeData.frequency) {
+        // No previous note, but episode has frequency info
+        prePopulatedData.plan = {
+          frequency_duration: episodeData.frequency,
+        };
+      }
+
+      setInputData(prePopulatedData);
+      setAutoLoaded(true);
+    } catch (err) {
+      console.error('Error auto-loading episode data:', err);
+      setError('Failed to auto-load patient data. You can still fill out the form manually.');
+    } finally {
+      setLoadingEpisode(false);
+    }
+  };
+
+  const fetchPreviousNoteData = async (epId: string): Promise<NoteInputData | null> => {
+    try {
+      // Get the most recent document for this episode
+      const res = await fetch(`/api/documents?episode_id=${epId}&doc_type=daily_note`);
+      if (!res.ok) return null;
+
+      const docs = await res.json();
+      if (!docs || docs.length === 0) return null;
+
+      // Documents are ordered by date_of_service desc, so first one is most recent
+      const mostRecent = docs[0];
+      return mostRecent.input_data || null;
+    } catch {
+      return null;
     }
   };
 
@@ -126,7 +226,37 @@ export default function DailySoapNotePage() {
       }
 
       const savedNote = await saveResponse.json();
-      console.log('[Frontend] Note saved successfully, redirecting...');
+      console.log('[Frontend] Note saved successfully');
+
+      // If we have episode context, also create a document record linked to the episode
+      if (episodeId && episode && currentClinic) {
+        try {
+          console.log('[Frontend] Creating document record for episode...');
+          await fetch('/api/documents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              episode_id: episodeId,
+              clinic_id: currentClinic.clinic_id,
+              patient_id: episode.patient_id,
+              doc_type: 'daily_note',
+              title: 'Daily Note',
+              date_of_service: inputData.dateOfService || new Date().toISOString().split('T')[0],
+              input_data: inputData,
+              output_text: generated.note,
+              billing_justification: generated.billing_justification,
+              hep_summary: generated.hep_summary,
+              template_id: template.id,
+              legacy_note_id: savedNote.id,
+            }),
+          });
+          console.log('[Frontend] Document record created successfully');
+        } catch (docErr) {
+          // Non-fatal - note was already saved, just log the error
+          console.error('[Frontend] Failed to create document record:', docErr);
+        }
+      }
+
       router.push(`/notes/${savedNote.id}`);
     } catch (err) {
       console.error('[Frontend] Error in handleGenerateNote:', err);
@@ -150,14 +280,18 @@ export default function DailySoapNotePage() {
     });
   };
 
+  // Determine the back link based on context
+  const backHref = episodeId ? `/charts/${episodeId}` : '/new';
+  const backLabel = episodeId ? 'Back to Chart' : 'Change Note Type';
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center justify-between mb-6">
-          <Link href="/new">
+          <Link href={backHref}>
             <Button variant="ghost">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Change Note Type
+              {backLabel}
             </Button>
           </Link>
           <Badge variant="outline" className="text-lg px-4 py-2">
@@ -166,6 +300,28 @@ export default function DailySoapNotePage() {
         </div>
 
         <h1 className="text-3xl font-bold text-slate-900 mb-8">Document Your Daily Visit</h1>
+
+        {/* Auto-loaded patient banner */}
+        {autoLoaded && episode && (
+          <Alert className="mb-6 border-emerald-200 bg-emerald-50">
+            <UserCheck className="h-4 w-4 text-emerald-600" />
+            <AlertDescription className="text-emerald-800">
+              Patient data auto-loaded for <strong>{episode.first_name} {episode.last_name}</strong>.
+              Demographics and plan frequency have been pre-filled from the chart.
+              You can edit any field before generating.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Loading episode data spinner */}
+        {loadingEpisode && (
+          <Alert className="mb-6 border-blue-200 bg-blue-50">
+            <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
+            <AlertDescription className="text-blue-800">
+              Loading patient data from chart...
+            </AlertDescription>
+          </Alert>
+        )}
 
         {error && (
           <Alert variant="destructive" className="mb-6">
@@ -213,7 +369,7 @@ export default function DailySoapNotePage() {
               <p className="text-slate-600 mb-4">
                 Review your inputs above, then click the button below to generate your professional Daily SOAP note.
               </p>
-              <Button onClick={handleGenerateNote} disabled={generating} size="lg" className="w-full">
+              <Button onClick={handleGenerateNote} disabled={generating || loadingEpisode} size="lg" className="w-full">
                 {generating ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />

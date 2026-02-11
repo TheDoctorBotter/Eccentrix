@@ -256,7 +256,7 @@ export default function PatientChartPage({ params }: PageProps) {
                   <div className="text-center py-8 text-slate-500">
                     <FileText className="h-10 w-10 mx-auto mb-3 text-slate-300" />
                     <p className="mb-4">No documents yet</p>
-                    <Link href={`/notes/new?episode_id=${episodeId}`}>
+                    <Link href={`/daily/new?episode_id=${episodeId}`}>
                       <Button variant="outline">Create First Document</Button>
                     </Link>
                   </div>
@@ -317,7 +317,7 @@ export default function PatientChartPage({ params }: PageProps) {
                       New Evaluation
                     </Button>
                   </Link>
-                  <Link href={`/charts/${episodeId}/documents/new?type=daily_note`}>
+                  <Link href={`/daily/new?episode_id=${episodeId}`}>
                     <Button variant="outline" size="sm" className="gap-2">
                       <FileText className="h-4 w-4" />
                       New Daily Note
