@@ -448,12 +448,13 @@ function splitNoteIntoSections(note: string): {
  * If they're missing, inject them.
  */
 function ensureSoapHeaders(note: string): string {
-  const hasSubjective = /^SUBJECTIVE\s*:/m.test(note);
-  const hasObjective = /^OBJECTIVE\s*:/m.test(note);
-  const hasAssessment = /^ASSESSMENT\s*:/m.test(note);
-  const hasPlan = /^PLAN\s*:/m.test(note);
+  // Only skip if all four headers are on their OWN lines (no inline content)
+  const requiredHeaders = ['SUBJECTIVE', 'OBJECTIVE', 'ASSESSMENT', 'PLAN'];
+  const hasAllOnOwnLines = requiredHeaders.every((h) =>
+    new RegExp(`^${h}[:\\s]*$`, 'im').test(note)
+  );
 
-  if (hasSubjective && hasObjective && hasAssessment && hasPlan) {
+  if (hasAllOnOwnLines) {
     return note;
   }
 

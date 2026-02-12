@@ -251,8 +251,14 @@ function DailySoapNoteContent() {
         throw new Error('Generated note is empty. Please try again.');
       }
 
+      console.log('[Frontend] Raw generated.note (first 400 chars):', generated.note.substring(0, 400));
+      console.log('[Frontend] Has SUBJECTIVE in raw note:', /SUBJECTIVE/i.test(generated.note));
+
       // Ensure SOAP headers are always present in the output text
       const noteText = ensureSoapHeaders(generated.note);
+
+      console.log('[Frontend] After ensureSoapHeaders (first 400 chars):', noteText.substring(0, 400));
+      console.log('[Frontend] Has SUBJECTIVE after enforcement:', /SUBJECTIVE/i.test(noteText));
 
       console.log('[Frontend] Saving note to database...');
       const saveResponse = await fetch('/api/notes', {

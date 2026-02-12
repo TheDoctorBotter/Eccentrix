@@ -84,13 +84,16 @@ export function formatNoteTitle(
  */
 export function ensureSoapHeaders(note: string): string {
   const requiredHeaders = ['SUBJECTIVE', 'OBJECTIVE', 'ASSESSMENT', 'PLAN'];
-  const hasAll = requiredHeaders.every((h) =>
-    new RegExp(`^${h}\\s*:`, 'im').test(note)
+
+  // Only skip normalization if ALL headers are on their OWN lines
+  // (header word + optional colon/whitespace, nothing else on the line)
+  const hasAllOnOwnLines = requiredHeaders.every((h) =>
+    new RegExp(`^${h}[:\\s]*$`, 'im').test(note)
   );
 
-  if (hasAll) return note;
+  if (hasAllOnOwnLines) return note;
 
-  // Try to find headers with flexible casing
+  // Try to find headers (possibly with inline content, markdown, etc.)
   const headerPattern = /^(?:\*{0,2})(SUBJECTIVE|OBJECTIVE|ASSESSMENT|PLAN(?:\s+OF\s+CARE)?)(?:\*{0,2})\s*:/gim;
   const matches: { header: string; index: number }[] = [];
   let match;

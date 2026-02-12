@@ -89,20 +89,48 @@ export default function NoteDetailPage() {
   // Initialize rich content when note loads
   useEffect(() => {
     if (note) {
+      // Debug: log what we received from the API
+      console.log('[NoteDisplay] output_text (first 300 chars):', note.output_text?.substring(0, 300));
+      console.log('[NoteDisplay] rich_content present:', !!note.rich_content);
+      console.log('[NoteDisplay] output_text has SUBJECTIVE:', /SUBJECTIVE/i.test(note.output_text || ''));
+
       // Check if note already has rich content stored
       const parsed = note.rich_content
         ? parseNoteContent(note.rich_content)
         : null;
 
       if (parsed) {
-        setRichContent(parsed);
-        setOriginalContent(parsed.document);
+        // Verify the stored rich content has SOAP headings
+        const hasHeadings = parsed.document.content.some(
+          (n: { type: string }) => n.type === 'heading'
+        );
+        if (hasHeadings) {
+          console.log('[NoteDisplay] Using stored rich_content (has headings)');
+          setRichContent(parsed);
+          setOriginalContent(parsed.document);
+        } else {
+          // Stored rich_content lacks headings — re-convert from plain text
+          console.warn('[NoteDisplay] Stored rich_content has NO headings — re-converting from output_text');
+          const newRichContent = createRichNoteContent(
+            note.output_text,
+            note.billing_justification || undefined,
+            note.hep_summary || undefined
+          );
+          setRichContent(newRichContent);
+          setOriginalContent(newRichContent.document);
+        }
       } else {
         // Convert plain text to rich content
+        console.log('[NoteDisplay] No stored rich_content — converting from output_text');
         const newRichContent = createRichNoteContent(
           note.output_text,
           note.billing_justification || undefined,
           note.hep_summary || undefined
+        );
+        console.log('[NoteDisplay] Converted document headings:',
+          newRichContent.document.content
+            .filter((n: { type: string }) => n.type === 'heading')
+            .length
         );
         setRichContent(newRichContent);
         setOriginalContent(newRichContent.document);

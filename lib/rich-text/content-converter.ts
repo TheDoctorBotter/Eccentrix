@@ -53,13 +53,48 @@ const SECTION_PATTERNS: Array<{
 ];
 
 /**
- * Detect if a line is a section header
+ * Detect if a line is a section header (header on its own line, no content after)
  */
 function detectSectionHeader(line: string): { section: ClinicalSection; title: string } | null {
   const trimmed = line.trim();
   for (const { pattern, section, title } of SECTION_PATTERNS) {
     if (pattern.test(trimmed)) {
       return { section, title };
+    }
+  }
+  return null;
+}
+
+/**
+ * Inline header patterns: matches "SUBJECTIVE: content..." on the same line.
+ * Returns the header title and any remaining content after the colon.
+ */
+const INLINE_HEADER_PATTERNS: Array<{
+  pattern: RegExp;
+  section: ClinicalSection;
+  title: string;
+}> = [
+  { pattern: /^(PATIENT\s*DEMOGRAPHIC|DEMOGRAPHICS?)\s*:\s*(.+)/i, section: 'patient_demographic', title: 'PATIENT DEMOGRAPHIC' },
+  { pattern: /^SUBJECTIVE\s*:\s*(.+)/i, section: 'subjective', title: 'SUBJECTIVE' },
+  { pattern: /^OBJECTIVE\s*:\s*(.+)/i, section: 'objective', title: 'OBJECTIVE' },
+  { pattern: /^ASSESSMENT\s*:\s*(.+)/i, section: 'assessment', title: 'ASSESSMENT' },
+  { pattern: /^PLAN\s*:\s*(.+)/i, section: 'plan', title: 'PLAN' },
+];
+
+/**
+ * Detect if a line starts with a section header but also has content after the colon
+ * e.g. "SUBJECTIVE: Patient reports pain in lower back"
+ */
+function detectInlineSectionHeader(line: string): { section: ClinicalSection; title: string; content: string } | null {
+  const trimmed = line.trim();
+  for (const { pattern, section, title } of INLINE_HEADER_PATTERNS) {
+    const match = pattern.exec(trimmed);
+    if (match) {
+      // The last capture group is always the content after the colon
+      const content = match[match.length - 1].trim();
+      if (content) {
+        return { section, title, content };
+      }
     }
   }
   return null;
@@ -179,11 +214,14 @@ function createBulletList(items: string[]): BulletListNode {
  */
 function ensureSoapHeadersInText(text: string): string {
   const requiredHeaders = ['SUBJECTIVE', 'OBJECTIVE', 'ASSESSMENT', 'PLAN'];
-  const hasAll = requiredHeaders.every((h) =>
-    new RegExp(`^${h}\\s*:`, 'im').test(text)
+
+  // Only skip normalization if ALL headers are on their OWN lines
+  // (matching what detectSectionHeader expects: header alone on the line)
+  const hasAllOnOwnLines = requiredHeaders.every((h) =>
+    new RegExp(`^${h}[:\\s]*$`, 'im').test(text)
   );
 
-  if (hasAll) {
+  if (hasAllOnOwnLines) {
     return text;
   }
 
@@ -256,11 +294,20 @@ export function plainTextToRichDocument(plainText: string): RichTextDocument {
       continue;
     }
 
-    // Check for section header
+    // Check for section header (header on its own line, e.g. "SUBJECTIVE:")
     const sectionHeader = detectSectionHeader(trimmedLine);
     if (sectionHeader) {
       flushBulletList();
       content.push(createHeading(sectionHeader.title, 2));
+      continue;
+    }
+
+    // Check for inline section header (e.g. "SUBJECTIVE: Patient reports...")
+    const inlineHeader = detectInlineSectionHeader(trimmedLine);
+    if (inlineHeader) {
+      flushBulletList();
+      content.push(createHeading(inlineHeader.title, 2));
+      content.push(createParagraph(inlineHeader.content));
       continue;
     }
 
@@ -293,6 +340,48 @@ export function plainTextToRichDocument(plainText: string): RichTextDocument {
     !('content' in content[content.length - 1])
   ) {
     content.pop();
+  }
+
+  // POST-CONVERSION VALIDATION: Guarantee SOAP heading nodes exist
+  const soapHeaders = ['SUBJECTIVE', 'OBJECTIVE', 'ASSESSMENT', 'PLAN'];
+  const existingHeadings = new Set(
+    content
+      .filter((n): n is HeadingNode => n.type === 'heading')
+      .map((h) => {
+        const text = h.content?.[0];
+        return text && text.type === 'text' ? text.text.toUpperCase().trim() : '';
+      })
+  );
+
+  const missingSoap = soapHeaders.filter((h) => !existingHeadings.has(h));
+  if (missingSoap.length > 0) {
+    // SOAP headings are missing from the document — inject them at the top
+    // This is the absolute last resort safety net
+    console.warn('[content-converter] Missing SOAP headings after conversion:', missingSoap, '— injecting them');
+    const injected: BlockNode[] = [];
+    if (missingSoap.length === soapHeaders.length) {
+      // None found at all — wrap all existing content under SUBJECTIVE
+      injected.push(createHeading('SUBJECTIVE', 2));
+      injected.push(...content);
+      injected.push({ type: 'paragraph' });
+      injected.push(createHeading('OBJECTIVE', 2));
+      injected.push(createParagraph('Not assessed today.'));
+      injected.push({ type: 'paragraph' });
+      injected.push(createHeading('ASSESSMENT', 2));
+      injected.push(createParagraph('Not assessed today.'));
+      injected.push({ type: 'paragraph' });
+      injected.push(createHeading('PLAN', 2));
+      injected.push(createParagraph('Not assessed today.'));
+      content.length = 0;
+      content.push(...injected);
+    } else {
+      // Some headings found, some missing — append missing ones at end
+      for (const h of missingSoap) {
+        content.push({ type: 'paragraph' });
+        content.push(createHeading(h, 2));
+        content.push(createParagraph('Not assessed today.'));
+      }
+    }
   }
 
   return {
