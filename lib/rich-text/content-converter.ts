@@ -173,10 +173,67 @@ function createBulletList(items: string[]): BulletListNode {
 // ============================================================================
 
 /**
+ * Ensure plain text contains all four SOAP section headers before conversion.
+ * If headers are missing, attempt to find them with flexible patterns and
+ * normalize, or inject them as a last resort.
+ */
+function ensureSoapHeadersInText(text: string): string {
+  const requiredHeaders = ['SUBJECTIVE', 'OBJECTIVE', 'ASSESSMENT', 'PLAN'];
+  const hasAll = requiredHeaders.every((h) =>
+    new RegExp(`^${h}\\s*:`, 'im').test(text)
+  );
+
+  if (hasAll) {
+    return text;
+  }
+
+  // Try to split the text into sections using flexible header detection
+  const headerPattern = /^(?:\*{0,2})(SUBJECTIVE|OBJECTIVE|ASSESSMENT|PLAN(?:\s+OF\s+CARE)?)(?:\*{0,2})\s*:/gim;
+  const matches: { header: string; index: number }[] = [];
+  let match;
+  while ((match = headerPattern.exec(text)) !== null) {
+    matches.push({ header: match[1].toUpperCase(), index: match.index });
+  }
+
+  if (matches.some((m) => m.header === 'SUBJECTIVE')) {
+    // Found at least some headers — extract sections and reassemble with uppercase headers
+    const preamble = text.slice(0, matches[0].index).trim();
+    const sections: string[] = [];
+    if (preamble) sections.push(preamble);
+
+    const sectionMap: Record<string, string> = {};
+    for (let i = 0; i < matches.length; i++) {
+      const start = matches[i].index;
+      const end = i + 1 < matches.length ? matches[i + 1].index : text.length;
+      const sectionText = text.slice(start, end).replace(/^.*?:\s*\n?/, '').trim();
+      const key = matches[i].header.startsWith('PLAN') ? 'PLAN' : matches[i].header;
+      sectionMap[key] = sectionText;
+    }
+
+    for (const h of requiredHeaders) {
+      sections.push(`${h}:\n${sectionMap[h] || 'Not provided.'}`);
+    }
+
+    return sections.join('\n\n');
+  }
+
+  // No headers found at all — inject default headers before the entire content
+  const sections = [
+    `SUBJECTIVE:\n${text.trim()}`,
+    'OBJECTIVE:\nNot assessed today.',
+    'ASSESSMENT:\nNot assessed today.',
+    'PLAN:\nNot assessed today.',
+  ];
+  return sections.join('\n\n');
+}
+
+/**
  * Convert plain text AI output to a TipTap-compatible RichTextDocument
  */
 export function plainTextToRichDocument(plainText: string): RichTextDocument {
-  const lines = plainText.split('\n');
+  // Ensure SOAP headers are present before converting
+  const normalizedText = ensureSoapHeadersInText(plainText);
+  const lines = normalizedText.split('\n');
   const content: BlockNode[] = [];
   let currentBulletItems: string[] = [];
 
