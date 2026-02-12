@@ -175,6 +175,7 @@ export const IMPAIRMENT_OPTIONS = [
   'Impaired body awareness/proprioception',
   'Decreased flexibility',
   'Abnormal muscle tone',
+  'Increased pain',
 ] as const;
 
 export const NEXT_SESSION_FOCUS_OPTIONS = [
@@ -326,6 +327,8 @@ export interface Episode {
   status: EpisodeStatus;
   diagnosis?: string | null;
   diagnosis_codes?: string[] | null;
+  primary_diagnosis_codes?: Array<{ code: string; description: string }> | null;
+  treatment_diagnosis_codes?: Array<{ code: string; description: string }> | null;
   frequency?: string | null;
   duration?: string | null;
   primary_pt_id?: string | null;

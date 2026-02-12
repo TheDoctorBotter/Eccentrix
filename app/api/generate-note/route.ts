@@ -239,12 +239,19 @@ STYLE PREFERENCES:
 - ${acronymInstruction}
 
 OUTPUT FORMAT:
-Return your response in the following JSON format:
+Return your response in the following JSON format with EACH SOAP section as a SEPARATE field. Do NOT include section headers like "SUBJECTIVE:" or "OBJECTIVE:" in the content — just the section body text. The application will add headers automatically.
+
 {
-  "note": "The complete formatted note",
+  "preamble": "Any content before the SOAP sections (Date of Service, patient demographics, diagnosis, etc.)",
+  "subjective": "Content for the SUBJECTIVE section (body text only, NO header)",
+  "objective": "Content for the OBJECTIVE section (body text only, NO header)",
+  "assessment": "Content for the ASSESSMENT section (body text only, NO header)",
+  "plan": "Content for the PLAN section (body text only, NO header)",
   "billing_justification": "2-3 sentences justifying skilled PT services (only for evaluations and progress notes, NOT daily notes)",
   "hep_summary": "1-2 sentences summarizing home exercise program (only for evaluations and progress notes, NOT daily notes)"
 }
+
+CRITICAL: Each section field must contain ONLY the body text. Do NOT repeat the section name/header inside the field value.
 
 For daily SOAP notes: Do NOT include billing_justification or hep_summary. Set them to empty strings. These sections are addressed in progress updates and evaluations only.
 
@@ -369,7 +376,7 @@ function buildUserPrompt(
     }
   }
 
-  prompt += `\nNow generate the complete note following the template structure. Return as JSON with "note", "billing_justification", and "hep_summary" fields.`;
+  prompt += `\nNow generate the note content for each SOAP section separately. Return as JSON with "preamble", "subjective", "objective", "assessment", "plan", "billing_justification", and "hep_summary" fields. Do NOT include section headers (like "SUBJECTIVE:") inside the field values — the application adds those automatically.`;
 
   return prompt;
 }
@@ -383,6 +390,39 @@ function parseGeneratedOutput(text: string): {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
+
+      // If the AI returned structured SOAP sections, assemble with hardcoded headers
+      if (parsed.subjective || parsed.objective || parsed.assessment || parsed.plan) {
+        const sections: string[] = [];
+
+        if (parsed.preamble) {
+          sections.push(parsed.preamble.trim());
+        }
+
+        if (parsed.subjective) {
+          sections.push(`SUBJECTIVE:\n${parsed.subjective.trim()}`);
+        }
+
+        if (parsed.objective) {
+          sections.push(`OBJECTIVE:\n${parsed.objective.trim()}`);
+        }
+
+        if (parsed.assessment) {
+          sections.push(`ASSESSMENT:\n${parsed.assessment.trim()}`);
+        }
+
+        if (parsed.plan) {
+          sections.push(`PLAN:\n${parsed.plan.trim()}`);
+        }
+
+        return {
+          note: sections.join('\n\n'),
+          billing_justification: parsed.billing_justification || '',
+          hep_summary: parsed.hep_summary || '',
+        };
+      }
+
+      // Fallback: if the AI returned a single "note" field (legacy format)
       return {
         note: parsed.note || text,
         billing_justification: parsed.billing_justification || '',
