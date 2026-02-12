@@ -185,9 +185,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('[Generate Note] Raw AI response (first 500 chars):', generatedText.substring(0, 500));
+
     const parsedOutput = parseGeneratedOutput(generatedText);
 
-    console.log('[Generate Note] Success - generated', parsedOutput.note.length, 'characters');
+    // Log whether headers ended up in the final note
+    const hasHeaders = /^SUBJECTIVE\s*:/m.test(parsedOutput.note);
+    console.log('[Generate Note] Success - generated', parsedOutput.note.length, 'characters, SOAP headers present:', hasHeaders);
+    console.log('[Generate Note] Final note (first 300 chars):', parsedOutput.note.substring(0, 300));
 
     return NextResponse.json(parsedOutput);
   } catch (error) {

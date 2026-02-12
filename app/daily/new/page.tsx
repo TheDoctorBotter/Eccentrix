@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, Loader2, UserCheck } from 'lucide-react';
 import { NoteInputData, Template, Intervention, Episode } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
+import { ensureSoapHeaders } from '@/lib/note-utils';
 import DateOfServiceForm from '@/components/note-wizard/DateOfServiceForm';
 import PatientDemographicForm from '@/components/note-wizard/PatientDemographicForm';
 import SubjectiveForm from '@/components/note-wizard/SubjectiveForm';
@@ -250,6 +251,9 @@ function DailySoapNoteContent() {
         throw new Error('Generated note is empty. Please try again.');
       }
 
+      // Ensure SOAP headers are always present in the output text
+      const noteText = ensureSoapHeaders(generated.note);
+
       console.log('[Frontend] Saving note to database...');
       const saveResponse = await fetch('/api/notes', {
         method: 'POST',
@@ -257,7 +261,7 @@ function DailySoapNoteContent() {
         body: JSON.stringify({
           note_type: 'daily_soap',
           input_data: inputData,
-          output_text: generated.note,
+          output_text: noteText,
           billing_justification: null,
           hep_summary: null,
           template_id: template.id,
@@ -289,7 +293,7 @@ function DailySoapNoteContent() {
               title: 'Daily Note',
               date_of_service: inputData.dateOfService || new Date().toISOString().split('T')[0],
               input_data: inputData,
-              output_text: generated.note,
+              output_text: noteText,
               billing_justification: null,
               hep_summary: null,
               template_id: template.id,

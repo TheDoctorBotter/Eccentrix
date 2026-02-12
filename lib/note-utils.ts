@@ -78,6 +78,55 @@ export function formatNoteTitle(
   return `${patientPart} - ${noteTypeLabel}`;
 }
 
+/**
+ * Ensure SOAP headers (SUBJECTIVE, OBJECTIVE, ASSESSMENT, PLAN) are always
+ * present in the note text. If missing, inject them.
+ */
+export function ensureSoapHeaders(note: string): string {
+  const requiredHeaders = ['SUBJECTIVE', 'OBJECTIVE', 'ASSESSMENT', 'PLAN'];
+  const hasAll = requiredHeaders.every((h) =>
+    new RegExp(`^${h}\\s*:`, 'im').test(note)
+  );
+
+  if (hasAll) return note;
+
+  // Try to find headers with flexible casing
+  const headerPattern = /^(?:\*{0,2})(SUBJECTIVE|OBJECTIVE|ASSESSMENT|PLAN(?:\s+OF\s+CARE)?)(?:\*{0,2})\s*:/gim;
+  const matches: { header: string; index: number }[] = [];
+  let match;
+  while ((match = headerPattern.exec(note)) !== null) {
+    matches.push({ header: match[1].toUpperCase(), index: match.index });
+  }
+
+  if (matches.some((m) => m.header === 'SUBJECTIVE')) {
+    const preamble = note.slice(0, matches[0].index).trim();
+    const sections: string[] = [];
+    if (preamble) sections.push(preamble);
+
+    const sectionMap: Record<string, string> = {};
+    for (let i = 0; i < matches.length; i++) {
+      const start = matches[i].index;
+      const end = i + 1 < matches.length ? matches[i + 1].index : note.length;
+      const content = note.slice(start, end).replace(/^.*?:\s*\n?/, '').trim();
+      const key = matches[i].header.startsWith('PLAN') ? 'PLAN' : matches[i].header;
+      sectionMap[key] = content;
+    }
+
+    for (const h of requiredHeaders) {
+      sections.push(`${h}:\n${sectionMap[h] || 'Not provided.'}`);
+    }
+    return sections.join('\n\n');
+  }
+
+  // No headers found — wrap entire content under SUBJECTIVE
+  return [
+    `SUBJECTIVE:\n${note.trim()}`,
+    'OBJECTIVE:\nNot assessed today.',
+    'ASSESSMENT:\nNot assessed today.',
+    'PLAN:\nNot assessed today.',
+  ].join('\n\n');
+}
+
 export function formatSafePDFFilename(
   patientName: string | undefined,
   noteType: NoteType,

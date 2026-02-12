@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { NoteInputData, Template, Intervention } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
+import { ensureSoapHeaders } from '@/lib/note-utils';
 import DateOfServiceForm from '@/components/note-wizard/DateOfServiceForm';
 import PatientDemographicForm from '@/components/note-wizard/PatientDemographicForm';
 import SubjectiveForm from '@/components/note-wizard/SubjectiveForm';
@@ -107,6 +108,9 @@ export default function PtEvaluationNotePage() {
         throw new Error('Generated note is empty. Please try again.');
       }
 
+      // Ensure SOAP headers are always present in the output text
+      const noteText = ensureSoapHeaders(generated.note);
+
       console.log('[Frontend] Saving note to database...');
       const saveResponse = await fetch('/api/notes', {
         method: 'POST',
@@ -114,7 +118,7 @@ export default function PtEvaluationNotePage() {
         body: JSON.stringify({
           note_type: 'pt_evaluation',
           input_data: inputData,
-          output_text: generated.note,
+          output_text: noteText,
           billing_justification: generated.billing_justification,
           hep_summary: generated.hep_summary,
           template_id: template.id,
