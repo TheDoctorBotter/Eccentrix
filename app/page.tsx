@@ -20,6 +20,8 @@ import {
   Calendar,
   Stethoscope,
   Plus,
+  Bot,
+  FileText,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import {
@@ -29,16 +31,27 @@ import {
 import { format } from 'date-fns';
 import { useAuth } from '@/lib/auth-context';
 
+interface PtbotImport {
+  id: string;
+  title: string;
+  note_type: string;
+  date_of_service: string | null;
+  created_at: string;
+  input_data: { ptbot_external_id?: string; patient_name?: string };
+}
+
 export default function HomePage() {
   const { currentClinic, loading: authLoading } = useAuth();
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [alerts, setAlerts] = useState<DocumentationAlert[]>([]);
+  const [ptbotImports, setPtbotImports] = useState<PtbotImport[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (currentClinic?.clinic_id) {
       fetchCaseload(currentClinic.clinic_id);
       fetchAlerts(currentClinic.clinic_id);
+      fetchPTBotImports(currentClinic.clinic_id);
     }
   }, [currentClinic]);
 
@@ -67,6 +80,18 @@ export default function HomePage() {
     } catch (error) {
       console.error('Error fetching alerts:', error);
       setAlerts([]);
+    }
+  };
+
+  const fetchPTBotImports = async (clinicId: string) => {
+    try {
+      const res = await fetch(`/api/notes?clinic_id=${clinicId}&ptbot=true&limit=20`);
+      if (res.ok) {
+        const data = await res.json();
+        setPtbotImports(data);
+      }
+    } catch (error) {
+      console.error('Error fetching PTBot imports:', error);
     }
   };
 
@@ -184,6 +209,48 @@ export default function HomePage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* PTBot Imports */}
+            {ptbotImports.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Bot className="h-5 w-5 text-violet-500" />
+                      <CardTitle className="text-lg">PTBot Imports</CardTitle>
+                    </div>
+                    <Badge className="bg-violet-100 text-violet-700 border-violet-200 hover:bg-violet-100">
+                      {ptbotImports.length}
+                    </Badge>
+                  </div>
+                  <CardDescription>Telehealth notes synced from PTBot</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {ptbotImports.map((note) => (
+                      <Link key={note.id} href={`/notes/${note.id}`} className="block">
+                        <div className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 hover:border-violet-200 transition-colors cursor-pointer">
+                          <div className="flex items-center gap-3">
+                            <FileText className="h-4 w-4 text-violet-400 shrink-0" />
+                            <div>
+                              <p className="font-medium text-slate-900 text-sm">{note.title}</p>
+                              <p className="text-xs text-slate-500">
+                                {note.date_of_service
+                                  ? format(new Date(note.date_of_service), 'MMM d, yyyy')
+                                  : format(new Date(note.created_at), 'MMM d, yyyy')}
+                                {' · '}
+                                {note.note_type === 'pt_evaluation' ? 'PT Evaluation' : 'Daily SOAP'}
+                              </p>
+                            </div>
+                          </div>
+                          <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Caseload Box */}
             <Card>
