@@ -790,13 +790,3 @@ DO $$ BEGIN
 END $$;
 
 COMMIT;
-
--- ============================================================================
--- MANUAL STEP: LEAKED PASSWORD PROTECTION
--- ============================================================================
--- This cannot be set via SQL. To enable:
---   1. Go to your Supabase Dashboard
---   2. Navigate to: Authentication → Settings → Security
---   3. Find "Leaked Password Protection" and toggle it ON
---   4. Click Save
--- ============================================================================
