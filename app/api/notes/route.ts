@@ -20,6 +20,12 @@ export async function GET(request: NextRequest) {
       query = query.eq('clinic_id', clinicId);
     }
 
+    // Filter to only PTBot-imported notes
+    const ptbot = searchParams.get('ptbot');
+    if (ptbot === 'true') {
+      query = query.not('input_data->>ptbot_external_id', 'is', null);
+    }
+
     const { data, error } = await query;
 
     if (error) {
