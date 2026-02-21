@@ -1,22 +1,23 @@
 /**
  * PTBot Consult Notes API
- * POST: Receive SOAP notes from PTBot and store as draft documents in AIDOCS
+ * POST: Receive SOAP notes from PTBot and store in the notes table
  *
  * Flow:
  * 1. Authenticate via Bearer token (PTBOT_API_KEY)
- * 2. Look up or auto-create patient from PTBot external ID
- * 3. Look up or auto-create episode ("PTBot Telehealth")
- * 4. Insert document as daily_note in draft status
+ * 2. Look up or auto-create patient by email
+ * 3. Insert note into the `notes` table (the table the app reads from)
+ * 4. Idempotent: if a note with the same ptbot_external_id exists, update it
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
-
-const BUCKEYE_CLINIC_ID = 'd670e7f5-540c-41f2-98b3-8649f6355c6a';
+import { NoteInputData } from '@/lib/types';
 
 interface PTBotNotePayload {
-  external_id: string;          // PTBot auth.users UID
-  patient_name: string;         // "First Last" or "Last, First"
+  external_id: string;
+  appointment_external_id?: string;
+  patient_external_id?: string;
+  patient_name: string;
   patient_email?: string | null;
   note_type?: string;
   soap: {
@@ -33,10 +34,17 @@ interface PTBotNotePayload {
   };
   session?: {
     duration_minutes?: number | null;
-    date?: string | null;        // ISO date string
+    date?: string | null;
     clinician_id?: string | null;
     delivery_method?: string | null;
   };
+  compliance?: {
+    location_verified?: boolean;
+    location_state?: string;
+    consent_version?: string;
+  };
+  source?: string;
+  synced_at?: string;
 }
 
 function parsePatientName(fullName: string): { firstName: string; lastName: string } {
@@ -46,7 +54,6 @@ function parsePatientName(fullName: string): { firstName: string; lastName: stri
 
   const trimmed = fullName.trim();
 
-  // Handle "Last, First" format
   if (trimmed.includes(',')) {
     const parts = trimmed.split(',').map((p) => p.trim());
     return {
@@ -55,7 +62,6 @@ function parsePatientName(fullName: string): { firstName: string; lastName: stri
     };
   }
 
-  // Handle "First Last" format
   const parts = trimmed.split(/\s+/);
   if (parts.length === 1) {
     return { firstName: parts[0], lastName: 'Unknown' };
@@ -67,31 +73,119 @@ function parsePatientName(fullName: string): { firstName: string; lastName: stri
   };
 }
 
-function buildOutputText(soap: PTBotNotePayload['soap'], recommendations?: string | null): string {
-  const sections: string[] = [];
+function buildOutputText(
+  soap: PTBotNotePayload['soap'],
+  recommendations?: string | null,
+  flags?: PTBotNotePayload['flags'],
+  session?: PTBotNotePayload['session'],
+  compliance?: PTBotNotePayload['compliance']
+): string {
+  const lines: string[] = [];
 
-  sections.push(`SUBJECTIVE:\n${soap.subjective || 'Not provided.'}`);
-  sections.push(`OBJECTIVE:\n${soap.objective || 'Not provided.'}`);
-  sections.push(`ASSESSMENT:\n${soap.assessment || 'Not provided.'}`);
-
-  let planText = soap.plan || 'Not provided.';
-  if (recommendations) {
-    planText += `\n\nRecommendations: ${recommendations}`;
+  lines.push('=== TELEHEALTH CONSULTATION NOTE ===');
+  lines.push('Source: PTBot Telehealth');
+  if (session?.date) {
+    lines.push(`Date of Service: ${new Date(session.date).toLocaleDateString('en-US', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    })}`);
   }
-  sections.push(`PLAN:\n${planText}`);
+  if (session?.duration_minutes) {
+    lines.push(`Session Duration: ${session.duration_minutes} minutes`);
+  }
+  lines.push('');
 
-  return sections.join('\n\n');
+  lines.push('SUBJECTIVE:');
+  lines.push(soap.subjective || 'Not provided.');
+  lines.push('');
+
+  lines.push('OBJECTIVE:');
+  lines.push(soap.objective || 'Not provided.');
+  lines.push('');
+
+  lines.push('ASSESSMENT:');
+  lines.push(soap.assessment || 'Not provided.');
+  lines.push('');
+
+  lines.push('PLAN:');
+  lines.push(soap.plan || 'Not provided.');
+  lines.push('');
+
+  if (recommendations) {
+    lines.push('RECOMMENDATIONS:');
+    lines.push(recommendations);
+    lines.push('');
+  }
+
+  if (flags) {
+    lines.push('CLINICAL FLAGS:');
+    lines.push(`  Red Flags: ${flags.red_flags ? 'YES - See note' : 'None identified'}`);
+    lines.push(`  Follow-up Recommended: ${flags.follow_up_recommended ? 'Yes' : 'No'}`);
+    lines.push(`  In-Person Referral: ${flags.in_person_referral ? 'Yes' : 'No'}`);
+    lines.push('');
+  }
+
+  if (compliance) {
+    lines.push('COMPLIANCE:');
+    if (compliance.location_state) {
+      lines.push(`  Patient Location (verified): ${compliance.location_state}`);
+    }
+    if (compliance.consent_version) {
+      lines.push(`  Telehealth Consent Version: ${compliance.consent_version}`);
+    }
+    if (compliance.location_verified) {
+      lines.push('  Location Verified: Yes');
+    }
+  }
+
+  return lines.join('\n');
+}
+
+async function findOrCreatePatient(
+  clinicId: string,
+  firstName: string,
+  lastName: string,
+  email: string | null
+): Promise<string> {
+  if (email) {
+    const { data: existing } = await supabaseAdmin
+      .from('patients')
+      .select('id')
+      .eq('clinic_id', clinicId)
+      .eq('email', email)
+      .maybeSingle();
+
+    if (existing?.id) return existing.id;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('patients')
+    .insert({
+      clinic_id: clinicId,
+      first_name: firstName,
+      last_name: lastName,
+      email: email ?? null,
+      is_active: true,
+      primary_diagnosis: 'Telehealth consult via PTBot',
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to create patient: ${error.message}`);
+  }
+
+  return data.id;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Authenticate via Bearer token
+    // 1. Authenticate
     const authHeader = request.headers.get('authorization');
     const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
     const expectedKey = process.env.PTBOT_API_KEY;
 
     if (!expectedKey) {
-      console.error('PTBOT_API_KEY environment variable is not configured');
+      console.error('[ptbot/consult-notes] PTBOT_API_KEY not configured');
       return NextResponse.json(
         { success: false, error: 'Server configuration error' },
         { status: 500 }
@@ -102,6 +196,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
+      );
+    }
+
+    const clinicId = process.env.PTBOT_DEFAULT_CLINIC_ID;
+    if (!clinicId) {
+      return NextResponse.json(
+        { success: false, error: 'PTBOT_DEFAULT_CLINIC_ID not configured' },
+        { status: 503 }
       );
     }
 
@@ -116,123 +218,23 @@ export async function POST(request: NextRequest) {
     }
 
     const { firstName, lastName } = parsePatientName(body.patient_name);
-    const dateOfService = body.session?.date || new Date().toISOString().split('T')[0];
+    const dateOfService = body.session?.date
+      ? new Date(body.session.date).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0];
 
-    // 3. Look up patient by external ID
-    const { data: existingLink } = await supabaseAdmin
-      .from('patient_external_ids')
-      .select('patient_id')
-      .eq('source', 'ptbot')
-      .eq('external_id', body.external_id)
-      .single();
+    // 3. Find or create patient
+    const patientId = await findOrCreatePatient(
+      clinicId,
+      firstName,
+      lastName,
+      body.patient_email ?? null
+    );
 
-    let patientId: string;
-    let episodeId: string;
-
-    if (existingLink) {
-      // Patient already linked — use existing patient
-      patientId = existingLink.patient_id;
-
-      // Find their PTBot Telehealth episode
-      const { data: existingEpisode } = await supabaseAdmin
-        .from('episodes')
-        .select('id')
-        .eq('patient_id', patientId)
-        .eq('clinic_id', BUCKEYE_CLINIC_ID)
-        .eq('diagnosis', 'PTBot Telehealth')
-        .eq('status', 'active')
-        .single();
-
-      if (existingEpisode) {
-        episodeId = existingEpisode.id;
-      } else {
-        // Episode was discharged or missing — create a new one
-        const { data: newEpisode, error: episodeError } = await supabaseAdmin
-          .from('episodes')
-          .insert({
-            patient_id: patientId,
-            clinic_id: BUCKEYE_CLINIC_ID,
-            start_date: dateOfService,
-            status: 'active',
-            diagnosis: 'PTBot Telehealth',
-          })
-          .select('id')
-          .single();
-
-        if (episodeError || !newEpisode) {
-          console.error('Error creating episode:', episodeError);
-          return NextResponse.json(
-            { success: false, error: 'Failed to create episode' },
-            { status: 500 }
-          );
-        }
-        episodeId = newEpisode.id;
-      }
-    } else {
-      // New patient — auto-create patient, link, and episode
-      const { data: newPatient, error: patientError } = await supabaseAdmin
-        .from('patients')
-        .insert({
-          clinic_id: BUCKEYE_CLINIC_ID,
-          first_name: firstName,
-          last_name: lastName,
-          email: body.patient_email || null,
-          is_active: true,
-        })
-        .select('id')
-        .single();
-
-      if (patientError || !newPatient) {
-        console.error('Error creating patient:', patientError);
-        return NextResponse.json(
-          { success: false, error: 'Failed to create patient record' },
-          { status: 500 }
-        );
-      }
-      patientId = newPatient.id;
-
-      // Create the external ID link
-      const { error: linkError } = await supabaseAdmin
-        .from('patient_external_ids')
-        .insert({
-          patient_id: patientId,
-          source: 'ptbot',
-          external_id: body.external_id,
-        });
-
-      if (linkError) {
-        console.error('Error creating patient external ID link:', linkError);
-        // Non-fatal — patient was created, link can be retried
-      }
-
-      // Create the episode
-      const { data: newEpisode, error: episodeError } = await supabaseAdmin
-        .from('episodes')
-        .insert({
-          patient_id: patientId,
-          clinic_id: BUCKEYE_CLINIC_ID,
-          start_date: dateOfService,
-          status: 'active',
-          diagnosis: 'PTBot Telehealth',
-        })
-        .select('id')
-        .single();
-
-      if (episodeError || !newEpisode) {
-        console.error('Error creating episode:', episodeError);
-        return NextResponse.json(
-          { success: false, error: 'Failed to create episode' },
-          { status: 500 }
-        );
-      }
-      episodeId = newEpisode.id;
-    }
-
-    // 4. Build the document title: "LASTNAME, FIRSTNAME - DAILY NOTE - 2026-02-20"
+    // 4. Build title in the format the app uses: "LASTNAME, FIRSTNAME - DAILY NOTE - YYYY-MM-DD"
     const title = `${lastName.toUpperCase()}, ${firstName.toUpperCase()} - DAILY NOTE - ${dateOfService}`;
 
-    // 5. Build input_data in the NoteInputData format AIDOCS expects
-    const inputData = {
+    // 5. Build input_data in NoteInputData format + ptbot_external_id for dashboard filter
+    const inputData: NoteInputData & { ptbot_external_id: string; ptbot_source?: string } = {
       dateOfService,
       patientDemographic: {
         patientName: `${lastName}, ${firstName}`,
@@ -248,55 +250,96 @@ export async function POST(request: NextRequest) {
         response_to_treatment: body.soap.assessment || '',
       },
       plan: {
-        next_session_focus: body.recommendations
-          ? [body.recommendations]
-          : [],
+        next_session_focus: body.recommendations ? [body.recommendations] : [],
         frequency_duration: body.soap.plan || '',
       },
+      ptbot_external_id: body.external_id,
+      ptbot_source: body.source || 'ptbot_telehealth',
     };
 
-    // 6. Build the formatted output text
-    const outputText = buildOutputText(body.soap, body.recommendations);
+    // 6. Build output text
+    const outputText = buildOutputText(
+      body.soap,
+      body.recommendations,
+      body.flags,
+      body.session,
+      body.compliance
+    );
 
-    // 7. Insert the document
-    const { data: document, error: docError } = await supabaseAdmin
-      .from('documents')
+    // 7. Check for existing note with same ptbot_external_id (idempotency)
+    const { data: existingNote } = await supabaseAdmin
+      .from('notes')
+      .select('id')
+      .eq('clinic_id', clinicId)
+      .contains('input_data', { ptbot_external_id: body.external_id })
+      .maybeSingle();
+
+    if (existingNote) {
+      // Update existing note
+      const { data, error } = await supabaseAdmin
+        .from('notes')
+        .update({
+          title,
+          date_of_service: dateOfService,
+          input_data: inputData,
+          output_text: outputText,
+          patient_id: patientId,
+          rich_content: null, // Clear cached rich content so it re-converts
+        })
+        .eq('id', existingNote.id)
+        .select('id')
+        .single();
+
+      if (error) {
+        console.error('[ptbot/consult-notes] Update error:', error.message);
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      }
+
+      console.log('[ptbot/consult-notes] Updated existing note', {
+        ptbot_external_id: body.external_id,
+        note_id: data.id,
+      });
+
+      return NextResponse.json({ success: true, record_id: data.id });
+    }
+
+    // 8. Insert new note into the notes table
+    const { data, error } = await supabaseAdmin
+      .from('notes')
       .insert({
-        episode_id: episodeId,
-        clinic_id: BUCKEYE_CLINIC_ID,
-        patient_id: patientId,
-        doc_type: 'daily_note',
+        note_type: 'daily_soap',
         title,
         date_of_service: dateOfService,
         input_data: inputData,
         output_text: outputText,
+        billing_justification: null,
+        hep_summary: null,
+        template_id: null,
+        clinic_id: clinicId,
+        patient_id: patientId,
         status: 'draft',
       })
       .select('id')
       .single();
 
-    if (docError || !document) {
-      console.error('Error creating document:', docError);
-      return NextResponse.json(
-        { success: false, error: 'Failed to create document' },
-        { status: 500 }
-      );
+    if (error) {
+      console.error('[ptbot/consult-notes] Insert error:', error.message);
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
+    console.log('[ptbot/consult-notes] Note created from PTBot', {
+      ptbot_external_id: body.external_id,
+      note_id: data.id,
+      patient_id: patientId,
+    });
+
     return NextResponse.json(
-      {
-        success: true,
-        record_id: document.id,
-        patient_id: patientId,
-        episode_id: episodeId,
-      },
+      { success: true, record_id: data.id, patient_id: patientId },
       { status: 201 }
     );
-  } catch (error) {
-    console.error('Error in POST /api/ptbot/consult-notes:', error);
-    return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (err) {
+    console.error('[ptbot/consult-notes] Unexpected error:', err);
+    const message = err instanceof Error ? err.message : 'Internal server error';
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

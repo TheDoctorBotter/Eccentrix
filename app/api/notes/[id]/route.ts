@@ -27,15 +27,31 @@ export async function GET(
       }
 
       // Map document to note format for compatibility
+      const doc = docResult.data;
+      // Map ClinicalDocType → NoteType for frontend compatibility
+      const noteTypeMap: Record<string, string> = {
+        daily_note: 'daily_soap',
+        evaluation: 'pt_evaluation',
+        re_evaluation: 'pt_evaluation',
+      };
       data = {
-        id: docResult.data.id,
-        note_type: docResult.data.doc_type,
-        output_text: docResult.data.output_text || '',
-        rich_content: docResult.data.rich_content,
-        billing_justification: docResult.data.billing_justification,
-        hep_summary: docResult.data.hep_summary,
-        template_id: docResult.data.template_id,
-        created_at: docResult.data.created_at,
+        id: doc.id,
+        note_type: noteTypeMap[doc.doc_type] || 'daily_soap',
+        title: doc.title || null,
+        date_of_service: doc.date_of_service || null,
+        input_data: doc.input_data || {},
+        output_text: doc.output_text || '',
+        rich_content: doc.rich_content,
+        billing_justification: doc.billing_justification,
+        hep_summary: doc.hep_summary,
+        template_id: doc.template_id,
+        clinic_id: doc.clinic_id,
+        patient_id: doc.patient_id,
+        status: doc.status || 'draft',
+        doc_type: doc.doc_type,
+        finalized_at: doc.finalized_at,
+        finalized_by: doc.finalized_by,
+        created_at: doc.created_at,
       };
     } else if (error) {
       console.error('Error fetching note:', error);
