@@ -49,7 +49,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Fetch user's memberships
   const fetchMemberships = async (userId: string) => {
-    console.log('AuthContext - fetchMemberships called with userId:', userId);
     try {
       const { data, error } = await supabase
         .from('clinic_memberships')
@@ -58,63 +57,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
-      console.log('AuthContext - Supabase query result:', { data, error });
       if (error) throw error;
 
-      console.log('AuthContext - Fetched memberships:', data);
       setMemberships(data || []);
 
       // Try to restore previously selected clinic from cookie
       const savedClinicId = getCookie(ACTIVE_CLINIC_COOKIE);
-      console.log('AuthContext - Saved clinic ID from cookie:', savedClinicId);
       let clinicToSet: ClinicMembership | null = null;
 
       if (savedClinicId && data) {
-        // Check if saved clinic is still in user's memberships
         clinicToSet = data.find((m) => m.clinic_id === savedClinicId) || null;
-        console.log('AuthContext - Found saved clinic in memberships:', clinicToSet);
       }
 
       // Fall back to first clinic if saved clinic not found
       if (!clinicToSet && data && data.length > 0) {
         clinicToSet = data[0];
-        console.log('AuthContext - Falling back to first clinic:', clinicToSet);
       }
 
       if (clinicToSet) {
-        console.log('AuthContext - Setting current clinic:', clinicToSet);
         setCurrentClinicState(clinicToSet);
-        // Ensure cookie is set
         if (clinicToSet.clinic_id) {
           setCookie(ACTIVE_CLINIC_COOKIE, clinicToSet.clinic_id);
         }
-      } else {
-        console.log('AuthContext - No clinic to set!');
       }
     } catch (error) {
       console.error('Error fetching memberships:', error);
       setMemberships([]);
-
-      // TEMPORARY WORKAROUND: If query fails and we know the user, hardcode the clinic
-      if (userId === '65309deb-8e3f-4393-b876-76e37dd9dcb3') {
-        console.warn('AuthContext - Using hardcoded fallback clinic!');
-        const fallbackClinic: ClinicMembership = {
-          id: '752eb5f3-c60b-4a32-aa9c-f913d34859b0',
-          user_id: '65309deb-8e3f-4393-b876-76e37dd9dcb3',
-          clinic_id: '47565d82-a8c9-463a-92af-fe3d3315b59f',
-          clinic_id_ref: null,
-          clinic_name: 'Childrens Therapy World',
-          role: 'admin',
-          is_active: true,
-          created_at: '2026-02-10T17:10:23.87292+00:00',
-          updated_at: '2026-02-10T17:10:23.87292+00:00',
-        };
-        setMemberships([fallbackClinic]);
-        setCurrentClinicState(fallbackClinic);
-        if (fallbackClinic.clinic_id) {
-          setCookie(ACTIVE_CLINIC_COOKIE, fallbackClinic.clinic_id);
-        }
-      }
     }
   };
 

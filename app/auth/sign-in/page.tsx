@@ -96,9 +96,9 @@ export default function SignInPage() {
         {/* Logo and Title */}
         <div className="text-center mb-8">
           <div className="inline-flex h-16 w-16 rounded-2xl bg-emerald-600 items-center justify-center mb-4">
-            <span className="text-white font-bold text-3xl">B</span>
+            <span className="text-white font-bold text-3xl">E</span>
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Buckeye EMR</h1>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">Eccentrix EMR</h1>
           <p className="text-slate-600">Sign in to your account</p>
         </div>
 
@@ -197,6 +197,7 @@ export default function SignInPage() {
             Need access?{' '}
             <span className="text-slate-700">Contact your clinic administrator</span>
           </p>
+          <p className="text-[10px] text-slate-400 mt-3">Powered by PTBot</p>
         </div>
       </div>
     </div>

@@ -72,7 +72,7 @@ export default function SettingsPage() {
             <h1 className="text-3xl font-bold text-slate-900">Settings</h1>
           </div>
           <p className="text-slate-600">
-            Configure Buckeye EMR for your clinic
+            Configure Eccentrix EMR for your clinic
           </p>
         </div>
 
@@ -160,14 +160,15 @@ export default function SettingsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">About Buckeye EMR</CardTitle>
+              <CardTitle className="text-base">About Eccentrix EMR</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-slate-600">
               <p>
-                <strong>Buckeye EMR</strong> - Secure clinical documentation and patient
+                <strong>Eccentrix EMR</strong> — Secure clinical documentation and patient
                 chart management for physical therapy practices.
               </p>
               <p>Version 2.0.0</p>
+              <p className="text-xs text-slate-400 pt-1">Powered by PTBot</p>
               <p className="text-xs pt-2">
                 This system is designed to assist clinicians in creating professional
                 documentation. It does not replace clinical judgment or the need for

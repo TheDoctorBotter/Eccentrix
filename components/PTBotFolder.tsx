@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  Bot,
+  Video,
   ChevronRight,
   ChevronDown,
   FolderOpen,
@@ -96,8 +96,8 @@ export function PTBotFolder({ clinicId }: PTBotFolderProps) {
             <Folder className="h-5 w-5 text-violet-500" />
           )}
           <div className="flex items-center gap-2">
-            <Bot className="h-4 w-4 text-violet-400" />
-            <span className="font-semibold text-slate-900">PTBot Patients</span>
+            <Video className="h-4 w-4 text-violet-400" />
+            <span className="font-semibold text-slate-900">Telehealth Patients</span>
           </div>
           <Badge className="bg-violet-100 text-violet-700 border-violet-200 hover:bg-violet-100">
             {patients.length}
@@ -122,7 +122,7 @@ export function PTBotFolder({ clinicId }: PTBotFolderProps) {
           ) : patients.length === 0 ? (
             <div className="py-4 text-center text-sm text-slate-500">
               <Users className="h-6 w-6 mx-auto mb-2 text-slate-300" />
-              No PTBot patients yet
+              No telehealth patients yet
             </div>
           ) : (
             patients.map((patient) => (

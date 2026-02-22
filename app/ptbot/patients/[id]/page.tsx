@@ -16,7 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   ArrowLeft,
-  Bot,
+  Video,
   FileText,
   FileCheck,
   FileX,
@@ -206,8 +206,8 @@ export default function PTBotPatientFilePage() {
                     {patient?.last_name?.toUpperCase()}, {patient?.first_name}
                   </CardTitle>
                   <CardDescription className="flex items-center gap-2">
-                    <Bot className="h-3 w-3" />
-                    PTBot Patient File
+                    <Video className="h-3 w-3" />
+                    Telehealth Patient File
                     {patient?.date_of_birth && (
                       <span>
                         {' '}
@@ -218,7 +218,7 @@ export default function PTBotPatientFilePage() {
                 </div>
               </div>
               <Badge className="bg-violet-100 text-violet-700 border-violet-200">
-                PTBot
+                Telehealth
               </Badge>
             </div>
           </CardHeader>
@@ -267,7 +267,7 @@ export default function PTBotPatientFilePage() {
               )}
             </div>
             <CardDescription>
-              Signed telehealth consent synced from PTBot
+              Signed telehealth consent form
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -282,7 +282,7 @@ export default function PTBotPatientFilePage() {
                 <FileX className="h-8 w-8 mx-auto mb-2 text-slate-300" />
                 <p className="text-sm">
                   No consent form received yet. This will be synced automatically when
-                  the patient completes their telehealth consent in PTBot.
+                  the patient completes their telehealth consent.
                 </p>
               </div>
             )}
@@ -323,7 +323,7 @@ export default function PTBotPatientFilePage() {
                 <FileX className="h-8 w-8 mx-auto mb-2 text-slate-300" />
                 <p className="text-sm mb-4">
                   No referral received yet. The patient can upload their referral
-                  through PTBot, or you can upload it manually below.
+                  during intake, or you can upload it manually below.
                 </p>
               </div>
             )}
@@ -391,12 +391,12 @@ export default function PTBotPatientFilePage() {
           </Card>
         )}
 
-        {/* PTBot SOAP Notes */}
+        {/* Telehealth SOAP Notes */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Bot className="h-5 w-5 text-violet-500" />
+                <Video className="h-5 w-5 text-violet-500" />
                 <CardTitle className="text-lg">Telehealth Notes</CardTitle>
               </div>
               {notes.length > 0 && (
@@ -405,7 +405,7 @@ export default function PTBotPatientFilePage() {
                 </Badge>
               )}
             </div>
-            <CardDescription>SOAP notes from PTBot telehealth sessions</CardDescription>
+            <CardDescription>SOAP notes from telehealth sessions</CardDescription>
           </CardHeader>
           <CardContent>
             {notes.length === 0 ? (
@@ -464,7 +464,7 @@ function FileRow({ file }: { file: PatientFile }) {
             {' · '}
             Uploaded {format(new Date(file.created_at), 'MMM d, yyyy')}
             {file.uploaded_by === 'ptbot' && (
-              <span className="text-violet-500"> via PTBot</span>
+              <span className="text-violet-500"> via telehealth</span>
             )}
           </p>
         </div>

@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import {
   Home,
+  Archive,
   Settings,
   ChevronDown,
   Building2,
@@ -96,6 +97,7 @@ export function TopNav() {
   };
 
   return (
+    <>
     <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
@@ -103,21 +105,31 @@ export function TopNav() {
           <div className="flex items-center gap-6">
             <Link href="/" className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center">
-                <span className="text-white font-bold text-lg">B</span>
+                <span className="text-white font-bold text-lg">E</span>
               </div>
-              <span className="font-bold text-xl text-slate-900">Buckeye EMR</span>
+              <span className="font-bold text-xl text-slate-900">Eccentrix EMR</span>
             </Link>
 
             {/* Navigation Links */}
             <nav className="hidden md:flex items-center gap-1">
               <Link href="/">
                 <Button
-                  variant={isActive('/') && !isActive('/settings') && !isActive('/charts') ? 'secondary' : 'ghost'}
+                  variant={isActive('/') && !isActive('/settings') && !isActive('/charts') && !isActive('/archived') ? 'secondary' : 'ghost'}
                   size="sm"
                   className="gap-2"
                 >
                   <Home className="h-4 w-4" />
                   Home
+                </Button>
+              </Link>
+              <Link href="/archived">
+                <Button
+                  variant={isActive('/archived') ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="gap-2"
+                >
+                  <Archive className="h-4 w-4" />
+                  Archived
                 </Button>
               </Link>
               <Link href="/settings">
@@ -274,5 +286,11 @@ export function TopNav() {
         </div>
       </div>
     </header>
+    <div className="w-full border-b bg-slate-50 py-1">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-end">
+        <span className="text-[10px] text-slate-400">Powered by PTBot</span>
+      </div>
+    </div>
+    </>
   );
 }

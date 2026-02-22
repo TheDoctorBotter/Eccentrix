@@ -7,8 +7,8 @@ import { AuthProvider } from '@/lib/auth-context';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Buckeye EMR',
-  description: 'Electronic Medical Records for Physical Therapy',
+  title: 'Eccentrix EMR',
+  description: 'Secure clinical documentation and patient chart management',
   openGraph: {
     images: [
       {
