@@ -111,26 +111,6 @@ export function TopNav() {
 
             {/* Navigation Links */}
             <nav className="hidden md:flex items-center gap-1">
-              <Link href="/">
-                <Button
-                  variant={isActive('/') && !isActive('/settings') && !isActive('/charts') && !isActive('/archived') && !isActive('/front-office') ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="gap-2"
-                >
-                  <Home className="h-4 w-4" />
-                  Home
-                </Button>
-              </Link>
-              <Link href="/archived">
-                <Button
-                  variant={isActive('/archived') ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="gap-2"
-                >
-                  <Archive className="h-4 w-4" />
-                  Archived
-                </Button>
-              </Link>
               {canSeeFrontOffice && (
                 <Link href="/front-office">
                   <Button
@@ -143,6 +123,16 @@ export function TopNav() {
                   </Button>
                 </Link>
               )}
+              <Link href="/">
+                <Button
+                  variant={isActive('/') && !isActive('/settings') && !isActive('/charts') && !isActive('/archived') && !isActive('/front-office') ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="gap-2"
+                >
+                  <Home className="h-4 w-4" />
+                  Dashboard
+                </Button>
+              </Link>
               <Link href="/settings">
                 <Button
                   variant={isActive('/settings') ? 'secondary' : 'ghost'}
@@ -151,6 +141,16 @@ export function TopNav() {
                 >
                   <Settings className="h-4 w-4" />
                   Settings
+                </Button>
+              </Link>
+              <Link href="/archived">
+                <Button
+                  variant={isActive('/archived') ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="gap-2"
+                >
+                  <Archive className="h-4 w-4" />
+                  Archived
                 </Button>
               </Link>
             </nav>
