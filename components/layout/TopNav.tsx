@@ -100,11 +100,11 @@ export function TopNav() {
     <>
     <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex h-28 items-center justify-between">
+        <div className="flex h-48 items-center justify-between">
           {/* Logo and Title */}
           <div className="flex items-center gap-6">
             <Link href="/" className="flex items-center gap-2">
-              <img src="/logo.png" alt="Eccentrix EMR" className="h-24 object-contain" />
+              <img src="/logo.png" alt="Eccentrix EMR" className="h-40 object-contain" />
             </Link>
 
             {/* Navigation Links */}
