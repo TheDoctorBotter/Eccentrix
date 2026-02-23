@@ -17,10 +17,36 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const user_id = searchParams.get('user_id');
+    const clinic_id = searchParams.get('clinic_id');
+
+    // If clinic_id is provided, return all staff members for that clinic
+    if (clinic_id) {
+      const { data: staffMembers, error } = await client
+        .from('clinic_memberships')
+        .select('*')
+        .or(`clinic_id_ref.eq.${clinic_id},clinic_id.eq.${clinic_id}`)
+        .eq('is_active', true)
+        .order('role');
+
+      if (error) {
+        console.error('Error fetching clinic staff:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json(
+        (staffMembers || []).map((m: Record<string, unknown>) => ({
+          user_id: m.user_id,
+          email: (m.user_id as string)?.slice(0, 8) + '...',
+          role: m.role,
+          clinic_name: m.clinic_name,
+          id: m.id,
+        }))
+      );
+    }
 
     if (!user_id) {
       return NextResponse.json(
-        { error: 'user_id is required' },
+        { error: 'user_id or clinic_id is required' },
         { status: 400 }
       );
     }

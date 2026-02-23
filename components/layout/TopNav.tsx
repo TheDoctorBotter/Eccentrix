@@ -32,7 +32,9 @@ import { useAuth } from '@/lib/auth-context';
 export function TopNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, currentClinic, memberships, signOut, setCurrentClinic } = useAuth();
+  const { user, currentClinic, memberships, signOut, setCurrentClinic, hasRole } = useAuth();
+
+  const canSeeFrontOffice = hasRole(['admin', 'front_office', 'pt']);
 
   const isActive = (path: string) => {
     if (path === '/') return pathname === '/';
@@ -111,7 +113,7 @@ export function TopNav() {
             <nav className="hidden md:flex items-center gap-1">
               <Link href="/">
                 <Button
-                  variant={isActive('/') && !isActive('/settings') && !isActive('/charts') && !isActive('/archived') ? 'secondary' : 'ghost'}
+                  variant={isActive('/') && !isActive('/settings') && !isActive('/charts') && !isActive('/archived') && !isActive('/front-office') ? 'secondary' : 'ghost'}
                   size="sm"
                   className="gap-2"
                 >
@@ -129,6 +131,18 @@ export function TopNav() {
                   Archived
                 </Button>
               </Link>
+              {canSeeFrontOffice && (
+                <Link href="/front-office">
+                  <Button
+                    variant={isActive('/front-office') ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <Briefcase className="h-4 w-4" />
+                    Front Office
+                  </Button>
+                </Link>
+              )}
               <Link href="/settings">
                 <Button
                   variant={isActive('/settings') ? 'secondary' : 'ghost'}
