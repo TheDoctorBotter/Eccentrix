@@ -104,7 +104,7 @@ export function TopNav() {
           {/* Logo and Title */}
           <div className="flex items-center gap-6">
             <Link href="/" className="flex items-center gap-2">
-              <img src="/logo.png" alt="Eccentrix EMR" className="h-8 w-8 rounded-lg object-contain" />
+              <img src="/logo.png" alt="Eccentrix EMR" className="h-10 w-10 rounded-lg object-contain" />
               <span className="font-bold text-xl text-slate-900">Eccentrix EMR</span>
             </Link>
 
