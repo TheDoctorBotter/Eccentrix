@@ -95,9 +95,7 @@ export default function SignInPage() {
       <div className="w-full max-w-md">
         {/* Logo and Title */}
         <div className="text-center mb-8">
-          <div className="inline-flex h-16 w-16 rounded-2xl bg-emerald-600 items-center justify-center mb-4">
-            <span className="text-white font-bold text-3xl">E</span>
-          </div>
+          <img src="/logo.png" alt="Eccentrix EMR" className="h-16 w-16 rounded-2xl object-contain mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-slate-900 mb-2">Eccentrix EMR</h1>
           <p className="text-slate-600">Sign in to your account</p>
         </div>
