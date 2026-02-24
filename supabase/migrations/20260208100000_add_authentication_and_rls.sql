@@ -389,23 +389,32 @@ USING (
 
 -- ============================================================================
 -- 9. CLINIC MEMBERSHIPS - RLS POLICIES
+-- Uses SECURITY DEFINER function to avoid infinite recursion when a policy
+-- on clinic_memberships references clinic_memberships in a subquery.
 -- ============================================================================
+
+-- Helper function: check if current user is an admin (bypasses RLS)
+CREATE OR REPLACE FUNCTION is_clinic_membership_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM clinic_memberships
+    WHERE user_id = auth.uid()
+      AND role = 'admin'
+      AND is_active = true
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 
 ALTER TABLE clinic_memberships ENABLE ROW LEVEL SECURITY;
 
--- Users can see memberships for clinics they belong to
+-- Users can see their own memberships; admins can see all
 DROP POLICY IF EXISTS "clinic_memberships_select" ON clinic_memberships;
 CREATE POLICY "clinic_memberships_select"
 ON clinic_memberships FOR SELECT
 USING (
   user_id = auth.uid()
-  OR EXISTS (
-    SELECT 1 FROM clinic_memberships cm
-    WHERE cm.user_id = auth.uid()
-      AND (cm.clinic_id_ref = clinic_memberships.clinic_id_ref
-           OR cm.clinic_id = clinic_memberships.clinic_id)
-      AND cm.is_active = true
-  )
+  OR is_clinic_membership_admin()
 );
 
 -- Only admins can create memberships
@@ -413,14 +422,7 @@ DROP POLICY IF EXISTS "clinic_memberships_insert" ON clinic_memberships;
 CREATE POLICY "clinic_memberships_insert"
 ON clinic_memberships FOR INSERT
 WITH CHECK (
-  EXISTS (
-    SELECT 1 FROM clinic_memberships cm
-    WHERE cm.user_id = auth.uid()
-      AND (cm.clinic_id_ref = clinic_memberships.clinic_id_ref
-           OR cm.clinic_id = clinic_memberships.clinic_id)
-      AND cm.role = 'admin'
-      AND cm.is_active = true
-  )
+  is_clinic_membership_admin()
 );
 
 -- Only admins can update memberships
@@ -428,14 +430,7 @@ DROP POLICY IF EXISTS "clinic_memberships_update" ON clinic_memberships;
 CREATE POLICY "clinic_memberships_update"
 ON clinic_memberships FOR UPDATE
 USING (
-  EXISTS (
-    SELECT 1 FROM clinic_memberships cm
-    WHERE cm.user_id = auth.uid()
-      AND (cm.clinic_id_ref = clinic_memberships.clinic_id_ref
-           OR cm.clinic_id = clinic_memberships.clinic_id)
-      AND cm.role = 'admin'
-      AND cm.is_active = true
-  )
+  is_clinic_membership_admin()
 );
 
 -- Only admins can delete memberships
@@ -443,14 +438,7 @@ DROP POLICY IF EXISTS "clinic_memberships_delete" ON clinic_memberships;
 CREATE POLICY "clinic_memberships_delete"
 ON clinic_memberships FOR DELETE
 USING (
-  EXISTS (
-    SELECT 1 FROM clinic_memberships cm
-    WHERE cm.user_id = auth.uid()
-      AND (cm.clinic_id_ref = clinic_memberships.clinic_id_ref
-           OR cm.clinic_id = clinic_memberships.clinic_id)
-      AND cm.role = 'admin'
-      AND cm.is_active = true
-  )
+  is_clinic_membership_admin()
 );
 
 -- ============================================================================
