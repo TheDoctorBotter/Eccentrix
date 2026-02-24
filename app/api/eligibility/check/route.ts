@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
             firstName: patient.first_name,
             lastName: patient.last_name,
             dateOfBirth: toStediDate(patient.date_of_birth || ''),
-            gender: patient.gender === 'female' ? 'F' : 'M',
+            gender: patient.gender?.toLowerCase() === 'female' ? 'F' : 'M',
           },
           encounter: {
             serviceTypeCodes: [service_type || '30'],

@@ -126,7 +126,7 @@ export async function POST(
         paymentResponsibilityLevelCode: 'P',
         firstName: patient.first_name,
         lastName: patient.last_name,
-        gender: patient.gender === 'female' ? 'F' : 'M',
+        gender: patient.gender?.toLowerCase() === 'female' ? 'F' : 'M',
         dateOfBirth: toStediDate(patient.date_of_birth || ''),
         payer: {
           organizationName: claim.payer_name || 'Texas Medicaid',

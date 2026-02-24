@@ -344,6 +344,7 @@ export interface Episode {
   first_name?: string;
   last_name?: string;
   date_of_birth?: string;
+  gender?: string;
   primary_diagnosis?: string;
   referring_physician?: string;
   insurance_id?: string;

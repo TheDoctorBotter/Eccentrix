@@ -15,6 +15,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   ArrowLeft,
   FileText,
   Plus,
@@ -56,6 +63,7 @@ export default function PatientChartPage({ params }: PageProps) {
   const [editingDetails, setEditingDetails] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
   const [patientDetails, setPatientDetails] = useState({
+    gender: '',
     insurance_id: '',
     medicaid_id: '',
     allergies: '',
@@ -78,6 +86,7 @@ export default function PatientChartPage({ params }: PageProps) {
         const data = await res.json();
         setEpisode(data);
         setPatientDetails({
+          gender: data.gender || '',
           insurance_id: data.insurance_id || '',
           medicaid_id: data.medicaid_id || '',
           allergies: data.allergies || '',
@@ -292,6 +301,7 @@ export default function PatientChartPage({ params }: PageProps) {
                         setEditingDetails(false);
                         // Reset to current episode data
                         setPatientDetails({
+                          gender: episode.gender || '',
                           insurance_id: episode.insurance_id || '',
                           medicaid_id: (episode as unknown as { medicaid_id?: string }).medicaid_id || '',
                           allergies: episode.allergies || '',
@@ -312,6 +322,23 @@ export default function PatientChartPage({ params }: PageProps) {
               <CardContent>
                 {editingDetails ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="gender">Gender</Label>
+                      <Select
+                        value={patientDetails.gender}
+                        onValueChange={(value) => setPatientDetails(prev => ({ ...prev, gender: value }))}
+                      >
+                        <SelectTrigger id="gender">
+                          <SelectValue placeholder="Select gender" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Male">Male</SelectItem>
+                          <SelectItem value="Female">Female</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                          <SelectItem value="Prefer not to say">Prefer not to say</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="referring_physician">Referring MD</Label>
                       <Input
@@ -360,6 +387,10 @@ export default function PatientChartPage({ params }: PageProps) {
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                      <p className="text-xs text-slate-500">Gender</p>
+                      <p className="text-sm font-medium text-slate-900">{episode.gender || '—'}</p>
+                    </div>
                     <div className="p-3 bg-slate-50 rounded-lg">
                       <p className="text-xs text-slate-500">Referring MD</p>
                       <p className="text-sm font-medium text-slate-900">{episode.referring_physician || '—'}</p>
