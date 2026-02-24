@@ -77,19 +77,34 @@ export async function POST(request: NextRequest) {
     const stediConfig = getStediConfig(clinic.stedi_api_key);
 
     if (stediConfig) {
+      // Validate required fields before calling Stedi
+      if (!clinic.billing_npi || clinic.billing_npi.length < 2) {
+        return NextResponse.json(
+          { error: 'Clinic Billing NPI is required. Go to Settings > Billing to configure your 10-digit NPI.' },
+          { status: 400 }
+        );
+      }
+
+      if (!patient.date_of_birth) {
+        return NextResponse.json(
+          { error: 'Patient date of birth is required for eligibility checks.' },
+          { status: 400 }
+        );
+      }
+
       // ===== Real-time eligibility via Stedi =====
       try {
         const stediResponse = await checkEligibility(stediConfig, {
           tradingPartnerServiceId: clinic.payer_trading_partner_id || 'TXMCD',
           provider: {
             organizationName: clinic.name,
-            npi: clinic.billing_npi || '',
+            npi: clinic.billing_npi,
           },
           subscriber: {
             memberId: effectiveMedicaidId,
             firstName: patient.first_name,
             lastName: patient.last_name,
-            dateOfBirth: toStediDate(patient.date_of_birth || ''),
+            dateOfBirth: toStediDate(patient.date_of_birth),
             gender: patient.gender?.toLowerCase() === 'female' ? 'F' : 'M',
           },
           encounter: {
