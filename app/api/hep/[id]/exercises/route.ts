@@ -50,7 +50,7 @@ export async function POST(
         is_active: true,
         date_added: new Date().toISOString().split('T')[0],
       })
-      .select('*, exercise:exercises(*)')
+      .select('*, exercise:exercise_library(*)')
       .single();
 
     if (error) {

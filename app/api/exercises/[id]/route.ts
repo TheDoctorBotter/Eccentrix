@@ -20,7 +20,7 @@ export async function PATCH(
     const { id } = params;
 
     const { data, error } = await client
-      .from('exercises')
+      .from('exercise_library')
       .update({
         ...body,
         updated_at: new Date().toISOString(),
@@ -52,7 +52,7 @@ export async function DELETE(
     const { id } = params;
 
     const { data, error } = await client
-      .from('exercises')
+      .from('exercise_library')
       .update({ is_active: false, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()

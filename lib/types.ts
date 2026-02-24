@@ -906,3 +906,125 @@ export const EIGHT_MINUTE_RULE_TABLE = [
   { units: 8, min: 113, max: 127 },
 ];
 
+// ============================================================================
+// Claims & EDI Types (TMHP / Medicaid)
+// ============================================================================
+
+export type ClaimStatus = 'draft' | 'generated' | 'submitted' | 'accepted' | 'rejected' | 'paid' | 'denied';
+
+export const CLAIM_STATUS_LABELS: Record<ClaimStatus, string> = {
+  draft: 'Draft',
+  generated: 'EDI Generated',
+  submitted: 'Submitted',
+  accepted: 'Accepted',
+  rejected: 'Rejected',
+  paid: 'Paid',
+  denied: 'Denied',
+};
+
+export const CLAIM_STATUS_COLORS: Record<ClaimStatus, string> = {
+  draft: 'bg-slate-100 text-slate-700 border-slate-200',
+  generated: 'bg-blue-100 text-blue-700 border-blue-200',
+  submitted: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+  accepted: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  rejected: 'bg-red-100 text-red-700 border-red-200',
+  paid: 'bg-green-100 text-green-700 border-green-200',
+  denied: 'bg-red-100 text-red-700 border-red-200',
+};
+
+export interface Claim {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  episode_id?: string | null;
+  claim_number?: string | null;
+  payer_name: string;
+  payer_id: string;
+  subscriber_id?: string | null;
+  total_charges: number;
+  diagnosis_codes?: string[] | null;
+  rendering_provider_npi?: string | null;
+  rendering_provider_name?: string | null;
+  place_of_service: string;
+  status: ClaimStatus;
+  edi_file_content?: string | null;
+  edi_generated_at?: string | null;
+  submitted_at?: string | null;
+  paid_at?: string | null;
+  paid_amount?: number | null;
+  denial_reason?: string | null;
+  notes?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  patient_name?: string;
+  lines?: ClaimLine[];
+}
+
+export interface ClaimLine {
+  id: string;
+  claim_id: string;
+  visit_charge_id?: string | null;
+  line_number: number;
+  cpt_code: string;
+  modifier_1?: string | null;
+  modifier_2?: string | null;
+  units: number;
+  charge_amount: number;
+  diagnosis_pointers?: number[] | null;
+  date_of_service: string;
+  description?: string | null;
+  created_at: string;
+}
+
+export type EligibilityStatus = 'pending' | 'eligible' | 'ineligible' | 'error';
+
+export const ELIGIBILITY_STATUS_LABELS: Record<EligibilityStatus, string> = {
+  pending: 'Pending',
+  eligible: 'Eligible',
+  ineligible: 'Ineligible',
+  error: 'Error',
+};
+
+export const ELIGIBILITY_STATUS_COLORS: Record<EligibilityStatus, string> = {
+  pending: 'bg-amber-100 text-amber-700 border-amber-200',
+  eligible: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  ineligible: 'bg-red-100 text-red-700 border-red-200',
+  error: 'bg-slate-100 text-slate-700 border-slate-200',
+};
+
+export interface EligibilityCheck {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  medicaid_id?: string | null;
+  patient_first_name?: string | null;
+  patient_last_name?: string | null;
+  patient_dob?: string | null;
+  check_date: string;
+  service_type: string;
+  status: EligibilityStatus;
+  edi_270_content?: string | null;
+  edi_271_content?: string | null;
+  response_data?: Record<string, unknown> | null;
+  error_message?: string | null;
+  checked_by?: string | null;
+  created_at: string;
+  // Joined
+  patient_name?: string;
+}
+
+// Clinic billing settings (extends Clinic)
+export interface ClinicBillingSettings {
+  tax_id?: string | null;
+  taxonomy_code?: string | null;
+  medicaid_provider_id?: string | null;
+  billing_npi?: string | null;
+  billing_address?: string | null;
+  billing_city?: string | null;
+  billing_state?: string | null;
+  billing_zip?: string | null;
+  submitter_id?: string | null;
+}
+

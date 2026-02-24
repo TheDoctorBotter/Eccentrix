@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
 
     let query = client
-      .from('exercises')
+      .from('exercise_library')
       .select('*')
       .eq('is_active', true)
       .order('name', { ascending: true });
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data, error } = await client
-      .from('exercises')
+      .from('exercise_library')
       .insert({
         clinic_id: clinic_id || null,
         name,

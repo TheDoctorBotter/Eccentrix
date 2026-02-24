@@ -14,6 +14,12 @@ import {
   PaymentMethod,
   EIGHT_MINUTE_RULE_TABLE,
   calculateBillingUnits,
+  Claim,
+  ClaimStatus,
+  CLAIM_STATUS_COLORS,
+  EligibilityCheck,
+  EligibilityStatus,
+  ELIGIBILITY_STATUS_COLORS,
 } from '@/lib/types';
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -67,6 +73,9 @@ import {
   XCircle,
   Send,
   Trash2,
+  Download,
+  Shield,
+  Activity,
 } from 'lucide-react';
 
 interface PatientOption {
@@ -151,6 +160,30 @@ export default function BillingPage() {
     notes: '',
   });
 
+  // Claims data
+  const [claims, setClaims] = useState<Claim[]>([]);
+  const [claimDialogOpen, setClaimDialogOpen] = useState(false);
+  const [claimChargeSelection, setClaimChargeSelection] = useState<Set<string>>(new Set());
+  const [claimForm, setClaimForm] = useState({
+    patient_id: '',
+    episode_id: '',
+    subscriber_id: '',
+    diagnosis_codes: '',
+    rendering_provider_npi: '',
+    rendering_provider_name: '',
+    notes: '',
+  });
+  const [generatingEdi, setGeneratingEdi] = useState<string | null>(null);
+
+  // Eligibility data
+  const [eligibilityChecks, setEligibilityChecks] = useState<EligibilityCheck[]>([]);
+  const [eligibilityDialogOpen, setEligibilityDialogOpen] = useState(false);
+  const [eligibilityForm, setEligibilityForm] = useState({
+    patient_id: '',
+    medicaid_id: '',
+    date_of_service: format(new Date(), 'yyyy-MM-dd'),
+  });
+
   // Batch selection
   const [selectedCharges, setSelectedCharges] = useState<Set<string>>(new Set());
 
@@ -174,6 +207,8 @@ export default function BillingPage() {
         patientsRes,
         episodesRes,
         todayChargesRes,
+        claimsRes,
+        eligibilityRes,
       ] = await Promise.all([
         fetch(`/api/charges?clinic_id=${clinicId}`),
         fetch(`/api/authorizations?clinic_id=${clinicId}`),
@@ -182,9 +217,11 @@ export default function BillingPage() {
         fetch(`/api/patients?clinic_id=${clinicId}`),
         fetch(`/api/episodes?clinic_id=${clinicId}&status=active`),
         fetch(`/api/charges?clinic_id=${clinicId}&from=${today}&to=${today}`),
+        fetch(`/api/claims?clinic_id=${clinicId}`),
+        fetch(`/api/eligibility?clinic_id=${clinicId}`),
       ]);
 
-      const [chargesData, authsData, paymentsData, cptData, patientsData, episodesData, todayChargesData] =
+      const [chargesData, authsData, paymentsData, cptData, patientsData, episodesData, todayChargesData, claimsData, eligibilityData] =
         await Promise.all([
           chargesRes.ok ? chargesRes.json() : [],
           authsRes.ok ? authsRes.json() : [],
@@ -193,6 +230,8 @@ export default function BillingPage() {
           patientsRes.ok ? patientsRes.json() : [],
           episodesRes.ok ? episodesRes.json() : [],
           todayChargesRes.ok ? todayChargesRes.json() : [],
+          claimsRes.ok ? claimsRes.json() : [],
+          eligibilityRes.ok ? eligibilityRes.json() : [],
         ]);
 
       setCharges(chargesData);
@@ -201,6 +240,8 @@ export default function BillingPage() {
       setCptCodes(cptData);
       setPatients(patientsData);
       setEpisodes(episodesData);
+      setClaims(Array.isArray(claimsData) ? claimsData : []);
+      setEligibilityChecks(Array.isArray(eligibilityData) ? eligibilityData : []);
 
       // Summary stats
       setTodaysCharges(Array.isArray(todayChargesData) ? todayChargesData.length : 0);
@@ -432,6 +473,197 @@ export default function BillingPage() {
     }
   };
 
+  // Create claim from selected charges
+  const handleCreateClaim = async () => {
+    if (!clinicId || claimChargeSelection.size === 0) return;
+    setSubmitting(true);
+
+    try {
+      const diagCodes = claimForm.diagnosis_codes
+        ? claimForm.diagnosis_codes.split(',').map((c) => c.trim()).filter(Boolean)
+        : [];
+
+      const res = await fetch('/api/claims', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clinic_id: clinicId,
+          patient_id: claimForm.patient_id,
+          episode_id: claimForm.episode_id || null,
+          charge_ids: Array.from(claimChargeSelection),
+          diagnosis_codes: diagCodes.length > 0 ? diagCodes : null,
+          subscriber_id: claimForm.subscriber_id || null,
+          rendering_provider_npi: claimForm.rendering_provider_npi || null,
+          rendering_provider_name: claimForm.rendering_provider_name || null,
+          notes: claimForm.notes || null,
+          created_by: user?.id || null,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to create claim');
+      }
+
+      toast.success('Claim created successfully');
+      setClaimDialogOpen(false);
+      resetClaimForm();
+      fetchData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to create claim');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Generate 837P EDI for a claim
+  const handleGenerateEdi = async (claimId: string) => {
+    setGeneratingEdi(claimId);
+    try {
+      const res = await fetch(`/api/claims/${claimId}/generate-edi`, {
+        method: 'POST',
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to generate EDI');
+      }
+
+      const result = await res.json();
+
+      // Download the EDI file
+      const blob = new Blob([result.edi_content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `837P_${result.claim?.claim_number || claimId}.edi`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success('837P EDI file generated and downloaded');
+      fetchData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to generate EDI');
+    } finally {
+      setGeneratingEdi(null);
+    }
+  };
+
+  // Update claim status
+  const handleUpdateClaimStatus = async (claimId: string, newStatus: string) => {
+    try {
+      const updateData: Record<string, unknown> = { status: newStatus };
+      if (newStatus === 'submitted') {
+        updateData.submitted_at = new Date().toISOString();
+      }
+
+      const res = await fetch(`/api/claims/${claimId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData),
+      });
+
+      if (!res.ok) throw new Error('Failed to update claim');
+      toast.success(`Claim marked as ${newStatus}`);
+      fetchData();
+    } catch (error) {
+      toast.error('Failed to update claim status');
+    }
+  };
+
+  // Delete draft claim
+  const handleDeleteClaim = async (claimId: string) => {
+    try {
+      const res = await fetch(`/api/claims/${claimId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to delete claim');
+      }
+      toast.success('Claim deleted');
+      fetchData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete claim');
+    }
+  };
+
+  // Run eligibility check
+  const handleEligibilityCheck = async () => {
+    if (!clinicId || !eligibilityForm.patient_id) return;
+    setSubmitting(true);
+
+    try {
+      const res = await fetch('/api/eligibility/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clinic_id: clinicId,
+          patient_id: eligibilityForm.patient_id,
+          medicaid_id: eligibilityForm.medicaid_id || null,
+          date_of_service: eligibilityForm.date_of_service,
+          checked_by: user?.id || null,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to run eligibility check');
+      }
+
+      const result = await res.json();
+
+      // Download the 270 file
+      if (result.edi_270_content) {
+        const blob = new Blob([result.edi_270_content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `270_${eligibilityForm.medicaid_id || 'eligibility'}_${eligibilityForm.date_of_service}.edi`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      toast.success('Eligibility inquiry created. 270 EDI file downloaded.');
+      setEligibilityDialogOpen(false);
+      resetEligibilityForm();
+      fetchData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to check eligibility');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Get charges available for claims (pending charges for a specific patient)
+  const getClaimableCharges = (patientId: string): VisitCharge[] => {
+    return charges.filter((c) => c.patient_id === patientId && c.status === 'pending');
+  };
+
+  // Reset forms
+  const resetClaimForm = () => {
+    setClaimForm({
+      patient_id: '',
+      episode_id: '',
+      subscriber_id: '',
+      diagnosis_codes: '',
+      rendering_provider_npi: '',
+      rendering_provider_name: '',
+      notes: '',
+    });
+    setClaimChargeSelection(new Set());
+  };
+
+  const resetEligibilityForm = () => {
+    setEligibilityForm({
+      patient_id: '',
+      medicaid_id: '',
+      date_of_service: format(new Date(), 'yyyy-MM-dd'),
+    });
+  };
+
   // Reset forms
   const resetChargeForm = () => {
     setChargeForm({
@@ -630,8 +862,10 @@ export default function BillingPage() {
 
         {/* Tabs */}
         <Tabs defaultValue="charges" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 max-w-md">
-            <TabsTrigger value="charges">Charge Capture</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-5 max-w-2xl">
+            <TabsTrigger value="charges">Charges</TabsTrigger>
+            <TabsTrigger value="claims">Claims / EDI</TabsTrigger>
+            <TabsTrigger value="eligibility">Eligibility</TabsTrigger>
             <TabsTrigger value="authorizations">Authorizations</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
           </TabsList>
@@ -1018,6 +1252,531 @@ export default function BillingPage() {
                                   className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
                                 >
                                   <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ============================================================ */}
+          {/* CLAIMS / EDI TAB */}
+          {/* ============================================================ */}
+          <TabsContent value="claims">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>TMHP Claims</CardTitle>
+                    <CardDescription>
+                      Create claims from charges and generate 837P EDI files for TMHP submission
+                    </CardDescription>
+                  </div>
+                  <Dialog open={claimDialogOpen} onOpenChange={setClaimDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" className="gap-1" onClick={() => resetClaimForm()}>
+                        <Plus className="h-4 w-4" />
+                        New Claim
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Create TMHP Claim</DialogTitle>
+                        <DialogDescription>
+                          Select a patient and their pending charges to create an electronic claim
+                        </DialogDescription>
+                      </DialogHeader>
+
+                      <div className="space-y-4">
+                        {/* Patient */}
+                        <div className="space-y-2">
+                          <Label>Patient</Label>
+                          <Select
+                            value={claimForm.patient_id}
+                            onValueChange={(val) => {
+                              setClaimForm((prev) => ({ ...prev, patient_id: val, episode_id: '' }));
+                              setClaimChargeSelection(new Set());
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select patient" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {patients.map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                  {p.last_name}, {p.first_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Episode */}
+                        <div className="space-y-2">
+                          <Label>Episode</Label>
+                          <Select
+                            value={claimForm.episode_id}
+                            onValueChange={(val) =>
+                              setClaimForm((prev) => ({ ...prev, episode_id: val }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select episode" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {episodes
+                                .filter((e) => !claimForm.patient_id || e.patient_id === claimForm.patient_id)
+                                .map((e) => (
+                                  <SelectItem key={e.id} value={e.id}>
+                                    {e.diagnosis || 'Episode'} ({e.status})
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Subscriber / Medicaid ID */}
+                        <div className="space-y-2">
+                          <Label>Subscriber / Medicaid ID</Label>
+                          <Input
+                            placeholder="Patient's Medicaid ID"
+                            value={claimForm.subscriber_id}
+                            onChange={(e) =>
+                              setClaimForm((prev) => ({ ...prev, subscriber_id: e.target.value }))
+                            }
+                          />
+                        </div>
+
+                        {/* Diagnosis Codes */}
+                        <div className="space-y-2">
+                          <Label>Diagnosis Codes (ICD-10, comma-separated)</Label>
+                          <Input
+                            placeholder="e.g., M54.5, M47.812"
+                            value={claimForm.diagnosis_codes}
+                            onChange={(e) =>
+                              setClaimForm((prev) => ({ ...prev, diagnosis_codes: e.target.value }))
+                            }
+                          />
+                        </div>
+
+                        {/* Rendering Provider */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Rendering Provider NPI</Label>
+                            <Input
+                              placeholder="NPI number"
+                              value={claimForm.rendering_provider_npi}
+                              onChange={(e) =>
+                                setClaimForm((prev) => ({ ...prev, rendering_provider_npi: e.target.value }))
+                              }
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Rendering Provider Name</Label>
+                            <Input
+                              placeholder="Last, First"
+                              value={claimForm.rendering_provider_name}
+                              onChange={(e) =>
+                                setClaimForm((prev) => ({ ...prev, rendering_provider_name: e.target.value }))
+                              }
+                            />
+                          </div>
+                        </div>
+
+                        {/* Available Charges for Selection */}
+                        {claimForm.patient_id && (
+                          <div className="space-y-2">
+                            <Label>Select Charges to Include</Label>
+                            {getClaimableCharges(claimForm.patient_id).length === 0 ? (
+                              <p className="text-sm text-slate-500 p-3 bg-slate-50 rounded-md">
+                                No pending charges available for this patient
+                              </p>
+                            ) : (
+                              <div className="border rounded-md max-h-60 overflow-y-auto">
+                                {getClaimableCharges(claimForm.patient_id).map((charge) => (
+                                  <div
+                                    key={charge.id}
+                                    className="flex items-center gap-3 px-3 py-2 border-b last:border-b-0 hover:bg-slate-50"
+                                  >
+                                    <Checkbox
+                                      checked={claimChargeSelection.has(charge.id)}
+                                      onCheckedChange={(checked) => {
+                                        setClaimChargeSelection((prev) => {
+                                          const next = new Set(prev);
+                                          if (checked) next.add(charge.id);
+                                          else next.delete(charge.id);
+                                          return next;
+                                        });
+                                      }}
+                                    />
+                                    <div className="flex-1">
+                                      <span className="font-mono text-sm font-medium">{charge.cpt_code}</span>
+                                      <span className="text-sm text-slate-500 ml-2">{charge.description}</span>
+                                    </div>
+                                    <span className="text-sm">
+                                      {charge.units} unit(s)
+                                    </span>
+                                    <span className="text-sm text-slate-600">
+                                      {format(parseISO(charge.date_of_service), 'MM/dd/yy')}
+                                    </span>
+                                    <span className="text-sm font-medium">
+                                      {charge.charge_amount ? `$${charge.charge_amount.toFixed(2)}` : '-'}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {claimChargeSelection.size > 0 && (
+                              <p className="text-sm text-emerald-600">
+                                {claimChargeSelection.size} charge(s) selected - Total: $
+                                {getClaimableCharges(claimForm.patient_id)
+                                  .filter((c) => claimChargeSelection.has(c.id))
+                                  .reduce((sum, c) => sum + (c.charge_amount || 0), 0)
+                                  .toFixed(2)}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Notes */}
+                        <div className="space-y-2">
+                          <Label>Notes</Label>
+                          <Input
+                            placeholder="Internal notes..."
+                            value={claimForm.notes}
+                            onChange={(e) =>
+                              setClaimForm((prev) => ({ ...prev, notes: e.target.value }))
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setClaimDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleCreateClaim}
+                          disabled={
+                            submitting ||
+                            !claimForm.patient_id ||
+                            claimChargeSelection.size === 0
+                          }
+                        >
+                          {submitting ? 'Creating...' : 'Create Claim'}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <Skeleton className="h-64 w-full" />
+                ) : claims.length === 0 ? (
+                  <div className="text-center py-12 text-slate-500">
+                    <Send className="h-10 w-10 mx-auto mb-3 text-slate-300" />
+                    <p>No claims created yet</p>
+                    <p className="text-sm mt-1">
+                      Create a claim from pending charges to generate an 837P EDI file for TMHP
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Claim #</TableHead>
+                          <TableHead>Patient</TableHead>
+                          <TableHead>Payer</TableHead>
+                          <TableHead>Lines</TableHead>
+                          <TableHead>Total</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Created</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {claims.map((claim) => (
+                          <TableRow key={claim.id}>
+                            <TableCell className="font-mono text-sm font-medium">
+                              {claim.claim_number || claim.id.slice(0, 8)}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {getPatientName(claim.patient_id)}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {claim.payer_name || 'Texas Medicaid'}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {claim.lines?.length || 0}
+                            </TableCell>
+                            <TableCell className="text-sm font-medium">
+                              ${Number(claim.total_charges || 0).toFixed(2)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={CLAIM_STATUS_COLORS[claim.status] || ''}
+                              >
+                                {claim.status.charAt(0).toUpperCase() + claim.status.slice(1)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm text-slate-500">
+                              {format(parseISO(claim.created_at), 'MM/dd/yy')}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                {/* Generate / Download EDI */}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-1"
+                                  onClick={() => handleGenerateEdi(claim.id)}
+                                  disabled={generatingEdi === claim.id}
+                                >
+                                  <Download className="h-3.5 w-3.5" />
+                                  {generatingEdi === claim.id ? 'Generating...' : '837P'}
+                                </Button>
+
+                                {/* Mark as submitted */}
+                                {(claim.status === 'draft' || claim.status === 'generated') && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="gap-1"
+                                    onClick={() => handleUpdateClaimStatus(claim.id, 'submitted')}
+                                  >
+                                    <Send className="h-3.5 w-3.5" />
+                                    Submitted
+                                  </Button>
+                                )}
+
+                                {/* Mark as paid */}
+                                {claim.status === 'submitted' && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="gap-1 text-emerald-600"
+                                    onClick={() => handleUpdateClaimStatus(claim.id, 'paid')}
+                                  >
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                    Paid
+                                  </Button>
+                                )}
+
+                                {/* Mark as denied */}
+                                {claim.status === 'submitted' && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="gap-1 text-red-600"
+                                    onClick={() => handleUpdateClaimStatus(claim.id, 'denied')}
+                                  >
+                                    <XCircle className="h-3.5 w-3.5" />
+                                    Denied
+                                  </Button>
+                                )}
+
+                                {/* Delete draft */}
+                                {claim.status === 'draft' && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                                    onClick={() => handleDeleteClaim(claim.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ============================================================ */}
+          {/* ELIGIBILITY TAB */}
+          {/* ============================================================ */}
+          <TabsContent value="eligibility">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Eligibility Verification</CardTitle>
+                    <CardDescription>
+                      Check patient Medicaid eligibility and generate 270 EDI inquiries for TMHP
+                    </CardDescription>
+                  </div>
+                  <Dialog open={eligibilityDialogOpen} onOpenChange={setEligibilityDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" className="gap-1" onClick={() => resetEligibilityForm()}>
+                        <Shield className="h-4 w-4" />
+                        Check Eligibility
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-lg">
+                      <DialogHeader>
+                        <DialogTitle>Check Medicaid Eligibility</DialogTitle>
+                        <DialogDescription>
+                          Generate a 270 EDI eligibility inquiry for TMHP portal submission
+                        </DialogDescription>
+                      </DialogHeader>
+
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Patient</Label>
+                          <Select
+                            value={eligibilityForm.patient_id}
+                            onValueChange={(val) =>
+                              setEligibilityForm((prev) => ({ ...prev, patient_id: val }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select patient" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {patients.map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                  {p.last_name}, {p.first_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Medicaid ID</Label>
+                          <Input
+                            placeholder="Patient's Medicaid ID"
+                            value={eligibilityForm.medicaid_id}
+                            onChange={(e) =>
+                              setEligibilityForm((prev) => ({ ...prev, medicaid_id: e.target.value }))
+                            }
+                          />
+                          <p className="text-xs text-slate-500">
+                            If blank, will use the Medicaid ID from the patient record
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Date of Service</Label>
+                          <Input
+                            type="date"
+                            value={eligibilityForm.date_of_service}
+                            onChange={(e) =>
+                              setEligibilityForm((prev) => ({ ...prev, date_of_service: e.target.value }))
+                            }
+                          />
+                        </div>
+
+                        <div className="p-3 bg-blue-50 border border-blue-100 rounded-md">
+                          <p className="text-sm text-blue-800">
+                            This will generate a HIPAA 270 eligibility inquiry file. Upload the file
+                            to the TMHP portal or submit through your clearinghouse to verify
+                            patient eligibility.
+                          </p>
+                        </div>
+                      </div>
+
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setEligibilityDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleEligibilityCheck}
+                          disabled={submitting || !eligibilityForm.patient_id}
+                        >
+                          {submitting ? 'Generating...' : 'Generate 270 & Check'}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <Skeleton className="h-64 w-full" />
+                ) : eligibilityChecks.length === 0 ? (
+                  <div className="text-center py-12 text-slate-500">
+                    <Shield className="h-10 w-10 mx-auto mb-3 text-slate-300" />
+                    <p>No eligibility checks yet</p>
+                    <p className="text-sm mt-1">
+                      Click &quot;Check Eligibility&quot; to verify a patient&apos;s Medicaid coverage
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Patient</TableHead>
+                          <TableHead>Medicaid ID</TableHead>
+                          <TableHead>Service Date</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {eligibilityChecks.map((check) => (
+                          <TableRow key={check.id}>
+                            <TableCell className="text-sm text-slate-500">
+                              {format(parseISO(check.created_at), 'MM/dd/yy HH:mm')}
+                            </TableCell>
+                            <TableCell className="text-sm font-medium">
+                              {check.patient_last_name
+                                ? `${check.patient_last_name}, ${check.patient_first_name}`
+                                : getPatientName(check.patient_id)}
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">
+                              {check.medicaid_id || '-'}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {check.check_date
+                                ? format(parseISO(check.check_date), 'MM/dd/yyyy')
+                                : '-'}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={ELIGIBILITY_STATUS_COLORS[check.status as EligibilityStatus] || ''}
+                              >
+                                {check.status.charAt(0).toUpperCase() + check.status.slice(1)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {check.edi_270_content && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-1"
+                                  onClick={() => {
+                                    const blob = new Blob([check.edi_270_content!], { type: 'text/plain' });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `270_${check.medicaid_id || check.id.slice(0, 8)}.edi`;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    URL.revokeObjectURL(url);
+                                  }}
+                                >
+                                  <Download className="h-3.5 w-3.5" />
+                                  270 File
                                 </Button>
                               )}
                             </TableCell>

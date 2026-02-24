@@ -44,6 +44,8 @@ export default function AddPatientPage() {
     primary_diagnosis: '',
     referring_physician: '',
     insurance_id: '',
+    medicaid_id: '',
+    payer_name: '',
     allergies: '',
     precautions: '',
     // Episode fields
@@ -99,6 +101,8 @@ export default function AddPatientPage() {
           primary_diagnosis: formData.primary_diagnosis || null,
           referring_physician: formData.referring_physician || null,
           insurance_id: formData.insurance_id || null,
+          medicaid_id: formData.medicaid_id || null,
+          payer_name: formData.payer_name || null,
           allergies: formData.allergies || null,
           precautions: formData.precautions || null,
         }),
@@ -310,6 +314,26 @@ export default function AddPatientPage() {
                       name="insurance_id"
                       value={formData.insurance_id}
                       onChange={handleInputChange}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="medicaid_id">Medicaid ID</Label>
+                    <Input
+                      id="medicaid_id"
+                      name="medicaid_id"
+                      value={formData.medicaid_id}
+                      onChange={handleInputChange}
+                      placeholder="Texas Medicaid member ID"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="payer_name">Payer / Insurance Name</Label>
+                    <Input
+                      id="payer_name"
+                      name="payer_name"
+                      value={formData.payer_name}
+                      onChange={handleInputChange}
+                      placeholder="e.g., Texas Medicaid"
                     />
                   </div>
                   <div className="space-y-2">

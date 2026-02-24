@@ -55,6 +55,7 @@ import {
   Episode,
   Patient,
 } from '@/lib/types';
+import { toast } from 'sonner';
 
 interface GoalWithProgress extends TreatmentGoal {
   progress_notes?: GoalProgressNote[];
@@ -259,7 +260,7 @@ export default function GoalsPage() {
           target_value: newGoal.target_value || null,
           unit_of_measure: newGoal.unit_of_measure || null,
           target_date: newGoal.target_date || null,
-          parent_goal_id: newGoal.parent_goal_id || null,
+          parent_goal_id: (newGoal.parent_goal_id && newGoal.parent_goal_id !== 'none') ? newGoal.parent_goal_id : null,
           created_by: user?.id,
         }),
       });
@@ -276,6 +277,7 @@ export default function GoalsPage() {
           target_date: '',
           parent_goal_id: '',
         });
+        toast.success('Treatment goal created');
         // Refresh goals
         if (currentClinic.clinic_id) {
           const goalsRes = await fetch(`/api/goals?clinic_id=${currentClinic.clinic_id}`);
@@ -283,9 +285,13 @@ export default function GoalsPage() {
             setGoals(await goalsRes.json());
           }
         }
+      } else {
+        const errData = await res.json().catch(() => null);
+        toast.error(errData?.error || 'Failed to create goal');
       }
     } catch (error) {
       console.error('Error creating goal:', error);
+      toast.error('Failed to create goal');
     } finally {
       setSaving(false);
     }
@@ -319,7 +325,7 @@ export default function GoalsPage() {
           progress_percentage: progressForm.progress_percentage
             ? parseInt(progressForm.progress_percentage, 10)
             : null,
-          status: progressForm.status || null,
+          status: progressForm.status ? progressForm.status : null,
           notes: progressForm.notes || null,
           recorded_by: user?.id,
         }),
@@ -923,7 +929,7 @@ export default function GoalsPage() {
                       <SelectValue placeholder="Link to an LTG..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="none">None</SelectItem>
                       {longTermGoals.map((ltg) => (
                         <SelectItem key={ltg.id} value={ltg.id}>
                           LTG #{ltg.goal_number}: {ltg.description.substring(0, 60)}
@@ -1047,7 +1053,7 @@ export default function GoalsPage() {
                     <SelectValue placeholder="No change" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No change</SelectItem>
+                    <SelectItem value="no_change">No change</SelectItem>
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="met">Met</SelectItem>
                     <SelectItem value="not_met">Not Met</SelectItem>

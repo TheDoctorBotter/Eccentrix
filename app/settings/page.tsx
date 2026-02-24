@@ -21,6 +21,7 @@ import {
   Stethoscope,
   ScrollText,
   ClipboardCheck,
+  Send,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 
@@ -82,6 +83,14 @@ export default function SettingsPage() {
       href: '/billing',
       iconColor: 'text-rose-600',
       bgColor: 'bg-rose-100',
+    },
+    {
+      title: 'TMHP / Billing Settings',
+      description: 'Configure Tax ID, NPI, taxonomy code, and Medicaid provider ID for electronic claims',
+      icon: Send,
+      href: '/settings/billing',
+      iconColor: 'text-orange-600',
+      bgColor: 'bg-orange-100',
     },
   ];
 

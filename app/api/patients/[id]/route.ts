@@ -60,6 +60,10 @@ export async function PATCH(
       'secondary_diagnoses',
       'referring_physician',
       'insurance_id',
+      'medicaid_id',
+      'subscriber_id',
+      'payer_name',
+      'payer_id',
       'allergies',
       'precautions',
     ];

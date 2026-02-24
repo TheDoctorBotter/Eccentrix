@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     let query = client
       .from('hep_programs')
-      .select('*, hep_program_exercises(*, exercise:exercises(*))')
+      .select('*, hep_program_exercises(*, exercise:exercise_library(*))')
       .eq('clinic_id', clinicId)
       .order('created_at', { ascending: false });
 
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
     // Re-fetch with exercises
     const { data: fullProgram, error: fetchError } = await client
       .from('hep_programs')
-      .select('*, hep_program_exercises(*, exercise:exercises(*))')
+      .select('*, hep_program_exercises(*, exercise:exercise_library(*))')
       .eq('id', program.id)
       .single();
 

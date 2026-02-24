@@ -1,8 +1,8 @@
 /**
- * HEP Program Detail API
- * GET:    Get HEP program with all exercises (joined)
- * PATCH:  Update HEP program
- * DELETE: Delete HEP program
+ * Single Claim API
+ * GET:   Get claim with lines
+ * PATCH: Update claim status/fields
+ * DELETE: Delete a draft claim
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -11,100 +11,107 @@ import { supabaseAdmin } from '@/lib/supabase-server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const client = serviceRoleKey ? supabaseAdmin : supabase;
 
-    const { id } = params;
-
     const { data, error } = await client
-      .from('hep_programs')
-      .select('*, hep_program_exercises(*, exercise:exercise_library(*))')
+      .from('claims')
+      .select('*, claim_lines(*)')
       .eq('id', id)
       .single();
 
     if (error) {
-      console.error('Error fetching HEP program:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 404 });
     }
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error in GET /api/hep/[id]:', error);
+    console.error('Error in GET /api/claims/[id]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const client = serviceRoleKey ? supabaseAdmin : supabase;
 
     const body = await request.json();
-    const { id } = params;
+    const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+    // Allow updating specific fields
+    const allowedFields = [
+      'status', 'submitted_at', 'paid_at', 'paid_amount',
+      'denial_reason', 'notes', 'edi_file_content', 'edi_generated_at',
+    ];
+
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        updateData[field] = body[field];
+      }
+    }
 
     const { data, error } = await client
-      .from('hep_programs')
-      .update({
-        ...body,
-        updated_at: new Date().toISOString(),
-      })
+      .from('claims')
+      .update(updateData)
       .eq('id', id)
-      .select()
+      .select('*, claim_lines(*)')
       .single();
 
     if (error) {
-      console.error('Error updating HEP program:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error in PATCH /api/hep/[id]:', error);
+    console.error('Error in PATCH /api/claims/[id]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const client = serviceRoleKey ? supabaseAdmin : supabase;
 
-    const { id } = params;
+    // Only allow deleting draft claims
+    const { data: claim } = await client
+      .from('claims')
+      .select('status')
+      .eq('id', id)
+      .single();
 
-    // Delete program exercises first
-    const { error: exError } = await client
-      .from('hep_program_exercises')
-      .delete()
-      .eq('hep_program_id', id);
-
-    if (exError) {
-      console.error('Error deleting HEP program exercises:', exError);
-      return NextResponse.json({ error: exError.message }, { status: 500 });
+    if (claim && claim.status !== 'draft') {
+      return NextResponse.json(
+        { error: 'Can only delete draft claims' },
+        { status: 400 }
+      );
     }
 
-    // Delete the program
     const { error } = await client
-      .from('hep_programs')
+      .from('claims')
       .delete()
       .eq('id', id);
 
     if (error) {
-      console.error('Error deleting HEP program:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error in DELETE /api/hep/[id]:', error);
+    console.error('Error in DELETE /api/claims/[id]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

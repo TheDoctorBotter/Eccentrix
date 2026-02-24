@@ -39,6 +39,8 @@ import {
   Loader2,
   Filter,
   ClipboardPlus,
+  Video,
+  ExternalLink,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
@@ -73,6 +75,8 @@ export default function ExercisesPage() {
     instructions: '',
     precautions: '',
     progression_notes: '',
+    video_url: '',
+    thumbnail_url: '',
   });
 
   // Add to HEP dialog
@@ -160,6 +164,8 @@ export default function ExercisesPage() {
         instructions: '',
         precautions: '',
         progression_notes: '',
+        video_url: '',
+        thumbnail_url: '',
       });
       toast.success('Exercise added to library');
     } catch (error) {
@@ -278,6 +284,7 @@ export default function ExercisesPage() {
             </h1>
             <p className="text-slate-500 mt-1">
               Browse and manage exercises for home exercise programs
+              <span className="ml-2 text-xs text-blue-600 font-medium">Powered by PTBot</span>
             </p>
           </div>
           {canManageExercises && (
@@ -502,6 +509,42 @@ export default function ExercisesPage() {
                       rows={2}
                     />
                   </div>
+                  <div className="border-t pt-4">
+                    <p className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+                      <Video className="h-4 w-4" />
+                      PTBot Video (optional)
+                    </p>
+                    <div className="grid gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="ex-video">Video URL</Label>
+                        <Input
+                          id="ex-video"
+                          value={newExercise.video_url}
+                          onChange={(e) =>
+                            setNewExercise((prev) => ({
+                              ...prev,
+                              video_url: e.target.value,
+                            }))
+                          }
+                          placeholder="https://ptbot.ai/exercises/video.mp4"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="ex-thumbnail">Thumbnail URL</Label>
+                        <Input
+                          id="ex-thumbnail"
+                          value={newExercise.thumbnail_url}
+                          onChange={(e) =>
+                            setNewExercise((prev) => ({
+                              ...prev,
+                              thumbnail_url: e.target.value,
+                            }))
+                          }
+                          placeholder="https://ptbot.ai/exercises/thumbnail.jpg"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button
@@ -650,9 +693,47 @@ export default function ExercisesPage() {
                       </div>
                     ) : null}
 
+                    {/* Video thumbnail indicator */}
+                    {exercise.video_url && (
+                      <div className="flex items-center gap-1.5 mt-2">
+                        <Video className="h-3.5 w-3.5 text-blue-500" />
+                        <span className="text-xs text-blue-600 font-medium">PTBot Video</span>
+                      </div>
+                    )}
+
                     {/* Expanded content */}
                     {isExpanded && (
                       <div className="mt-4 pt-4 border-t space-y-3">
+                        {/* PTBot Video */}
+                        {exercise.video_url && (
+                          <div>
+                            <p className="text-xs font-medium text-slate-700 mb-2 flex items-center gap-1">
+                              <Video className="h-3.5 w-3.5 text-blue-500" />
+                              Exercise Video (PTBot)
+                            </p>
+                            <div className="rounded-lg overflow-hidden bg-black aspect-video">
+                              <video
+                                controls
+                                preload="metadata"
+                                poster={exercise.thumbnail_url || undefined}
+                                className="w-full h-full"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <source src={exercise.video_url} />
+                                Your browser does not support video playback.
+                              </video>
+                            </div>
+                            <a
+                              href={exercise.video_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Open in new tab <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                        )}
                         {exercise.description && (
                           <div>
                             <p className="text-xs font-medium text-slate-700 mb-1">

@@ -57,6 +57,7 @@ export default function PatientChartPage({ params }: PageProps) {
   const [savingDetails, setSavingDetails] = useState(false);
   const [patientDetails, setPatientDetails] = useState({
     insurance_id: '',
+    medicaid_id: '',
     allergies: '',
     precautions: '',
     referring_physician: '',
@@ -78,6 +79,7 @@ export default function PatientChartPage({ params }: PageProps) {
         setEpisode(data);
         setPatientDetails({
           insurance_id: data.insurance_id || '',
+          medicaid_id: data.medicaid_id || '',
           allergies: data.allergies || '',
           precautions: data.precautions || '',
           referring_physician: data.referring_physician || '',
@@ -291,6 +293,7 @@ export default function PatientChartPage({ params }: PageProps) {
                         // Reset to current episode data
                         setPatientDetails({
                           insurance_id: episode.insurance_id || '',
+                          medicaid_id: (episode as unknown as { medicaid_id?: string }).medicaid_id || '',
                           allergies: episode.allergies || '',
                           precautions: episode.precautions || '',
                           referring_physician: episode.referring_physician || '',
@@ -325,6 +328,15 @@ export default function PatientChartPage({ params }: PageProps) {
                         value={patientDetails.insurance_id}
                         onChange={(e) => setPatientDetails(prev => ({ ...prev, insurance_id: e.target.value }))}
                         placeholder="e.g., BCBS 12345678"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="medicaid_id">Medicaid ID</Label>
+                      <Input
+                        id="medicaid_id"
+                        value={patientDetails.medicaid_id}
+                        onChange={(e) => setPatientDetails(prev => ({ ...prev, medicaid_id: e.target.value }))}
+                        placeholder="Texas Medicaid member ID"
                       />
                     </div>
                     <div className="space-y-2">

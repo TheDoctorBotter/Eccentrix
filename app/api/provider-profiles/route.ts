@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const now = new Date().toISOString();
     const { data, error } = await client
       .from('provider_profiles')
       .upsert(
@@ -90,7 +91,8 @@ export async function POST(request: NextRequest) {
           max_daily_patients: max_daily_patients || null,
           color: color || null,
           is_active: is_active !== undefined ? is_active : true,
-          updated_at: new Date().toISOString(),
+          created_at: now,
+          updated_at: now,
         },
         { onConflict: 'user_id,clinic_id' }
       )

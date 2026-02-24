@@ -152,7 +152,7 @@ export default function ProvidersPage() {
   const fetchClinicMembers = async () => {
     try {
       const res = await fetch(
-        `/api/clinic-memberships?clinic_id=${currentClinic?.clinic_id}`
+        `/api/user/membership?clinic_id=${currentClinic?.clinic_id}`
       );
       if (res.ok) {
         const data = await res.json();

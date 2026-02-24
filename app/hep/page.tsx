@@ -47,6 +47,8 @@ import {
   Trash2,
   Search,
   Check,
+  Video,
+  ExternalLink,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
@@ -254,9 +256,15 @@ export default function HepPage() {
     const exerciseRows = exercises
       .map((pe: any) => {
         const ex = pe.exercise || pe;
+        const videoLink = ex.video_url
+          ? `<a href="${ex.video_url}" target="_blank" style="color: #2563eb; text-decoration: none; font-size: 12px;">Watch Video</a>`
+          : '';
         return `
           <tr>
-            <td style="padding: 8px; border: 1px solid #ddd;">${ex.name || 'N/A'}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">
+              ${ex.name || 'N/A'}
+              ${videoLink ? `<br/>${videoLink}` : ''}
+            </td>
             <td style="padding: 8px; border: 1px solid #ddd;">${ex.instructions || pe.special_instructions || ''}</td>
             <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${pe.sets || ex.default_sets || ''}</td>
             <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${pe.reps || ex.default_reps || ''}</td>
@@ -302,6 +310,9 @@ export default function HepPage() {
             </tbody>
           </table>
           ${program.instructions ? `<div class="instructions"><strong>Additional Instructions:</strong><br/>${program.instructions}</div>` : ''}
+          <div style="margin-top: 24px; padding-top: 12px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #94a3b8; text-align: center;">
+            Exercise videos powered by PTBot
+          </div>
         </body>
       </html>
     `);
@@ -374,6 +385,7 @@ export default function HepPage() {
             </h1>
             <p className="text-slate-500 mt-1">
               Create and manage home exercise programs for patients
+              <span className="ml-2 text-xs text-blue-600 font-medium">Powered by PTBot</span>
             </p>
           </div>
           <Button className="gap-2" onClick={handleOpenCreateDialog}>
@@ -471,6 +483,7 @@ export default function HepPage() {
                                     <TableHead className="text-center">Reps</TableHead>
                                     <TableHead className="text-center">Hold</TableHead>
                                     <TableHead>Instructions</TableHead>
+                                    <TableHead className="text-center">Video</TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -499,6 +512,21 @@ export default function HepPage() {
                                           {pe.special_instructions ||
                                             ex.instructions ||
                                             '-'}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                          {ex.video_url ? (
+                                            <a
+                                              href={ex.video_url}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              <Video className="h-3.5 w-3.5" />
+                                            </a>
+                                          ) : (
+                                            <span className="text-slate-300">-</span>
+                                          )}
                                         </TableCell>
                                       </TableRow>
                                     );
@@ -667,7 +695,12 @@ export default function HepPage() {
                             )}
                           </div>
                           <div>
-                            <p className="text-sm font-medium">{ex.name}</p>
+                            <p className="text-sm font-medium flex items-center gap-1.5">
+                              {ex.name}
+                              {ex.video_url && (
+                                <Video className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+                              )}
+                            </p>
                             <p className="text-xs text-slate-500">
                               {ex.category}
                               {ex.body_region ? ` - ${ex.body_region}` : ''}
