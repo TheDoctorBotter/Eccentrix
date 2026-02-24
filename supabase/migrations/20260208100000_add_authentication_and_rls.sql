@@ -145,6 +145,7 @@ DROP POLICY IF EXISTS "documents_all" ON documents;
 -- ============================================================================
 
 -- Users can read clinics they belong to
+DROP POLICY IF EXISTS "clinics_select" ON clinics;
 CREATE POLICY "clinics_select"
 ON clinics FOR SELECT
 USING (
@@ -158,6 +159,7 @@ USING (
 );
 
 -- Only admins can insert clinics
+DROP POLICY IF EXISTS "clinics_insert" ON clinics;
 CREATE POLICY "clinics_insert"
 ON clinics FOR INSERT
 WITH CHECK (
@@ -170,6 +172,7 @@ WITH CHECK (
 );
 
 -- Only clinic admins can update their clinic
+DROP POLICY IF EXISTS "clinics_update" ON clinics;
 CREATE POLICY "clinics_update"
 ON clinics FOR UPDATE
 USING (
@@ -184,6 +187,7 @@ USING (
 );
 
 -- Only clinic admins can delete their clinic
+DROP POLICY IF EXISTS "clinics_delete" ON clinics;
 CREATE POLICY "clinics_delete"
 ON clinics FOR DELETE
 USING (
@@ -202,6 +206,7 @@ USING (
 -- ============================================================================
 
 -- Users can read patients in their clinic
+DROP POLICY IF EXISTS "patients_select" ON patients;
 CREATE POLICY "patients_select"
 ON patients FOR SELECT
 USING (
@@ -215,6 +220,7 @@ USING (
 );
 
 -- All clinic members can insert patients
+DROP POLICY IF EXISTS "patients_insert" ON patients;
 CREATE POLICY "patients_insert"
 ON patients FOR INSERT
 WITH CHECK (
@@ -228,6 +234,7 @@ WITH CHECK (
 );
 
 -- All clinic members can update patients
+DROP POLICY IF EXISTS "patients_update" ON patients;
 CREATE POLICY "patients_update"
 ON patients FOR UPDATE
 USING (
@@ -241,6 +248,7 @@ USING (
 );
 
 -- Only admins can delete patients
+DROP POLICY IF EXISTS "patients_delete" ON patients;
 CREATE POLICY "patients_delete"
 ON patients FOR DELETE
 USING (
@@ -259,6 +267,7 @@ USING (
 -- ============================================================================
 
 -- Users can read episodes they have access to
+DROP POLICY IF EXISTS "episodes_select" ON episodes;
 CREATE POLICY "episodes_select"
 ON episodes FOR SELECT
 USING (
@@ -266,6 +275,7 @@ USING (
 );
 
 -- All clinic members can create episodes
+DROP POLICY IF EXISTS "episodes_insert" ON episodes;
 CREATE POLICY "episodes_insert"
 ON episodes FOR INSERT
 WITH CHECK (
@@ -279,6 +289,7 @@ WITH CHECK (
 );
 
 -- Users with episode access can update
+DROP POLICY IF EXISTS "episodes_update" ON episodes;
 CREATE POLICY "episodes_update"
 ON episodes FOR UPDATE
 USING (
@@ -286,6 +297,7 @@ USING (
 );
 
 -- Only admins can delete episodes
+DROP POLICY IF EXISTS "episodes_delete" ON episodes;
 CREATE POLICY "episodes_delete"
 ON episodes FOR DELETE
 USING (
@@ -304,6 +316,7 @@ USING (
 -- ============================================================================
 
 -- Users can read documents for episodes they have access to
+DROP POLICY IF EXISTS "documents_select" ON documents;
 CREATE POLICY "documents_select"
 ON documents FOR SELECT
 USING (
@@ -311,6 +324,7 @@ USING (
 );
 
 -- Users with episode access can create documents
+DROP POLICY IF EXISTS "documents_insert" ON documents;
 CREATE POLICY "documents_insert"
 ON documents FOR INSERT
 WITH CHECK (
@@ -319,6 +333,7 @@ WITH CHECK (
 
 -- Users with episode access can update documents
 -- BUT finalization rules are enforced separately (see finalization trigger)
+DROP POLICY IF EXISTS "documents_update" ON documents;
 CREATE POLICY "documents_update"
 ON documents FOR UPDATE
 USING (
@@ -326,6 +341,7 @@ USING (
 );
 
 -- Only admins can delete documents
+DROP POLICY IF EXISTS "documents_delete" ON documents;
 CREATE POLICY "documents_delete"
 ON documents FOR DELETE
 USING (
@@ -346,6 +362,7 @@ USING (
 ALTER TABLE episode_care_team ENABLE ROW LEVEL SECURITY;
 
 -- Users can see care team for episodes they have access to
+DROP POLICY IF EXISTS "episode_care_team_select" ON episode_care_team;
 CREATE POLICY "episode_care_team_select"
 ON episode_care_team FOR SELECT
 USING (
@@ -353,6 +370,7 @@ USING (
 );
 
 -- PT and Admin can add users to care team
+DROP POLICY IF EXISTS "episode_care_team_insert" ON episode_care_team;
 CREATE POLICY "episode_care_team_insert"
 ON episode_care_team FOR INSERT
 WITH CHECK (
@@ -361,6 +379,7 @@ WITH CHECK (
 );
 
 -- PT and Admin can remove users from care team
+DROP POLICY IF EXISTS "episode_care_team_delete" ON episode_care_team;
 CREATE POLICY "episode_care_team_delete"
 ON episode_care_team FOR DELETE
 USING (
@@ -375,6 +394,7 @@ USING (
 ALTER TABLE clinic_memberships ENABLE ROW LEVEL SECURITY;
 
 -- Users can see memberships for clinics they belong to
+DROP POLICY IF EXISTS "clinic_memberships_select" ON clinic_memberships;
 CREATE POLICY "clinic_memberships_select"
 ON clinic_memberships FOR SELECT
 USING (
@@ -389,6 +409,7 @@ USING (
 );
 
 -- Only admins can create memberships
+DROP POLICY IF EXISTS "clinic_memberships_insert" ON clinic_memberships;
 CREATE POLICY "clinic_memberships_insert"
 ON clinic_memberships FOR INSERT
 WITH CHECK (
@@ -403,6 +424,7 @@ WITH CHECK (
 );
 
 -- Only admins can update memberships
+DROP POLICY IF EXISTS "clinic_memberships_update" ON clinic_memberships;
 CREATE POLICY "clinic_memberships_update"
 ON clinic_memberships FOR UPDATE
 USING (
@@ -417,6 +439,7 @@ USING (
 );
 
 -- Only admins can delete memberships
+DROP POLICY IF EXISTS "clinic_memberships_delete" ON clinic_memberships;
 CREATE POLICY "clinic_memberships_delete"
 ON clinic_memberships FOR DELETE
 USING (

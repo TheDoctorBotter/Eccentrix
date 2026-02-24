@@ -45,6 +45,7 @@ COMMENT ON TABLE visits IS 'Appointment / visit records – scaffold for Buckeye
 ALTER TABLE visits ENABLE ROW LEVEL SECURITY;
 
 -- PT / admin / front_office can see all clinic visits
+DROP POLICY IF EXISTS "visits_select" ON visits;
 CREATE POLICY "visits_select"
 ON visits FOR SELECT
 USING (
@@ -71,6 +72,7 @@ USING (
 );
 
 -- Admin / front_office can insert visits (manual add)
+DROP POLICY IF EXISTS "visits_insert" ON visits;
 CREATE POLICY "visits_insert"
 ON visits FOR INSERT
 WITH CHECK (
@@ -85,6 +87,7 @@ WITH CHECK (
 );
 
 -- Admin / front_office / PT can update visits
+DROP POLICY IF EXISTS "visits_update" ON visits;
 CREATE POLICY "visits_update"
 ON visits FOR UPDATE
 USING (
@@ -99,6 +102,7 @@ USING (
 );
 
 -- Admin only can delete visits
+DROP POLICY IF EXISTS "visits_delete" ON visits;
 CREATE POLICY "visits_delete"
 ON visits FOR DELETE
 USING (
@@ -118,6 +122,7 @@ USING (
 -- We add a parallel INSERT/DELETE policy for front_office role.
 -- ============================================================================
 
+DROP POLICY IF EXISTS "episode_care_team_insert_front_office" ON episode_care_team;
 CREATE POLICY "episode_care_team_insert_front_office"
 ON episode_care_team FOR INSERT
 WITH CHECK (
@@ -132,6 +137,7 @@ WITH CHECK (
   )
 );
 
+DROP POLICY IF EXISTS "episode_care_team_delete_front_office" ON episode_care_team;
 CREATE POLICY "episode_care_team_delete_front_office"
 ON episode_care_team FOR DELETE
 USING (

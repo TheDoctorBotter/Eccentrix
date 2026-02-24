@@ -8,6 +8,7 @@
 DROP POLICY IF EXISTS "patient_files_all" ON patient_files;
 
 -- Clinic members can read files belonging to their clinic
+DROP POLICY IF EXISTS "patient_files_select" ON patient_files;
 CREATE POLICY "patient_files_select" ON patient_files
   FOR SELECT USING (
     EXISTS (
@@ -19,6 +20,7 @@ CREATE POLICY "patient_files_select" ON patient_files
   );
 
 -- PT and Admin can insert files
+DROP POLICY IF EXISTS "patient_files_insert" ON patient_files;
 CREATE POLICY "patient_files_insert" ON patient_files
   FOR INSERT WITH CHECK (
     EXISTS (
@@ -31,6 +33,7 @@ CREATE POLICY "patient_files_insert" ON patient_files
   );
 
 -- PT and Admin can update file metadata (status, notes, etc.)
+DROP POLICY IF EXISTS "patient_files_update" ON patient_files;
 CREATE POLICY "patient_files_update" ON patient_files
   FOR UPDATE USING (
     EXISTS (
@@ -43,6 +46,7 @@ CREATE POLICY "patient_files_update" ON patient_files
   );
 
 -- Only Admin can delete files
+DROP POLICY IF EXISTS "patient_files_delete" ON patient_files;
 CREATE POLICY "patient_files_delete" ON patient_files
   FOR DELETE USING (
     EXISTS (
