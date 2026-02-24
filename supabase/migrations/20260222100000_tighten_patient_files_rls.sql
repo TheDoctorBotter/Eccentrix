@@ -10,9 +10,11 @@ DROP POLICY IF EXISTS "patient_files_all" ON patient_files;
 -- Clinic members can read files belonging to their clinic
 CREATE POLICY "patient_files_select" ON patient_files
   FOR SELECT USING (
-    clinic_id::text IN (
-      SELECT clinic_name FROM clinic_memberships
-      WHERE user_id = auth.uid() AND is_active = true
+    EXISTS (
+      SELECT 1 FROM clinic_memberships
+      WHERE user_id = auth.uid()
+        AND (clinic_id_ref = patient_files.clinic_id OR clinic_id = patient_files.clinic_id)
+        AND is_active = true
     )
   );
 
@@ -22,7 +24,7 @@ CREATE POLICY "patient_files_insert" ON patient_files
     EXISTS (
       SELECT 1 FROM clinic_memberships
       WHERE user_id = auth.uid()
-        AND clinic_name = patient_files.clinic_id::text
+        AND (clinic_id_ref = patient_files.clinic_id OR clinic_id = patient_files.clinic_id)
         AND role IN ('pt', 'admin', 'front_office')
         AND is_active = true
     )
@@ -34,7 +36,7 @@ CREATE POLICY "patient_files_update" ON patient_files
     EXISTS (
       SELECT 1 FROM clinic_memberships
       WHERE user_id = auth.uid()
-        AND clinic_name = patient_files.clinic_id::text
+        AND (clinic_id_ref = patient_files.clinic_id OR clinic_id = patient_files.clinic_id)
         AND role IN ('pt', 'admin')
         AND is_active = true
     )
@@ -46,7 +48,7 @@ CREATE POLICY "patient_files_delete" ON patient_files
     EXISTS (
       SELECT 1 FROM clinic_memberships
       WHERE user_id = auth.uid()
-        AND clinic_name = patient_files.clinic_id::text
+        AND (clinic_id_ref = patient_files.clinic_id OR clinic_id = patient_files.clinic_id)
         AND role = 'admin'
         AND is_active = true
     )

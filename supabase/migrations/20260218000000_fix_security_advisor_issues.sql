@@ -15,8 +15,8 @@
 --   7-13. RLS Policy Always True on clinic_memberships, clinics, documents,
 --         episodes, notes, patients
 --
--- NOTE: clinic_memberships.clinic_id is TEXT, clinic_memberships.clinic_id_ref
--- is UUID. All cross-table comparisons use ::text casts for safety.
+-- NOTE: clinic_memberships.clinic_id and clinic_memberships.clinic_id_ref are
+-- both UUID. Direct UUID comparisons are used throughout.
 -- ============================================================================
 
 BEGIN;
@@ -93,8 +93,8 @@ USING (
 -- Restrict to clinic members. Allow null clinic_id notes to remain accessible
 -- to any authenticated user (backward compat for older notes).
 --
--- clinic_memberships.clinic_id is TEXT, clinic_memberships.clinic_id_ref is UUID.
--- notes.clinic_id is UUID. Cast everything to TEXT for safe comparison.
+-- clinic_memberships.clinic_id and clinic_id_ref are both UUID.
+-- notes.clinic_id is UUID. Direct UUID comparisons are used.
 -- ============================================================================
 
 DROP POLICY IF EXISTS "notes_select_policy" ON notes;
@@ -106,12 +106,10 @@ CREATE POLICY "notes_select"
 ON notes FOR SELECT TO authenticated
 USING (
   clinic_id IS NULL
-  OR clinic_id::text IN (
-    SELECT cm.clinic_id_ref::text FROM clinic_memberships cm
-    WHERE cm.user_id = auth.uid() AND cm.is_active = true AND cm.clinic_id_ref IS NOT NULL
-    UNION
-    SELECT cm.clinic_id::text FROM clinic_memberships cm
-    WHERE cm.user_id = auth.uid() AND cm.is_active = true AND cm.clinic_id IS NOT NULL
+  OR EXISTS (
+    SELECT 1 FROM clinic_memberships cm
+    WHERE cm.user_id = auth.uid() AND cm.is_active = true
+      AND (cm.clinic_id_ref = notes.clinic_id OR cm.clinic_id = notes.clinic_id)
   )
 );
 
@@ -119,12 +117,10 @@ CREATE POLICY "notes_insert"
 ON notes FOR INSERT TO authenticated
 WITH CHECK (
   clinic_id IS NULL
-  OR clinic_id::text IN (
-    SELECT cm.clinic_id_ref::text FROM clinic_memberships cm
-    WHERE cm.user_id = auth.uid() AND cm.is_active = true AND cm.clinic_id_ref IS NOT NULL
-    UNION
-    SELECT cm.clinic_id::text FROM clinic_memberships cm
-    WHERE cm.user_id = auth.uid() AND cm.is_active = true AND cm.clinic_id IS NOT NULL
+  OR EXISTS (
+    SELECT 1 FROM clinic_memberships cm
+    WHERE cm.user_id = auth.uid() AND cm.is_active = true
+      AND (cm.clinic_id_ref = notes.clinic_id OR cm.clinic_id = notes.clinic_id)
   )
 );
 
@@ -132,12 +128,10 @@ CREATE POLICY "notes_update"
 ON notes FOR UPDATE TO authenticated
 USING (
   clinic_id IS NULL
-  OR clinic_id::text IN (
-    SELECT cm.clinic_id_ref::text FROM clinic_memberships cm
-    WHERE cm.user_id = auth.uid() AND cm.is_active = true AND cm.clinic_id_ref IS NOT NULL
-    UNION
-    SELECT cm.clinic_id::text FROM clinic_memberships cm
-    WHERE cm.user_id = auth.uid() AND cm.is_active = true AND cm.clinic_id IS NOT NULL
+  OR EXISTS (
+    SELECT 1 FROM clinic_memberships cm
+    WHERE cm.user_id = auth.uid() AND cm.is_active = true
+      AND (cm.clinic_id_ref = notes.clinic_id OR cm.clinic_id = notes.clinic_id)
   )
 );
 
@@ -147,8 +141,8 @@ USING (
   EXISTS (
     SELECT 1 FROM clinic_memberships cm
     WHERE cm.user_id = auth.uid()
-      AND (cm.clinic_id_ref::text = notes.clinic_id::text
-           OR cm.clinic_id::text = notes.clinic_id::text)
+      AND (cm.clinic_id_ref = notes.clinic_id
+           OR cm.clinic_id = notes.clinic_id)
       AND cm.role = 'admin'
       AND cm.is_active = true
   )
@@ -311,8 +305,8 @@ USING (
 
 -- ============================================================================
 -- SECTION 7: FIX DOCUMENT_TEMPLATES POLICIES
--- document_templates.clinic_id may be TEXT (added via dashboard).
--- Cast both sides to TEXT for safe comparison.
+-- document_templates.clinic_id is UUID.
+-- Direct UUID comparisons are used.
 -- ============================================================================
 
 DROP POLICY IF EXISTS "document_templates_select" ON document_templates;
@@ -331,8 +325,8 @@ USING (
   EXISTS (
     SELECT 1 FROM clinic_memberships cm
     WHERE cm.user_id = auth.uid()
-      AND (cm.clinic_id_ref::text = document_templates.clinic_id::text
-           OR cm.clinic_id::text = document_templates.clinic_id::text)
+      AND (cm.clinic_id_ref = document_templates.clinic_id
+           OR cm.clinic_id = document_templates.clinic_id)
       AND cm.is_active = true
   )
 );
@@ -343,8 +337,8 @@ WITH CHECK (
   EXISTS (
     SELECT 1 FROM clinic_memberships cm
     WHERE cm.user_id = auth.uid()
-      AND (cm.clinic_id_ref::text = document_templates.clinic_id::text
-           OR cm.clinic_id::text = document_templates.clinic_id::text)
+      AND (cm.clinic_id_ref = document_templates.clinic_id
+           OR cm.clinic_id = document_templates.clinic_id)
       AND cm.role = 'admin'
       AND cm.is_active = true
   )
@@ -356,8 +350,8 @@ USING (
   EXISTS (
     SELECT 1 FROM clinic_memberships cm
     WHERE cm.user_id = auth.uid()
-      AND (cm.clinic_id_ref::text = document_templates.clinic_id::text
-           OR cm.clinic_id::text = document_templates.clinic_id::text)
+      AND (cm.clinic_id_ref = document_templates.clinic_id
+           OR cm.clinic_id = document_templates.clinic_id)
       AND cm.role = 'admin'
       AND cm.is_active = true
   )
@@ -369,8 +363,8 @@ USING (
   EXISTS (
     SELECT 1 FROM clinic_memberships cm
     WHERE cm.user_id = auth.uid()
-      AND (cm.clinic_id_ref::text = document_templates.clinic_id::text
-           OR cm.clinic_id::text = document_templates.clinic_id::text)
+      AND (cm.clinic_id_ref = document_templates.clinic_id
+           OR cm.clinic_id = document_templates.clinic_id)
       AND cm.role = 'admin'
       AND cm.is_active = true
   )
@@ -398,12 +392,10 @@ DO $$ BEGIN
       CREATE POLICY "Users can read branding for their clinics"
       ON branding_settings FOR SELECT TO authenticated
       USING (
-        clinic_id::text IN (
-          SELECT cm.clinic_id_ref::text FROM clinic_memberships cm
-          WHERE cm.user_id = auth.uid() AND cm.is_active = true AND cm.clinic_id_ref IS NOT NULL
-          UNION
-          SELECT cm.clinic_id::text FROM clinic_memberships cm
-          WHERE cm.user_id = auth.uid() AND cm.is_active = true AND cm.clinic_id IS NOT NULL
+        EXISTS (
+          SELECT 1 FROM clinic_memberships cm
+          WHERE cm.user_id = auth.uid() AND cm.is_active = true
+            AND (cm.clinic_id_ref = branding_settings.clinic_id OR cm.clinic_id = branding_settings.clinic_id)
         )
       )
     $policy$;
@@ -418,12 +410,10 @@ DO $$ BEGIN
       CREATE POLICY "Admins can insert branding for their clinics"
       ON branding_settings FOR INSERT TO authenticated
       WITH CHECK (
-        clinic_id::text IN (
-          SELECT cm.clinic_id_ref::text FROM clinic_memberships cm
-          WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true AND cm.clinic_id_ref IS NOT NULL
-          UNION
-          SELECT cm.clinic_id::text FROM clinic_memberships cm
-          WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true AND cm.clinic_id IS NOT NULL
+        EXISTS (
+          SELECT 1 FROM clinic_memberships cm
+          WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true
+            AND (cm.clinic_id_ref = branding_settings.clinic_id OR cm.clinic_id = branding_settings.clinic_id)
         )
       )
     $policy$;
@@ -438,21 +428,17 @@ DO $$ BEGIN
       CREATE POLICY "Admins can update branding for their clinics"
       ON branding_settings FOR UPDATE TO authenticated
       USING (
-        clinic_id::text IN (
-          SELECT cm.clinic_id_ref::text FROM clinic_memberships cm
-          WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true AND cm.clinic_id_ref IS NOT NULL
-          UNION
-          SELECT cm.clinic_id::text FROM clinic_memberships cm
-          WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true AND cm.clinic_id IS NOT NULL
+        EXISTS (
+          SELECT 1 FROM clinic_memberships cm
+          WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true
+            AND (cm.clinic_id_ref = branding_settings.clinic_id OR cm.clinic_id = branding_settings.clinic_id)
         )
       )
       WITH CHECK (
-        clinic_id::text IN (
-          SELECT cm.clinic_id_ref::text FROM clinic_memberships cm
-          WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true AND cm.clinic_id_ref IS NOT NULL
-          UNION
-          SELECT cm.clinic_id::text FROM clinic_memberships cm
-          WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true AND cm.clinic_id IS NOT NULL
+        EXISTS (
+          SELECT 1 FROM clinic_memberships cm
+          WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true
+            AND (cm.clinic_id_ref = branding_settings.clinic_id OR cm.clinic_id = branding_settings.clinic_id)
         )
       )
     $policy$;
@@ -467,12 +453,10 @@ DO $$ BEGIN
       CREATE POLICY "Admins can delete branding for their clinics"
       ON branding_settings FOR DELETE TO authenticated
       USING (
-        clinic_id::text IN (
-          SELECT cm.clinic_id_ref::text FROM clinic_memberships cm
-          WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true AND cm.clinic_id_ref IS NOT NULL
-          UNION
-          SELECT cm.clinic_id::text FROM clinic_memberships cm
-          WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true AND cm.clinic_id IS NOT NULL
+        EXISTS (
+          SELECT 1 FROM clinic_memberships cm
+          WHERE cm.user_id = auth.uid() AND cm.role = 'admin' AND cm.is_active = true
+            AND (cm.clinic_id_ref = branding_settings.clinic_id OR cm.clinic_id = branding_settings.clinic_id)
         )
       )
     $policy$;
@@ -616,7 +600,7 @@ BEGIN
   SELECT role INTO v_role
   FROM clinic_memberships
   WHERE user_id = p_user_id
-    AND (clinic_id_ref = p_clinic_id OR clinic_id = p_clinic_id::text)
+    AND (clinic_id_ref = p_clinic_id OR clinic_id = p_clinic_id)
     AND is_active = true
   LIMIT 1;
   RETURN v_role;
@@ -633,7 +617,7 @@ BEGIN
   RETURN EXISTS (
     SELECT 1 FROM clinic_memberships
     WHERE user_id = p_user_id
-      AND (clinic_id_ref = p_clinic_id OR clinic_id = p_clinic_id::text)
+      AND (clinic_id_ref = p_clinic_id OR clinic_id = p_clinic_id)
       AND role = 'admin'
       AND is_active = true
   );
@@ -650,7 +634,7 @@ BEGIN
   RETURN EXISTS (
     SELECT 1 FROM clinic_memberships
     WHERE user_id = p_user_id
-      AND (clinic_id_ref = p_clinic_id OR clinic_id = p_clinic_id::text)
+      AND (clinic_id_ref = p_clinic_id OR clinic_id = p_clinic_id)
       AND role IN ('pt', 'admin')
       AND is_active = true
   );
@@ -678,7 +662,7 @@ BEGIN
   SELECT role INTO v_role
   FROM clinic_memberships
   WHERE user_id = p_user_id
-    AND (clinic_id_ref = v_clinic_id OR clinic_id = v_clinic_id::text)
+    AND (clinic_id_ref = v_clinic_id OR clinic_id = v_clinic_id)
     AND is_active = true
   LIMIT 1;
 
@@ -716,7 +700,7 @@ BEGIN
   SELECT role INTO v_user_role
   FROM clinic_memberships
   WHERE user_id = auth.uid()
-    AND (clinic_id_ref = NEW.clinic_id OR clinic_id = NEW.clinic_id::text)
+    AND (clinic_id_ref = NEW.clinic_id OR clinic_id = NEW.clinic_id)
     AND is_active = true
   LIMIT 1;
 
