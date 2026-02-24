@@ -30,6 +30,8 @@ interface BillingSettings {
   billing_state: string | null;
   billing_zip: string | null;
   submitter_id: string | null;
+  stedi_api_key: string | null;
+  payer_trading_partner_id: string | null;
 }
 
 export default function BillingSettingsPage() {
@@ -46,6 +48,8 @@ export default function BillingSettingsPage() {
     billing_state: 'TX',
     billing_zip: '',
     submitter_id: '',
+    stedi_api_key: '',
+    payer_trading_partner_id: 'TXMCD',
   });
 
   const clinicId = currentClinic?.clinic_id;
@@ -68,6 +72,8 @@ export default function BillingSettingsPage() {
           billing_state: data.billing_state || 'TX',
           billing_zip: data.billing_zip || '',
           submitter_id: data.submitter_id || '',
+          stedi_api_key: data.stedi_api_key || '',
+          payer_trading_partner_id: data.payer_trading_partner_id || 'TXMCD',
         });
       }
     } catch (error) {
@@ -298,6 +304,63 @@ export default function BillingSettingsPage() {
                   Upload generated files to the{' '}
                   <strong>TMHP Provider Portal</strong> or submit through your clearinghouse.
                 </p>
+              </CardContent>
+            </Card>
+
+            {/* Stedi Clearinghouse Integration */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Stedi Clearinghouse Integration</CardTitle>
+                <CardDescription>
+                  Connect to Stedi for real-time eligibility verification and electronic claims submission.
+                  Without this, EDI files are generated for manual upload.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="stedi_api_key">Stedi API Key</Label>
+                  <Input
+                    id="stedi_api_key"
+                    type="password"
+                    placeholder="Key xxxxxxxx..."
+                    value={form.stedi_api_key}
+                    onChange={(e) => setForm((prev) => ({ ...prev, stedi_api_key: e.target.value }))}
+                  />
+                  <p className="text-xs text-slate-500">
+                    Get your API key from{' '}
+                    <span className="font-medium">stedi.com</span> under Account Settings.
+                    When configured, eligibility checks and claim submissions will happen in real-time.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="payer_trading_partner_id">Payer Trading Partner ID</Label>
+                  <Input
+                    id="payer_trading_partner_id"
+                    placeholder="TXMCD"
+                    value={form.payer_trading_partner_id}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, payer_trading_partner_id: e.target.value }))
+                    }
+                  />
+                  <p className="text-xs text-slate-500">
+                    Stedi&apos;s trading partner service ID for TMHP/Texas Medicaid. Default: TXMCD
+                  </p>
+                </div>
+                {form.stedi_api_key ? (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-md">
+                    <p className="text-sm text-emerald-800">
+                      Stedi integration is <strong>active</strong>. Eligibility checks and claim
+                      submissions will be processed in real-time.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
+                    <p className="text-sm text-amber-800">
+                      Stedi integration is <strong>not configured</strong>. EDI files will be
+                      generated for manual upload to your clearinghouse.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

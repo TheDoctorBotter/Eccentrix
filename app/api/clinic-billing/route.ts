@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await client
       .from('clinics')
-      .select('id, name, tax_id, taxonomy_code, medicaid_provider_id, billing_npi, billing_address, billing_city, billing_state, billing_zip, submitter_id')
+      .select('id, name, tax_id, taxonomy_code, medicaid_provider_id, billing_npi, billing_address, billing_city, billing_state, billing_zip, submitter_id, stedi_api_key, payer_trading_partner_id')
       .eq('id', clinicId)
       .single();
 
@@ -53,6 +53,7 @@ export async function PATCH(request: NextRequest) {
       'tax_id', 'taxonomy_code', 'medicaid_provider_id',
       'billing_npi', 'billing_address', 'billing_city',
       'billing_state', 'billing_zip', 'submitter_id',
+      'stedi_api_key', 'payer_trading_partner_id',
     ];
 
     const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -66,7 +67,7 @@ export async function PATCH(request: NextRequest) {
       .from('clinics')
       .update(updateData)
       .eq('id', clinic_id)
-      .select('id, name, tax_id, taxonomy_code, medicaid_provider_id, billing_npi, billing_address, billing_city, billing_state, billing_zip, submitter_id')
+      .select('id, name, tax_id, taxonomy_code, medicaid_provider_id, billing_npi, billing_address, billing_city, billing_state, billing_zip, submitter_id, stedi_api_key, payer_trading_partner_id')
       .single();
 
     if (error) {

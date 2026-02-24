@@ -613,8 +613,18 @@ export default function BillingPage() {
 
       const result = await res.json();
 
-      // Download the 270 file
-      if (result.edi_270_content) {
+      if (result.mode === 'realtime' && result.result) {
+        // Real-time Stedi result
+        const r = result.result;
+        if (r.status === 'eligible') {
+          toast.success(`Eligible: ${r.summary}`);
+        } else if (r.status === 'ineligible') {
+          toast.error(`Ineligible: ${r.summary}`);
+        } else {
+          toast.error(`Error: ${r.summary}`);
+        }
+      } else if (result.edi_270_content) {
+        // File-based fallback - download 270
         const blob = new Blob([result.edi_270_content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -624,9 +634,9 @@ export default function BillingPage() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        toast.success('270 EDI file downloaded. Upload to your clearinghouse to verify.');
       }
 
-      toast.success('Eligibility inquiry created. 270 EDI file downloaded.');
       setEligibilityDialogOpen(false);
       resetEligibilityForm();
       fetchData();
@@ -634,6 +644,33 @@ export default function BillingPage() {
       toast.error(error instanceof Error ? error.message : 'Failed to check eligibility');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Submit claim via Stedi (or mark as manually submitted)
+  const handleSubmitClaim = async (claimId: string) => {
+    setGeneratingEdi(claimId);
+    try {
+      const res = await fetch(`/api/claims/${claimId}/submit`, {
+        method: 'POST',
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || 'Failed to submit claim');
+      }
+
+      if (result.mode === 'stedi') {
+        toast.success(result.message || 'Claim submitted via Stedi');
+      } else {
+        toast.success('Claim marked as submitted');
+      }
+      fetchData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to submit claim');
+    } finally {
+      setGeneratingEdi(null);
     }
   };
 
@@ -1545,16 +1582,17 @@ export default function BillingPage() {
                                   {generatingEdi === claim.id ? 'Generating...' : '837P'}
                                 </Button>
 
-                                {/* Mark as submitted */}
+                                {/* Submit claim (via Stedi or manual) */}
                                 {(claim.status === 'draft' || claim.status === 'generated') && (
                                   <Button
                                     variant="outline"
                                     size="sm"
                                     className="gap-1"
-                                    onClick={() => handleUpdateClaimStatus(claim.id, 'submitted')}
+                                    onClick={() => handleSubmitClaim(claim.id)}
+                                    disabled={generatingEdi === claim.id}
                                   >
                                     <Send className="h-3.5 w-3.5" />
-                                    Submitted
+                                    Submit
                                   </Button>
                                 )}
 
@@ -1750,35 +1788,64 @@ export default function BillingPage() {
                                 : '-'}
                             </TableCell>
                             <TableCell>
-                              <Badge
-                                variant="outline"
-                                className={ELIGIBILITY_STATUS_COLORS[check.status as EligibilityStatus] || ''}
-                              >
-                                {check.status.charAt(0).toUpperCase() + check.status.slice(1)}
-                              </Badge>
+                              <div className="space-y-1">
+                                <Badge
+                                  variant="outline"
+                                  className={ELIGIBILITY_STATUS_COLORS[check.status as EligibilityStatus] || ''}
+                                >
+                                  {check.status.charAt(0).toUpperCase() + check.status.slice(1)}
+                                </Badge>
+                                {check.response_data && 'parsed' in (check.response_data as object) ? (
+                                  <p className="text-xs text-slate-600 max-w-[250px]">
+                                    {((check.response_data as Record<string, unknown>).parsed as { summary?: string })?.summary}
+                                  </p>
+                                ) : null}
+                                {check.error_message && (
+                                  <p className="text-xs text-red-500 max-w-[250px]">
+                                    {check.error_message}
+                                  </p>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className="text-right">
-                              {check.edi_270_content && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="gap-1"
-                                  onClick={() => {
-                                    const blob = new Blob([check.edi_270_content!], { type: 'text/plain' });
-                                    const url = URL.createObjectURL(blob);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = `270_${check.medicaid_id || check.id.slice(0, 8)}.edi`;
-                                    document.body.appendChild(a);
-                                    a.click();
-                                    document.body.removeChild(a);
-                                    URL.revokeObjectURL(url);
-                                  }}
-                                >
-                                  <Download className="h-3.5 w-3.5" />
-                                  270 File
-                                </Button>
-                              )}
+                              <div className="flex items-center justify-end gap-1">
+                                {check.response_data && 'parsed' in (check.response_data as object) ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="gap-1"
+                                    onClick={() => {
+                                      const parsed = (check.response_data as Record<string, unknown>).parsed as { details?: string[] };
+                                      const details = parsed?.details?.join('\n') || 'No details';
+                                      alert(details);
+                                    }}
+                                  >
+                                    <Activity className="h-3.5 w-3.5" />
+                                    Details
+                                  </Button>
+                                ) : null}
+                                {check.edi_270_content && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="gap-1"
+                                    onClick={() => {
+                                      const blob = new Blob([check.edi_270_content!], { type: 'text/plain' });
+                                      const url = URL.createObjectURL(blob);
+                                      const a = document.createElement('a');
+                                      a.href = url;
+                                      a.download = `270_${check.medicaid_id || check.id.slice(0, 8)}.edi`;
+                                      document.body.appendChild(a);
+                                      a.click();
+                                      document.body.removeChild(a);
+                                      URL.revokeObjectURL(url);
+                                    }}
+                                  >
+                                    <Download className="h-3.5 w-3.5" />
+                                    270 File
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}

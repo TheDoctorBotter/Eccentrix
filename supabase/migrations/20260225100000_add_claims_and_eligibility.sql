@@ -17,6 +17,8 @@ ALTER TABLE clinics ADD COLUMN IF NOT EXISTS billing_city TEXT;
 ALTER TABLE clinics ADD COLUMN IF NOT EXISTS billing_state TEXT;
 ALTER TABLE clinics ADD COLUMN IF NOT EXISTS billing_zip TEXT;
 ALTER TABLE clinics ADD COLUMN IF NOT EXISTS submitter_id TEXT;
+ALTER TABLE clinics ADD COLUMN IF NOT EXISTS stedi_api_key TEXT;
+ALTER TABLE clinics ADD COLUMN IF NOT EXISTS payer_trading_partner_id TEXT;
 
 -- ============================================================================
 -- 2. PATIENT INSURANCE FIELDS
