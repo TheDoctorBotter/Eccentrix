@@ -389,57 +389,22 @@ USING (
 
 -- ============================================================================
 -- 9. CLINIC MEMBERSHIPS - RLS POLICIES
--- Uses SECURITY DEFINER function to avoid infinite recursion when a policy
--- on clinic_memberships references clinic_memberships in a subquery.
+-- IMPORTANT: Policies on clinic_memberships CANNOT reference clinic_memberships
+-- in subqueries or function calls — PostgreSQL detects infinite recursion.
+-- Only direct column checks (user_id = auth.uid()) are safe here.
+-- Admin management of memberships goes through the service role key.
 -- ============================================================================
-
--- Helper function: check if current user is an admin (bypasses RLS)
-CREATE OR REPLACE FUNCTION is_clinic_membership_admin()
-RETURNS BOOLEAN AS $$
-BEGIN
-  RETURN EXISTS (
-    SELECT 1 FROM clinic_memberships
-    WHERE user_id = auth.uid()
-      AND role = 'admin'
-      AND is_active = true
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 
 ALTER TABLE clinic_memberships ENABLE ROW LEVEL SECURITY;
 
--- Users can see their own memberships; admins can see all
+-- Users can see their own memberships (direct column check, no recursion)
 DROP POLICY IF EXISTS "clinic_memberships_select" ON clinic_memberships;
 CREATE POLICY "clinic_memberships_select"
 ON clinic_memberships FOR SELECT
-USING (
-  user_id = auth.uid()
-  OR is_clinic_membership_admin()
-);
+USING (user_id = auth.uid());
 
--- Only admins can create memberships
-DROP POLICY IF EXISTS "clinic_memberships_insert" ON clinic_memberships;
-CREATE POLICY "clinic_memberships_insert"
-ON clinic_memberships FOR INSERT
-WITH CHECK (
-  is_clinic_membership_admin()
-);
-
--- Only admins can update memberships
-DROP POLICY IF EXISTS "clinic_memberships_update" ON clinic_memberships;
-CREATE POLICY "clinic_memberships_update"
-ON clinic_memberships FOR UPDATE
-USING (
-  is_clinic_membership_admin()
-);
-
--- Only admins can delete memberships
-DROP POLICY IF EXISTS "clinic_memberships_delete" ON clinic_memberships;
-CREATE POLICY "clinic_memberships_delete"
-ON clinic_memberships FOR DELETE
-USING (
-  is_clinic_membership_admin()
-);
+-- INSERT/UPDATE/DELETE: managed via service role key (bypasses RLS)
+-- No client-side policies needed for membership management
 
 -- ============================================================================
 -- 10. TEMPLATES AND BRANDING - RLS POLICIES

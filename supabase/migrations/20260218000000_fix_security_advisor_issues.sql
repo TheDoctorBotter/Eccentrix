@@ -152,28 +152,16 @@ USING (
 -- ============================================================================
 -- SECTION 4: FIX RLS POLICIES — CLINIC_MEMBERSHIPS
 -- Drop the old permissive USING(true) policies that were never cleaned up.
--- Uses SECURITY DEFINER function to avoid infinite recursion.
+-- IMPORTANT: Policies on clinic_memberships CANNOT reference clinic_memberships
+-- in subqueries or function calls — PostgreSQL detects infinite recursion.
+-- Only direct column checks are safe. Admin management uses service role key.
 -- ============================================================================
 
 DROP POLICY IF EXISTS "memberships_select_own" ON clinic_memberships;
 DROP POLICY IF EXISTS "memberships_insert_policy" ON clinic_memberships;
 DROP POLICY IF EXISTS "memberships_update_policy" ON clinic_memberships;
 
--- Ensure the SECURITY DEFINER helper exists (avoids self-referencing recursion)
-CREATE OR REPLACE FUNCTION is_clinic_membership_admin()
-RETURNS BOOLEAN AS $$
-BEGIN
-  RETURN EXISTS (
-    SELECT 1 FROM clinic_memberships
-    WHERE user_id = auth.uid()
-      AND role = 'admin'
-      AND is_active = true
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
-
--- Verify the proper policies still exist (these were created in 20260208100000)
--- If they got dropped somehow, recreate them using the SECURITY DEFINER function:
+-- Verify the select policy exists; recreate if missing (direct column check only)
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
@@ -182,52 +170,16 @@ DO $$ BEGIN
     EXECUTE $policy$
       CREATE POLICY "clinic_memberships_select"
       ON clinic_memberships FOR SELECT
-      USING (
-        user_id = auth.uid()
-        OR is_clinic_membership_admin()
-      )
-    $policy$;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE tablename = 'clinic_memberships' AND policyname = 'clinic_memberships_insert'
-  ) THEN
-    EXECUTE $policy$
-      CREATE POLICY "clinic_memberships_insert"
-      ON clinic_memberships FOR INSERT
-      WITH CHECK (
-        is_clinic_membership_admin()
-      )
-    $policy$;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE tablename = 'clinic_memberships' AND policyname = 'clinic_memberships_update'
-  ) THEN
-    EXECUTE $policy$
-      CREATE POLICY "clinic_memberships_update"
-      ON clinic_memberships FOR UPDATE
-      USING (
-        is_clinic_membership_admin()
-      )
-    $policy$;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE tablename = 'clinic_memberships' AND policyname = 'clinic_memberships_delete'
-  ) THEN
-    EXECUTE $policy$
-      CREATE POLICY "clinic_memberships_delete"
-      ON clinic_memberships FOR DELETE
-      USING (
-        is_clinic_membership_admin()
-      )
+      USING (user_id = auth.uid())
     $policy$;
   END IF;
 END $$;
+
+-- Drop any INSERT/UPDATE/DELETE policies that reference clinic_memberships
+-- (they cause infinite recursion). Admin ops go through service role key.
+DROP POLICY IF EXISTS "clinic_memberships_insert" ON clinic_memberships;
+DROP POLICY IF EXISTS "clinic_memberships_update" ON clinic_memberships;
+DROP POLICY IF EXISTS "clinic_memberships_delete" ON clinic_memberships;
 
 
 -- ============================================================================
