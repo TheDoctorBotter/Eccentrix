@@ -1,0 +1,1207 @@
+// Prisma schema for Eccentrix EMR
+// Generated from Supabase migration files
+// Run `npx prisma db pull` to update from live database
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum episode_status {
+  active
+  discharged
+  on_hold
+}
+
+enum document_status {
+  draft
+  final
+}
+
+enum clinic_role {
+  pt
+  pta
+  admin
+  front_office
+}
+
+enum clinical_doc_type {
+  daily_note
+  evaluation
+  re_evaluation
+  progress_summary
+  discharge_summary
+  uploaded_document
+}
+
+enum document_note_type {
+  DAILY_NOTE
+  INITIAL_EVAL
+  RE_EVAL
+  DISCHARGE
+  PROGRESS_NOTE
+}
+
+enum appointment_status {
+  scheduled
+  checked_in
+  in_progress
+  checked_out
+  completed
+  no_show
+  cancelled
+  rescheduled
+}
+
+enum goal_type {
+  short_term
+  long_term
+}
+
+enum goal_status {
+  active
+  met
+  not_met
+  modified
+  discontinued
+  deferred
+}
+
+enum cosign_status {
+  pending
+  signed
+  rejected
+  expired
+}
+
+enum visit_source {
+  buckeye_scheduler
+  google_calendar
+  manual
+}
+
+// ============================================================================
+// CLINICS
+// ============================================================================
+
+model clinics {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String
+  address        String?
+  phone          String?
+  email          String?
+  website        String?
+  logo_url       String?
+  letterhead_url String?
+  is_active      Boolean? @default(true)
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Billing fields (from claims_and_eligibility migration)
+  tax_id                  String?
+  taxonomy_code           String?
+  medicaid_provider_id    String?
+  billing_npi             String?
+  billing_address         String?
+  billing_city            String?
+  billing_state           String?
+  billing_zip             String?
+  submitter_id            String?
+  stedi_api_key           String?
+  payer_trading_partner_id String?
+
+  // Relations
+  patients              patients[]
+  episodes              episodes[]
+  documents             documents[]
+  clinic_memberships    clinic_memberships[]
+  visits                visits[]
+  branding_settings     branding_settings[]
+  therapist_availability therapist_availability[]
+  waitlist              waitlist[]
+  outcome_measure_scores outcome_measure_scores[]
+  treatment_goals       treatment_goals[]
+  visit_charges         visit_charges[]
+  prior_authorizations  prior_authorizations[]
+  patient_payments      patient_payments[]
+  exercise_library      exercise_library[]
+  hep_programs          hep_programs[]
+  messages              messages[]
+  audit_log             audit_log[]
+  provider_profiles     provider_profiles[]
+  claims                claims[]
+  eligibility_checks    eligibility_checks[]
+  patient_files         patient_files[]
+
+  @@index([name])
+}
+
+// ============================================================================
+// PATIENTS
+// ============================================================================
+
+model patients {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clinic_id        String?  @db.Uuid
+  first_name       String
+  last_name        String
+  date_of_birth    DateTime? @db.Date
+  gender           String?
+  phone            String?
+  email            String?
+  address          String?
+  primary_diagnosis    String?
+  secondary_diagnoses  String[]
+  referring_physician  String?
+  insurance_id         String?
+  is_active        Boolean? @default(true)
+  created_at       DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Soft delete (from soft_delete migration)
+  deleted_at       DateTime? @db.Timestamptz(6)
+  deleted_by       String?   @db.Uuid
+  delete_reason    String?
+
+  // Allergies/precautions
+  allergies        String?
+  precautions      String?
+
+  // Insurance fields (from claims_and_eligibility migration)
+  medicaid_id      String?
+  subscriber_id    String?
+  payer_name       String?
+  payer_id         String?
+
+  // Reporting fields (from comprehensive_emr migration)
+  referral_source        String?
+  referral_source_detail String?
+  insurance_carrier      String?
+  insurance_plan         String?
+  insurance_group        String?
+
+  // Relations
+  clinic               clinics?               @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
+  episodes             episodes[]
+  documents            documents[]
+  notes                notes[]
+  waitlist             waitlist[]
+  outcome_measure_scores outcome_measure_scores[]
+  treatment_goals      treatment_goals[]
+  visit_charges        visit_charges[]
+  prior_authorizations prior_authorizations[]
+  patient_payments     patient_payments[]
+  hep_programs         hep_programs[]
+  messages             messages[]
+  claims               claims[]
+  eligibility_checks   eligibility_checks[]
+  patient_files        patient_files[]
+  patient_external_ids patient_external_ids[]
+  visits               visits[]
+
+  @@index([clinic_id])
+  @@index([last_name, first_name])
+  @@index([is_active])
+}
+
+// ============================================================================
+// EPISODES (Episode of Care)
+// ============================================================================
+
+model episodes {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patient_id  String         @db.Uuid
+  clinic_id   String         @db.Uuid
+  start_date  DateTime       @default(dbgenerated("CURRENT_DATE")) @db.Date
+  end_date    DateTime?      @db.Date
+  status      episode_status? @default(active)
+  diagnosis   String?
+  diagnosis_codes String[]
+  frequency   String?
+  duration    String?
+  primary_pt_id   String? @db.Uuid
+  care_team_ids   String[] @db.Uuid
+  discharged_at   DateTime? @db.Timestamptz(6)
+  discharged_by   String?   @db.Uuid
+  discharge_reason String?
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime? @default(now()) @db.Timestamptz(6)
+
+  // ICD-10 codes (from icd10 migration)
+  primary_diagnosis_codes   Json? @default("[]")
+  treatment_diagnosis_codes Json? @default("[]")
+
+  // Plan of care certification (from comprehensive_emr migration)
+  poc_certified_date  DateTime? @db.Date
+  poc_certified_by    String?   @db.Uuid
+  poc_recert_due_date DateTime? @db.Date
+  authorized_visits   Int?
+  visits_used         Int?      @default(0)
+
+  // Relations
+  patient            patients            @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  clinic             clinics             @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
+  documents          documents[]
+  episode_care_team  episode_care_team[]
+  visits             visits[]
+  outcome_measure_scores outcome_measure_scores[]
+  treatment_goals    treatment_goals[]
+  visit_charges      visit_charges[]
+  prior_authorizations prior_authorizations[]
+  hep_programs       hep_programs[]
+  messages           messages[]
+  waitlist           waitlist[]
+  claims             claims[]
+
+  @@index([patient_id])
+  @@index([clinic_id])
+  @@index([status])
+}
+
+// ============================================================================
+// DOCUMENTS (Clinical Documents)
+// ============================================================================
+
+model documents {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  episode_id      String            @db.Uuid
+  clinic_id       String            @db.Uuid
+  patient_id      String            @db.Uuid
+  doc_type        clinical_doc_type
+  legacy_note_id  String?           @db.Uuid
+  title           String?
+  date_of_service DateTime          @default(dbgenerated("CURRENT_DATE")) @db.Date
+  input_data      Json?             @default("{}")
+  output_text     String?
+  rich_content    Json?
+  billing_justification String?
+  hep_summary     String?
+  template_id     String?           @db.Uuid
+  document_template_id String?      @db.Uuid
+  status          document_status?  @default(draft)
+  finalized_at    DateTime?         @db.Timestamptz(6)
+  finalized_by    String?           @db.Uuid
+  file_url        String?
+  file_name       String?
+  file_size       Int?
+  created_by      String?           @db.Uuid
+  created_at      DateTime?         @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime?         @default(now()) @db.Timestamptz(6)
+
+  // Co-signature fields (from comprehensive_emr migration)
+  requires_cosign Boolean?       @default(false)
+  cosign_status   cosign_status?
+  cosigned_by     String?        @db.Uuid
+  cosigned_at     DateTime?      @db.Timestamptz(6)
+
+  // Relations
+  episode            episodes             @relation(fields: [episode_id], references: [id], onDelete: Cascade)
+  clinic             clinics              @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
+  patient            patients             @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  document_signatures document_signatures[]
+  outcome_measure_scores outcome_measure_scores[]
+  treatment_goals    treatment_goals[]
+  goal_progress_notes goal_progress_notes[]
+  visit_charges      visit_charges[]
+
+  @@index([episode_id])
+  @@index([patient_id])
+  @@index([clinic_id])
+  @@index([date_of_service(sort: Desc)])
+  @@index([doc_type])
+  @@index([status])
+}
+
+// ============================================================================
+// NOTES (Legacy notes table - predates documents)
+// ============================================================================
+
+model notes {
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id               String?            @db.Uuid
+  note_type             String?
+  input_data            Json?
+  output_text           String?
+  created_at            DateTime?          @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime?          @default(now()) @db.Timestamptz(6)
+
+  // Added by migrations
+  title                 String?
+  date_of_service       DateTime?          @db.Date
+  rich_content          Json?
+  document_template_id  String?            @db.Uuid
+  clinic_name           String?
+  status                document_status?   @default(draft)
+  finalized_at          DateTime?          @db.Timestamptz(6)
+  finalized_by          String?            @db.Uuid
+  doc_type              clinical_doc_type?
+  clinic_id             String?            @db.Uuid
+  patient_id            String?            @db.Uuid
+
+  // Relations
+  patient               patients?          @relation(fields: [patient_id], references: [id], onDelete: SetNull)
+}
+
+// ============================================================================
+// CLINIC MEMBERSHIPS
+// ============================================================================
+
+model clinic_memberships {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String      @db.Uuid
+  clinic_id   String?     @db.Uuid
+  clinic_name String
+  role        clinic_role @default(pta)
+  is_active   Boolean?    @default(true)
+  created_at  DateTime?   @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime?   @default(now()) @db.Timestamptz(6)
+
+  // Added by EMR core migration
+  clinic_id_ref String? @db.Uuid
+
+  // Relations
+  clinic clinics? @relation(fields: [clinic_id_ref], references: [id])
+
+  @@unique([user_id, clinic_name])
+  @@index([user_id])
+  @@index([clinic_name])
+  @@index([role])
+}
+
+// ============================================================================
+// EPISODE CARE TEAM
+// ============================================================================
+
+model episode_care_team {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  episode_id  String      @db.Uuid
+  user_id     String      @db.Uuid
+  role        clinic_role
+  assigned_at DateTime?   @default(now()) @db.Timestamptz(6)
+  assigned_by String?     @db.Uuid
+
+  // Relations
+  episode episodes @relation(fields: [episode_id], references: [id], onDelete: Cascade)
+
+  @@unique([episode_id, user_id])
+  @@index([episode_id])
+  @@index([user_id])
+}
+
+// ============================================================================
+// VISITS (Appointments)
+// ============================================================================
+
+model visits {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clinic_id         String          @db.Uuid
+  episode_id        String?         @db.Uuid
+  patient_id        String?         @db.Uuid
+  therapist_user_id String?         @db.Uuid
+  start_time        DateTime        @db.Timestamptz(6)
+  end_time          DateTime        @db.Timestamptz(6)
+  location          String?
+  source            visit_source    @default(manual)
+  external_event_id String?
+  notes             String?
+  created_at        DateTime?       @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime?       @default(now()) @db.Timestamptz(6)
+
+  // Scheduling enhancements (from comprehensive_emr migration)
+  status               appointment_status? @default(scheduled)
+  cancelled_at         DateTime?           @db.Timestamptz(6)
+  cancel_reason        String?
+  recurrence_rule      String?
+  recurrence_group_id  String?             @db.Uuid
+  visit_type           String?             @default("treatment")
+  total_treatment_minutes Int?
+  total_units          Decimal?            @db.Decimal(4, 1)
+
+  // Relations
+  clinic          clinics          @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
+  episode         episodes?        @relation(fields: [episode_id], references: [id], onDelete: SetNull)
+  patient         patients?        @relation(fields: [patient_id], references: [id], onDelete: SetNull)
+  visit_charges   visit_charges[]
+  patient_payments patient_payments[]
+
+  @@index([clinic_id])
+  @@index([episode_id])
+  @@index([therapist_user_id])
+  @@index([start_time])
+  @@index([status])
+  @@index([recurrence_group_id])
+}
+
+// ============================================================================
+// BRANDING SETTINGS
+// ============================================================================
+
+model branding_settings {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clinic_name           String?  @default("")
+  address               String?  @default("")
+  phone                 String?  @default("")
+  email                 String?  @default("")
+  website               String?  @default("")
+  logo_url              String?
+  letterhead_url        String?
+  show_in_notes         Boolean? @default(true)
+  created_at            DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Provider signature fields
+  provider_name         String?  @default("")
+  provider_credentials  String?  @default("")
+  provider_license      String?  @default("")
+  signature_enabled     Boolean? @default(true)
+
+  // Multi-clinic support
+  clinic_id             String?  @db.Uuid
+
+  // Relations
+  clinic                clinics? @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
+
+  @@index([updated_at(sort: Desc)])
+  @@index([clinic_id])
+}
+
+// ============================================================================
+// TEMPLATES (AI Prompt Templates)
+// ============================================================================
+
+model templates {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String   @db.VarChar(255)
+  note_type         String   @db.VarChar(50)
+  content           String
+  style_settings    Json?    @default("{}")
+  required_sections Json?    @default("{}")
+  is_default        Boolean? @default(false)
+  created_at        DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([note_type])
+}
+
+// ============================================================================
+// DOCUMENT TEMPLATES (DOCX file templates)
+// ============================================================================
+
+model document_templates {
+  id                     String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clinic_name            String
+  note_type              document_note_type
+  template_name          String
+  description            String?
+  file_key               String            @unique
+  file_name              String
+  file_size              Int
+  is_default             Boolean?          @default(false)
+  placeholders_detected  String[]          @default([])
+  created_at             DateTime?         @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime?         @default(now()) @db.Timestamptz(6)
+
+  @@index([clinic_name])
+  @@index([clinic_name, note_type])
+}
+
+// ============================================================================
+// PDF FORM TEMPLATES
+// ============================================================================
+
+model pdf_form_templates {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clinic_name       String
+  note_type         String
+  template_name     String
+  description       String?
+  file_key          String
+  file_name         String
+  file_size         Int
+  is_default        Boolean? @default(false)
+  num_pages         Int?
+  detected_sections Json?    @default("[]")
+  created_at        DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  pdf_form_fields   pdf_form_fields[]
+
+  @@index([clinic_name])
+  @@index([note_type])
+}
+
+// ============================================================================
+// PDF FORM FIELDS
+// ============================================================================
+
+model pdf_form_fields {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  template_id        String   @db.Uuid
+  field_name         String
+  field_label        String
+  field_type         String   @default("text")
+  page_number        Int      @default(1)
+  x_coordinate       Float    @default(0)
+  y_coordinate       Float    @default(0)
+  width              Float    @default(200)
+  height             Float    @default(20)
+  placeholder_source String
+  sort_order         Int?     @default(0)
+  is_required        Boolean? @default(false)
+  font_size          Float?   @default(10)
+  font_name          String?  @default("Helvetica")
+  created_at         DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  template           pdf_form_templates @relation(fields: [template_id], references: [id], onDelete: Cascade)
+
+  @@index([template_id])
+}
+
+// ============================================================================
+// THERAPIST AVAILABILITY
+// ============================================================================
+
+model therapist_availability {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clinic_id       String    @db.Uuid
+  user_id         String    @db.Uuid
+  day_of_week     Int
+  start_time      DateTime  @db.Time(6)
+  end_time        DateTime  @db.Time(6)
+  is_available    Boolean?  @default(true)
+  label           String?
+  effective_from  DateTime? @default(dbgenerated("CURRENT_DATE")) @db.Date
+  effective_until DateTime? @db.Date
+  created_at      DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  clinic          clinics   @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([clinic_id])
+}
+
+// ============================================================================
+// WAITLIST
+// ============================================================================
+
+model waitlist {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clinic_id              String    @db.Uuid
+  patient_id             String    @db.Uuid
+  episode_id             String?   @db.Uuid
+  preferred_therapist_id String?   @db.Uuid
+  preferred_days         Int[]
+  preferred_time_start   DateTime? @db.Time(6)
+  preferred_time_end     DateTime? @db.Time(6)
+  priority               Int?      @default(0)
+  notes                  String?
+  status                 String?   @default("waiting")
+  added_at               DateTime? @default(now()) @db.Timestamptz(6)
+  removed_at             DateTime? @db.Timestamptz(6)
+  created_at             DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  clinic   clinics   @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
+  patient  patients  @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  episode  episodes? @relation(fields: [episode_id], references: [id], onDelete: SetNull)
+
+  @@index([clinic_id])
+  @@index([status])
+}
+
+// ============================================================================
+// OUTCOME MEASURES
+// ============================================================================
+
+model outcome_measure_definitions {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                 String    @unique
+  abbreviation         String
+  description          String?
+  category             String?
+  min_score            Decimal?
+  max_score            Decimal?
+  score_interpretation String?
+  questions            Json?
+  mcid                 Decimal?
+  higher_is_better     Boolean?  @default(false)
+  is_active            Boolean?  @default(true)
+  created_at           DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  scores               outcome_measure_scores[]
+}
+
+model outcome_measure_scores {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patient_id       String    @db.Uuid
+  episode_id       String    @db.Uuid
+  clinic_id        String    @db.Uuid
+  measure_id       String    @db.Uuid
+  date_administered DateTime  @default(dbgenerated("CURRENT_DATE")) @db.Date
+  raw_score        Decimal
+  percentage_score Decimal?
+  answers          Json?
+  administered_by  String?   @db.Uuid
+  notes            String?
+  document_id      String?   @db.Uuid
+  created_at       DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  patient  patients                    @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  episode  episodes                    @relation(fields: [episode_id], references: [id], onDelete: Cascade)
+  clinic   clinics                     @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
+  measure  outcome_measure_definitions @relation(fields: [measure_id], references: [id], onDelete: Cascade)
+  document documents?                  @relation(fields: [document_id], references: [id], onDelete: SetNull)
+
+  @@index([patient_id])
+  @@index([episode_id])
+  @@index([measure_id])
+  @@index([date_administered])
+}
+
+// ============================================================================
+// TREATMENT GOALS
+// ============================================================================
+
+model treatment_goals {
+  id                  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  episode_id          String       @db.Uuid
+  patient_id          String       @db.Uuid
+  clinic_id           String       @db.Uuid
+  goal_type           goal_type
+  goal_number         Int          @default(1)
+  description         String
+  baseline_value      String?
+  target_value        String?
+  current_value       String?
+  unit_of_measure     String?
+  target_date         DateTime?    @db.Date
+  met_date            DateTime?    @db.Date
+  status              goal_status? @default(active)
+  progress_percentage Int?         @default(0)
+  status_notes        String?
+  parent_goal_id      String?      @db.Uuid
+  document_id         String?      @db.Uuid
+  created_by          String?      @db.Uuid
+  updated_by          String?      @db.Uuid
+  created_at          DateTime?    @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime?    @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  episode         episodes              @relation(fields: [episode_id], references: [id], onDelete: Cascade)
+  patient         patients              @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  clinic          clinics               @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
+  parent_goal     treatment_goals?      @relation("GoalHierarchy", fields: [parent_goal_id], references: [id], onDelete: SetNull)
+  child_goals     treatment_goals[]     @relation("GoalHierarchy")
+  document        documents?            @relation(fields: [document_id], references: [id], onDelete: SetNull)
+  progress_notes  goal_progress_notes[]
+
+  @@index([episode_id])
+  @@index([status])
+  @@index([goal_type])
+}
+
+model goal_progress_notes {
+  id                  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  goal_id             String       @db.Uuid
+  document_id         String?      @db.Uuid
+  date_recorded       DateTime     @default(dbgenerated("CURRENT_DATE")) @db.Date
+  previous_value      String?
+  current_value       String?
+  progress_percentage Int?
+  status              goal_status?
+  notes               String?
+  recorded_by         String?      @db.Uuid
+  created_at          DateTime?    @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  goal     treatment_goals @relation(fields: [goal_id], references: [id], onDelete: Cascade)
+  document documents?      @relation(fields: [document_id], references: [id], onDelete: SetNull)
+
+  @@index([goal_id])
+}
+
+// ============================================================================
+// CPT CODES & BILLING
+// ============================================================================
+
+model cpt_codes {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code          String    @unique
+  description   String
+  category      String?
+  is_timed      Boolean?  @default(true)
+  default_units Int?      @default(1)
+  unit_minutes  Int?      @default(15)
+  is_active     Boolean?  @default(true)
+  created_at    DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  visit_charges visit_charges[]
+}
+
+model visit_charges {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  visit_id         String?   @db.Uuid
+  document_id      String?   @db.Uuid
+  episode_id       String    @db.Uuid
+  patient_id       String    @db.Uuid
+  clinic_id        String    @db.Uuid
+  cpt_code_id      String    @db.Uuid
+  cpt_code         String
+  description      String?
+  minutes_spent    Int?
+  units            Int       @default(1)
+  modifier_1       String?
+  modifier_2       String?
+  diagnosis_pointer Int[]    @default([1])
+  charge_amount    Decimal?  @db.Decimal(10, 2)
+  date_of_service  DateTime  @default(dbgenerated("CURRENT_DATE")) @db.Date
+  status           String?   @default("pending")
+  created_by       String?   @db.Uuid
+  created_at       DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  visit       visits?     @relation(fields: [visit_id], references: [id], onDelete: Cascade)
+  document    documents?  @relation(fields: [document_id], references: [id], onDelete: SetNull)
+  episode     episodes    @relation(fields: [episode_id], references: [id], onDelete: Cascade)
+  patient     patients    @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  clinic      clinics     @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
+  cpt_code_ref cpt_codes  @relation(fields: [cpt_code_id], references: [id])
+  claim_lines claim_lines[]
+
+  @@index([visit_id])
+  @@index([episode_id])
+  @@index([date_of_service])
+  @@index([status])
+}
+
+// ============================================================================
+// PRIOR AUTHORIZATIONS
+// ============================================================================
+
+model prior_authorizations {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  episode_id        String    @db.Uuid
+  patient_id        String    @db.Uuid
+  clinic_id         String    @db.Uuid
+  auth_number       String?
+  insurance_name    String?
+  insurance_phone   String?
+  authorized_visits Int?
+  used_visits       Int?      @default(0)
+  start_date        DateTime  @db.Date
+  end_date          DateTime  @db.Date
+  requested_date    DateTime? @db.Date
+  approved_date     DateTime? @db.Date
+  status            String?   @default("pending")
+  notes             String?
+  created_by        String?   @db.Uuid
+  created_at        DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  episode episodes @relation(fields: [episode_id], references: [id], onDelete: Cascade)
+  patient patients @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  clinic  clinics  @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
+
+  @@index([episode_id])
+  @@index([status])
+}
+
+// ============================================================================
+// PATIENT PAYMENTS
+// ============================================================================
+
+model patient_payments {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patient_id       String    @db.Uuid
+  clinic_id        String    @db.Uuid
+  visit_id         String?   @db.Uuid
+  amount           Decimal   @db.Decimal(10, 2)
+  payment_type     String?   @default("copay")
+  payment_method   String?
+  reference_number String?
+  date_received    DateTime  @default(dbgenerated("CURRENT_DATE")) @db.Date
+  notes            String?
+  collected_by     String?   @db.Uuid
+  created_at       DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  patient patients @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  clinic  clinics  @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
+  visit   visits?  @relation(fields: [visit_id], references: [id], onDelete: SetNull)
+
+  @@index([patient_id])
+  @@index([date_received])
+}
+
+// ============================================================================
+// DOCUMENT SIGNATURES (Co-sign workflow)
+// ============================================================================
+
+model document_signatures {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  document_id       String        @db.Uuid
+  signer_user_id    String        @db.Uuid
+  signer_role       String
+  signer_name       String
+  signer_credentials String?
+  signature_type    String
+  status            cosign_status? @default(pending)
+  signed_at         DateTime?     @db.Timestamptz(6)
+  rejected_at       DateTime?     @db.Timestamptz(6)
+  rejection_reason  String?
+  attestation       String?       @default("I attest that this document accurately reflects the services provided.")
+  created_at        DateTime?     @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime?     @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  document documents @relation(fields: [document_id], references: [id], onDelete: Cascade)
+
+  @@index([document_id])
+  @@index([signer_user_id])
+}
+
+// ============================================================================
+// EXERCISE LIBRARY & HEP
+// ============================================================================
+
+model exercise_library {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clinic_id           String?   @db.Uuid
+  name                String
+  description         String?
+  category            String
+  body_region         String?
+  difficulty          String?   @default("moderate")
+  equipment           String?
+  default_sets        String?
+  default_reps        String?
+  default_hold        String?
+  default_frequency   String?
+  instructions        String?
+  precautions         String?
+  progression_notes   String?
+  image_url           String?
+  video_url           String?
+  thumbnail_url       String?
+  is_active           Boolean?  @default(true)
+  created_at          DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  clinic              clinics?              @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
+  hep_program_exercises hep_program_exercises[]
+
+  @@index([category])
+  @@index([body_region])
+  @@index([clinic_id])
+}
+
+model hep_programs {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patient_id   String    @db.Uuid
+  episode_id   String    @db.Uuid
+  clinic_id    String    @db.Uuid
+  name         String    @default("Home Exercise Program")
+  status       String?   @default("active")
+  start_date   DateTime? @default(dbgenerated("CURRENT_DATE")) @db.Date
+  instructions String?
+  frequency    String?
+  assigned_by  String?   @db.Uuid
+  created_at   DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  patient   patients              @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  episode   episodes              @relation(fields: [episode_id], references: [id], onDelete: Cascade)
+  clinic    clinics               @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
+  exercises hep_program_exercises[]
+
+  @@index([patient_id])
+  @@index([episode_id])
+}
+
+model hep_program_exercises {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  hep_program_id       String    @db.Uuid
+  exercise_id          String    @db.Uuid
+  sort_order           Int?      @default(0)
+  sets                 String?
+  reps                 String?
+  hold                 String?
+  frequency            String?
+  special_instructions String?
+  date_added           DateTime? @default(dbgenerated("CURRENT_DATE")) @db.Date
+  date_progressed      DateTime? @db.Date
+  progression_notes    String?
+  is_active            Boolean?  @default(true)
+  created_at           DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  hep_program hep_programs     @relation(fields: [hep_program_id], references: [id], onDelete: Cascade)
+  exercise    exercise_library @relation(fields: [exercise_id], references: [id], onDelete: Cascade)
+
+  @@index([hep_program_id])
+}
+
+// ============================================================================
+// MESSAGING
+// ============================================================================
+
+model messages {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clinic_id     String    @db.Uuid
+  sender_id     String    @db.Uuid
+  thread_id     String?   @db.Uuid
+  recipient_ids String[]  @db.Uuid
+  subject       String?
+  body          String
+  is_urgent     Boolean?  @default(false)
+  patient_id    String?   @db.Uuid
+  episode_id    String?   @db.Uuid
+  created_at    DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  clinic        clinics   @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
+  patient       patients? @relation(fields: [patient_id], references: [id], onDelete: SetNull)
+  episode       episodes? @relation(fields: [episode_id], references: [id], onDelete: SetNull)
+  reads         message_reads[]
+
+  @@index([clinic_id])
+  @@index([sender_id])
+  @@index([thread_id])
+  @@index([patient_id])
+}
+
+model message_reads {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  message_id String    @db.Uuid
+  user_id    String    @db.Uuid
+  read_at    DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  message messages @relation(fields: [message_id], references: [id], onDelete: Cascade)
+
+  @@unique([message_id, user_id])
+  @@index([user_id])
+}
+
+// ============================================================================
+// AUDIT LOG
+// ============================================================================
+
+model audit_log {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clinic_id            String?   @db.Uuid
+  user_id              String?   @db.Uuid
+  user_email           String?
+  action               String
+  resource_type        String
+  resource_id          String?   @db.Uuid
+  resource_description String?
+  changes              Json?
+  ip_address           String?
+  user_agent           String?
+  created_at           DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  clinic clinics? @relation(fields: [clinic_id], references: [id], onDelete: SetNull)
+
+  @@index([clinic_id])
+  @@index([user_id])
+  @@index([resource_type, resource_id])
+  @@index([action])
+  @@index([created_at(sort: Desc)])
+}
+
+// ============================================================================
+// PROVIDER PROFILES
+// ============================================================================
+
+model provider_profiles {
+  id                          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                     String    @db.Uuid
+  clinic_id                   String    @db.Uuid
+  first_name                  String
+  last_name                   String
+  credentials                 String?
+  npi                         String?
+  license_number              String?
+  license_state               String?
+  license_expiry              DateTime? @db.Date
+  specialty                   String?
+  email                       String?
+  phone                       String?
+  default_appointment_duration Int?     @default(45)
+  max_daily_patients          Int?
+  color                       String?
+  is_active                   Boolean?  @default(true)
+  created_at                  DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at                  DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  clinic clinics @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, clinic_id])
+  @@index([user_id])
+  @@index([clinic_id])
+}
+
+// ============================================================================
+// CLAIMS & ELIGIBILITY
+// ============================================================================
+
+model claims {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clinic_id               String    @db.Uuid
+  patient_id              String    @db.Uuid
+  episode_id              String?   @db.Uuid
+  claim_number            String?
+  payer_name              String?   @default("Texas Medicaid")
+  payer_id                String?   @default("330897513")
+  subscriber_id           String?
+  total_charges           Decimal?  @default(0) @db.Decimal(10, 2)
+  diagnosis_codes         String[]
+  rendering_provider_npi  String?
+  rendering_provider_name String?
+  place_of_service        String?   @default("11")
+  status                  String?   @default("draft")
+  edi_file_content        String?
+  edi_generated_at        DateTime? @db.Timestamptz(6)
+  submitted_at            DateTime? @db.Timestamptz(6)
+  paid_at                 DateTime? @db.Timestamptz(6)
+  paid_amount             Decimal?  @db.Decimal(10, 2)
+  denial_reason           String?
+  notes                   String?
+  created_by              String?   @db.Uuid
+  created_at              DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  clinic      clinics      @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
+  patient     patients     @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  episode     episodes?    @relation(fields: [episode_id], references: [id], onDelete: SetNull)
+  claim_lines claim_lines[]
+
+  @@index([clinic_id])
+  @@index([patient_id])
+  @@index([status])
+  @@index([created_at(sort: Desc)])
+}
+
+model claim_lines {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  claim_id          String    @db.Uuid
+  visit_charge_id   String?   @db.Uuid
+  line_number       Int
+  cpt_code          String
+  modifier_1        String?
+  modifier_2        String?
+  units             Decimal   @default(1) @db.Decimal(5, 2)
+  charge_amount     Decimal   @default(0) @db.Decimal(10, 2)
+  diagnosis_pointers Int[]
+  date_of_service   DateTime  @db.Date
+  description       String?
+  created_at        DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  claim        claims         @relation(fields: [claim_id], references: [id], onDelete: Cascade)
+  visit_charge visit_charges? @relation(fields: [visit_charge_id], references: [id], onDelete: SetNull)
+
+  @@index([claim_id])
+  @@index([visit_charge_id])
+}
+
+model eligibility_checks {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clinic_id          String    @db.Uuid
+  patient_id         String    @db.Uuid
+  medicaid_id        String?
+  patient_first_name String?
+  patient_last_name  String?
+  patient_dob        DateTime? @db.Date
+  check_date         DateTime? @default(dbgenerated("CURRENT_DATE")) @db.Date
+  service_type       String?   @default("30")
+  status             String?   @default("pending")
+  edi_270_content    String?
+  edi_271_content    String?
+  response_data      Json?
+  error_message      String?
+  checked_by         String?   @db.Uuid
+  created_at         DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  clinic  clinics  @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
+  patient patients @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+
+  @@index([clinic_id])
+  @@index([patient_id])
+  @@index([check_date(sort: Desc)])
+}
+
+// ============================================================================
+// PATIENT FILES
+// ============================================================================
+
+model patient_files {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patient_id   String    @db.Uuid
+  clinic_id    String    @db.Uuid
+  file_type    String
+  file_name    String
+  file_url     String?
+  storage_path String?
+  file_size    Int?
+  mime_type    String?
+  status       String?   @default("received")
+  uploaded_by  String?
+  notes        String?
+  metadata     Json?     @default("{}")
+  created_at   DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  patient patients @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  clinic  clinics  @relation(fields: [clinic_id], references: [id])
+
+  @@index([patient_id])
+  @@index([clinic_id])
+  @@index([file_type])
+  @@index([patient_id, file_type])
+}
+
+// ============================================================================
+// PATIENT EXTERNAL IDS
+// ============================================================================
+
+model patient_external_ids {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patient_id  String    @db.Uuid
+  source      String
+  external_id String
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  patient patients @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+
+  @@unique([source, external_id])
+  @@index([source, external_id])
+  @@index([patient_id])
+}
