@@ -415,6 +415,7 @@ export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
 
 export type AppointmentStatus =
   | 'scheduled'
+  | 'confirmed'
   | 'checked_in'
   | 'in_progress'
   | 'checked_out'
@@ -425,6 +426,7 @@ export type AppointmentStatus =
 
 export const APPOINTMENT_STATUS_LABELS: Record<AppointmentStatus, string> = {
   scheduled: 'Scheduled',
+  confirmed: 'Confirmed',
   checked_in: 'Checked In',
   in_progress: 'In Progress',
   checked_out: 'Checked Out',
@@ -436,6 +438,7 @@ export const APPOINTMENT_STATUS_LABELS: Record<AppointmentStatus, string> = {
 
 export const APPOINTMENT_STATUS_COLORS: Record<AppointmentStatus, string> = {
   scheduled: 'bg-blue-100 text-blue-700 border-blue-200',
+  confirmed: 'bg-teal-100 text-teal-700 border-teal-200',
   checked_in: 'bg-cyan-100 text-cyan-700 border-cyan-200',
   in_progress: 'bg-amber-100 text-amber-700 border-amber-200',
   checked_out: 'bg-purple-100 text-purple-700 border-purple-200',
@@ -454,7 +457,7 @@ export interface Visit {
   start_time: string;
   end_time: string;
   location?: string | null;
-  source: 'manual' | 'google_calendar' | 'buckeye_scheduler';
+  source: 'manual' | 'google_calendar' | 'buckeye_scheduler' | 'sms';
   external_event_id?: string | null;
   notes?: string | null;
   status: AppointmentStatus;
@@ -470,6 +473,9 @@ export interface Visit {
   // Joined fields
   patient_name?: string;
   therapist_name?: string;
+  // SMS appointment fields (present when source === 'sms')
+  sms_appointment_id?: string | null;
+  sms_patient_phone?: string | null;
 }
 
 export interface TherapistAvailability {

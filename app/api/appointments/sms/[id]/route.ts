@@ -1,0 +1,125 @@
+/**
+ * Single SMS Appointment API — PATCH status updates
+ *
+ * PATCH /api/appointments/sms/[id]
+ *   Updates the status field on the shared `appointments` table.
+ *   When status is set to "completed", automatically creates a Visit record
+ *   in the `visits` table pre-populated with patient ID, date of service,
+ *   visit type, and therapist (if provided).
+ *
+ * Body:
+ *   { status: string, therapist_user_id?: string, clinic_id?: string }
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-server';
+
+const DURATION_MAP: Record<string, number> = {
+  eval: 60,
+  evaluation: 60,
+  treat: 45,
+  treatment: 45,
+};
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const client = serviceRoleKey ? supabaseAdmin : supabase;
+
+    const { id } = params;
+    if (!id) {
+      return NextResponse.json({ error: 'Appointment ID is required' }, { status: 400 });
+    }
+
+    const body = await request.json();
+    const { status, therapist_user_id, clinic_id } = body;
+
+    if (!status) {
+      return NextResponse.json({ error: 'status is required' }, { status: 400 });
+    }
+
+    // Update the appointments table
+    const updateData: Record<string, unknown> = { status };
+    if (status === 'cancelled') {
+      updateData.cancelled_at = new Date().toISOString();
+    }
+
+    const { data: updatedAppt, error: updateError } = await client
+      .from('appointments')
+      .update(updateData)
+      .eq('id', id)
+      .select('*, patients(id, name, first_name, last_name, phone)')
+      .single();
+
+    if (updateError) {
+      console.error('Error updating SMS appointment:', updateError);
+      if (updateError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Appointment not found' }, { status: 404 });
+      }
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+
+    let createdVisit = null;
+
+    // Auto-create Visit record when appointment is marked completed
+    if (status === 'completed' && updatedAppt) {
+      const scheduledAt = updatedAppt.scheduled_at as string;
+      const visitType = updatedAppt.visit_type as string | null;
+      const durationMinutes = DURATION_MAP[(visitType || '').toLowerCase()] || 45;
+
+      const startDate = new Date(scheduledAt);
+      const endDate = new Date(startDate.getTime() + durationMinutes * 60_000);
+
+      const patient = updatedAppt.patients as Record<string, unknown> | null;
+      const patientId = patient ? (patient.id as string) : (updatedAppt.patient_id as string);
+
+      const visitPayload: Record<string, unknown> = {
+        patient_id: patientId || null,
+        start_time: startDate.toISOString(),
+        end_time: endDate.toISOString(),
+        visit_type: visitType === 'eval' ? 'evaluation' : 'treatment',
+        source: 'sms',
+        status: 'completed',
+        notes: 'Auto-created from completed SMS appointment',
+      };
+
+      // Attach clinic_id and therapist if provided
+      if (clinic_id) {
+        visitPayload.clinic_id = clinic_id;
+      }
+      if (therapist_user_id) {
+        visitPayload.therapist_user_id = therapist_user_id;
+      }
+
+      const { data: visit, error: visitError } = await client
+        .from('visits')
+        .insert(visitPayload)
+        .select()
+        .single();
+
+      if (visitError) {
+        console.error('Error auto-creating visit from SMS appointment:', visitError);
+        // Don't fail the status update — the appointment was already updated.
+        // Return a warning instead.
+        return NextResponse.json({
+          ...updatedAppt,
+          _visitCreationWarning: `Appointment marked completed but Visit creation failed: ${visitError.message}`,
+        });
+      }
+
+      createdVisit = visit;
+    }
+
+    return NextResponse.json({
+      ...updatedAppt,
+      _createdVisit: createdVisit,
+    });
+  } catch (error) {
+    console.error('Error in PATCH /api/appointments/sms/[id]:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

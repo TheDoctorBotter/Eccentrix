@@ -50,6 +50,9 @@ import {
   MapPin,
   Repeat,
   X,
+  Smartphone,
+  ExternalLink,
+  Phone,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
@@ -79,15 +82,18 @@ const VISIT_TYPE_OPTIONS = [
 ];
 
 const STATUS_ACTIONS: { from: AppointmentStatus[]; to: AppointmentStatus; label: string }[] = [
-  { from: ['scheduled'], to: 'checked_in', label: 'Check In' },
+  { from: ['scheduled'], to: 'confirmed', label: 'Confirm' },
+  { from: ['scheduled', 'confirmed'], to: 'checked_in', label: 'Check In' },
   { from: ['checked_in', 'in_progress'], to: 'checked_out', label: 'Check Out' },
-  { from: ['scheduled', 'checked_in', 'in_progress'], to: 'no_show', label: 'No Show' },
-  { from: ['scheduled', 'checked_in', 'in_progress'], to: 'cancelled', label: 'Cancel' },
+  { from: ['checked_in', 'in_progress', 'checked_out'], to: 'completed', label: 'Complete' },
+  { from: ['scheduled', 'confirmed', 'checked_in', 'in_progress'], to: 'no_show', label: 'No Show' },
+  { from: ['scheduled', 'confirmed', 'checked_in', 'in_progress'], to: 'cancelled', label: 'Cancel' },
 ];
 
 // Appointment block color (left border) by status
 const BLOCK_COLORS: Record<AppointmentStatus, string> = {
   scheduled: 'border-l-blue-500 bg-blue-50 hover:bg-blue-100',
+  confirmed: 'border-l-teal-500 bg-teal-50 hover:bg-teal-100',
   checked_in: 'border-l-cyan-500 bg-cyan-50 hover:bg-cyan-100',
   in_progress: 'border-l-amber-500 bg-amber-50 hover:bg-amber-100',
   checked_out: 'border-l-purple-500 bg-purple-50 hover:bg-purple-100',
@@ -199,12 +205,24 @@ export default function SchedulePage() {
         from = startOfDay(currentDate).toISOString();
         to = endOfDay(currentDate).toISOString();
       }
-      const res = await fetch(
-        `/api/visits?clinic_id=${currentClinic.clinic_id}&from=${from}&to=${to}`
-      );
-      if (!res.ok) throw new Error('Failed to fetch visits');
-      const data: Visit[] = await res.json();
-      setVisits(data);
+
+      // Fetch EMR visits and SMS appointments in parallel
+      const [visitsRes, smsRes] = await Promise.all([
+        fetch(`/api/visits?clinic_id=${currentClinic.clinic_id}&from=${from}&to=${to}`),
+        fetch(`/api/appointments/sms?from=${from}&to=${to}`),
+      ]);
+
+      if (!visitsRes.ok) throw new Error('Failed to fetch visits');
+      const visitsData: Visit[] = await visitsRes.json();
+
+      // SMS appointments are optional — don't fail the whole load if they error
+      let smsData: Visit[] = [];
+      if (smsRes.ok) {
+        smsData = await smsRes.json();
+      }
+
+      // Merge: EMR visits first, then SMS appointments
+      setVisits([...visitsData, ...smsData]);
     } catch (err) {
       console.error(err);
       toast.error('Failed to load appointments');
@@ -328,16 +346,45 @@ export default function SchedulePage() {
   const handleStatusChange = async (visitId: string, newStatus: AppointmentStatus) => {
     setUpdatingStatus(true);
     try {
-      const res = await fetch(`/api/visits/${visitId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      });
+      // Find the visit to check if it's an SMS appointment
+      const visit = visits.find((v: Visit) => v.id === visitId);
+      const isSms = visit?.source === 'sms' && visit?.sms_appointment_id;
+
+      let res: Response;
+      if (isSms) {
+        // Route to SMS appointment API
+        res = await fetch(`/api/appointments/sms/${visit.sms_appointment_id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: newStatus,
+            clinic_id: currentClinic?.clinic_id,
+            therapist_user_id: visit.therapist_user_id || null,
+          }),
+        });
+      } else {
+        // Route to regular visits API
+        res = await fetch(`/api/visits/${visitId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus }),
+        });
+      }
+
       if (!res.ok) throw new Error('Failed to update status');
       const updated = await res.json();
-      setVisits((prev: Visit[]) => prev.map((v: Visit) => (v.id === visitId ? { ...v, ...updated } : v)));
-      setSelectedVisit((prev: Visit | null) => (prev && prev.id === visitId ? { ...prev, ...updated } : prev));
+
+      // Update local state — for SMS appointments, update the status on the Visit-shaped object
+      const statusUpdate = { status: newStatus };
+      setVisits((prev: Visit[]) => prev.map((v: Visit) => (v.id === visitId ? { ...v, ...statusUpdate } : v)));
+      setSelectedVisit((prev: Visit | null) => (prev && prev.id === visitId ? { ...prev, ...statusUpdate } : prev));
+
       toast.success(`Status updated to ${APPOINTMENT_STATUS_LABELS[newStatus]}`);
+
+      // If an SMS appointment was completed, a Visit record was auto-created
+      if (isSms && newStatus === 'completed' && updated._createdVisit) {
+        toast.success('Visit record auto-created from SMS appointment');
+      }
     } catch (err) {
       console.error(err);
       toast.error('Failed to update status');
@@ -740,17 +787,26 @@ export default function SchedulePage() {
                       const status: AppointmentStatus = visit.status || 'scheduled';
                       const blockColor = BLOCK_COLORS[status] || BLOCK_COLORS.scheduled;
 
+                      const isSmsAppt = visit.source === 'sms';
+
                       return (
                         <button
                           key={visit.id}
                           onClick={() => handleVisitClick(visit)}
-                          className={`absolute left-1 right-1 rounded-md border-l-4 px-2 py-1 text-left transition-colors cursor-pointer z-10 overflow-hidden ${blockColor}`}
+                          className={`absolute left-1 right-1 rounded-md border-l-4 px-2 py-1 text-left transition-colors cursor-pointer z-10 overflow-hidden ${
+                            isSmsAppt
+                              ? 'border-l-violet-500 bg-violet-50 hover:bg-violet-100'
+                              : blockColor
+                          }`}
                           style={{
                             top: `${Math.max(top, 0)}px`,
                             height: `${Math.max(height, 20)}px`,
                           }}
                         >
-                          <div className="text-xs font-semibold text-slate-900 truncate">
+                          <div className="text-xs font-semibold text-slate-900 truncate flex items-center gap-1">
+                            {isSmsAppt && (
+                              <Smartphone className="h-3 w-3 text-violet-600 flex-shrink-0" />
+                            )}
                             {visit.patient_name || getPatientName(visit.patient_id)}
                           </div>
                           {height > 30 && (
@@ -764,14 +820,24 @@ export default function SchedulePage() {
                               {visit.therapist_name || getTherapistName(visit.therapist_user_id)}
                             </div>
                           )}
-                          {height > 62 && (
-                            <Badge
-                              variant="outline"
-                              className={`text-[9px] px-1 py-0 mt-0.5 ${APPOINTMENT_STATUS_COLORS[status]}`}
-                            >
-                              {APPOINTMENT_STATUS_LABELS[status]}
-                            </Badge>
-                          )}
+                          <div className="flex items-center gap-1 mt-0.5">
+                            {isSmsAppt && (
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] px-1 py-0 bg-violet-100 text-violet-700 border-violet-200"
+                              >
+                                SMS
+                              </Badge>
+                            )}
+                            {height > 62 && (
+                              <Badge
+                                variant="outline"
+                                className={`text-[9px] px-1 py-0 ${APPOINTMENT_STATUS_COLORS[status]}`}
+                              >
+                                {APPOINTMENT_STATUS_LABELS[status]}
+                              </Badge>
+                            )}
+                          </div>
                         </button>
                       );
                     })}
@@ -796,13 +862,51 @@ export default function SchedulePage() {
           </DialogHeader>
           {selectedVisit && (
             <div className="space-y-4">
+              {/* SMS source badge */}
+              {selectedVisit.source === 'sms' && (
+                <div className="flex items-center gap-2 p-2 rounded-md bg-violet-50 border border-violet-200">
+                  <Smartphone className="h-4 w-4 text-violet-600" />
+                  <span className="text-sm font-medium text-violet-700">
+                    Booked via SMS (Buckeye Scheduler)
+                  </span>
+                </div>
+              )}
+
               {/* Patient */}
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-slate-500" />
-                <span className="text-sm font-medium">
-                  {selectedVisit.patient_name || getPatientName(selectedVisit.patient_id)}
-                </span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-slate-500" />
+                  <span className="text-sm font-medium">
+                    {selectedVisit.patient_name || getPatientName(selectedVisit.patient_id)}
+                  </span>
+                </div>
+                {selectedVisit.patient_id && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs gap-1 h-7"
+                    onClick={() => {
+                      window.open(`/patients/${selectedVisit.patient_id}`, '_blank');
+                    }}
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Open Record
+                  </Button>
+                )}
               </div>
+
+              {/* Phone number (for SMS appointments) */}
+              {selectedVisit.sms_patient_phone && (
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-slate-500" />
+                  <a
+                    href={`tel:${selectedVisit.sms_patient_phone}`}
+                    className="text-sm text-blue-600 hover:underline"
+                  >
+                    {selectedVisit.sms_patient_phone}
+                  </a>
+                </div>
+              )}
 
               {/* Time */}
               <div className="flex items-center gap-2">
@@ -902,13 +1006,15 @@ export default function SchedulePage() {
             </div>
           )}
           <DialogFooter>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => selectedVisit && handleDeleteVisit(selectedVisit.id)}
-            >
-              Delete
-            </Button>
+            {selectedVisit && selectedVisit.source !== 'sms' && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => handleDeleteVisit(selectedVisit.id)}
+              >
+                Delete
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => setDetailsOpen(false)}>
               Close
             </Button>
