@@ -89,6 +89,7 @@ const STATUS_ACTIONS: { from: AppointmentStatus[]; to: AppointmentStatus; label:
   { from: ['checked_in', 'in_progress', 'checked_out'], to: 'completed', label: 'Complete' },
   { from: ['scheduled', 'confirmed', 'checked_in', 'in_progress'], to: 'no_show', label: 'No Show' },
   { from: ['scheduled', 'confirmed', 'checked_in', 'in_progress'], to: 'cancelled', label: 'Cancel' },
+  { from: ['no_show', 'cancelled'], to: 'scheduled', label: 'Reschedule' },
 ];
 
 // Background color by visit type
@@ -412,10 +413,16 @@ export default function SchedulePage() {
         });
       } else {
         // Route to regular visits API
+        const updateBody: Record<string, unknown> = { status: newStatus };
+        // Clear cancellation fields when rescheduling
+        if (newStatus === 'scheduled') {
+          updateBody.cancelled_at = null;
+          updateBody.cancel_reason = null;
+        }
         res = await fetch(`/api/visits/${visitId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: newStatus }),
+          body: JSON.stringify(updateBody),
         });
       }
 
@@ -748,7 +755,7 @@ export default function SchedulePage() {
           <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-green-500 bg-slate-50" />Confirmed</span>
           <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-yellow-500 bg-slate-50" />Checked In</span>
           <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-teal-600 bg-slate-50" />Completed</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-red-500 bg-slate-50" />No Show</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-red-500 bg-red-50/60 line-through" />No Show</span>
           <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-red-400 bg-red-50/60 line-through" />Cancelled</span>
 
           <span className="text-slate-300">|</span>
@@ -879,10 +886,12 @@ export default function SchedulePage() {
                       const height = ((endMin - startMin) / 60) * HOUR_HEIGHT;
                       const status: AppointmentStatus = visit.status || 'scheduled';
                       const isCancelled = status === 'cancelled';
+                      const isNoShow = status === 'no_show';
+                      const isInactive = isCancelled || isNoShow;
                       const visitType = (visit.visit_type || 'treatment').toLowerCase();
 
                       // Visit-type background + status left border
-                      const typeBg = isCancelled
+                      const typeBg = isInactive
                         ? 'bg-red-50/60 hover:bg-red-100/60'
                         : (VISIT_TYPE_COLORS[visitType] || VISIT_TYPE_DEFAULT_BG);
                       const statusBorder = STATUS_BORDER[status] || STATUS_BORDER.scheduled;
@@ -901,11 +910,11 @@ export default function SchedulePage() {
                             height: `${Math.max(height, 20)}px`,
                           }}
                         >
-                          <div className={`text-xs font-semibold text-slate-900 truncate flex items-center gap-1 ${isCancelled ? 'line-through text-red-400' : ''}`}>
+                          <div className={`text-xs font-semibold text-slate-900 truncate flex items-center gap-1 ${isInactive ? 'line-through text-red-400' : ''}`}>
                             {visit.patient_name || getPatientName(visit.patient_id)}
                           </div>
                           {height > 30 && (
-                            <div className={`text-[10px] text-slate-600 truncate ${isCancelled ? 'line-through text-red-300' : ''}`}>
+                            <div className={`text-[10px] text-slate-600 truncate ${isInactive ? 'line-through text-red-300' : ''}`}>
                               {formatTime12h(visit.start_time)} -{' '}
                               {formatTime12h(visit.end_time)}
                             </div>

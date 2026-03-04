@@ -50,7 +50,7 @@ export async function POST(
 
       const { data: updated, error } = await supabaseAdmin
         .from('visits')
-        .update({ status: 'confirmed', updated_at: new Date().toISOString() })
+        .update({ status: 'confirmed', source: 'ptbot', updated_at: new Date().toISOString() })
         .eq('id', id)
         .select('id, status, start_time, visit_type')
         .single();

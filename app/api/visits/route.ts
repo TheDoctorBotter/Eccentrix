@@ -90,6 +90,7 @@ export async function POST(request: NextRequest) {
       source,
       external_event_id,
       notes,
+      visit_type,
     } = body;
 
     if (!clinic_id || !start_time || !end_time) {
@@ -112,6 +113,7 @@ export async function POST(request: NextRequest) {
         source: source || 'manual',
         external_event_id: external_event_id || null,
         notes: notes || null,
+        visit_type: visit_type || 'treatment',
       })
       .select()
       .single();
