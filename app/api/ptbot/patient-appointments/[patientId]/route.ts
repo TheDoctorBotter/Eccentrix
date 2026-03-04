@@ -1,6 +1,6 @@
 /**
  * PTBot Patient Appointments
- * GET /api/ptbot/appointments/[patientId]
+ * GET /api/ptbot/patient-appointments/[patientId]
  *
  * Returns all upcoming appointments for the authenticated patient,
  * including both internal visits and SMS-booked appointments.
@@ -82,7 +82,7 @@ export async function GET(
 
     return NextResponse.json({ appointments });
   } catch (error) {
-    console.error('Error in GET /api/ptbot/appointments/[patientId]:', error);
+    console.error('Error in GET /api/ptbot/patient-appointments/[patientId]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
