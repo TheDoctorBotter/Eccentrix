@@ -108,7 +108,7 @@ export async function DELETE(
 }
 
 /**
- * PATCH - Update note content (rich text and plain text)
+ * PATCH - Update note content (rich text and plain text) and/or finalize
  */
 export async function PATCH(
   request: NextRequest,
@@ -116,10 +116,10 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json();
-    const { rich_content, output_text } = body;
+    const { rich_content, output_text, status, finalized_by } = body;
 
     // Validate that we have at least one field to update
-    if (!rich_content && !output_text) {
+    if (!rich_content && !output_text && !status) {
       return NextResponse.json(
         { error: 'No content provided for update' },
         { status: 400 }
@@ -130,7 +130,6 @@ export async function PATCH(
     const updateData: Record<string, unknown> = {};
 
     if (rich_content) {
-      // Store rich content as JSON string
       updateData.rich_content =
         typeof rich_content === 'string'
           ? rich_content
@@ -139,6 +138,17 @@ export async function PATCH(
 
     if (output_text) {
       updateData.output_text = output_text;
+    }
+
+    // Handle finalization
+    if (status === 'final') {
+      updateData.status = 'final';
+      updateData.finalized_at = new Date().toISOString();
+      if (finalized_by) {
+        updateData.finalized_by = finalized_by;
+      }
+    } else if (status) {
+      updateData.status = status;
     }
 
     // Try updating legacy notes table first
@@ -154,6 +164,9 @@ export async function PATCH(
       const docUpdateData: Record<string, unknown> = {};
       if (rich_content) docUpdateData.rich_content = updateData.rich_content;
       if (output_text) docUpdateData.output_text = output_text;
+      if (updateData.status) docUpdateData.status = updateData.status;
+      if (updateData.finalized_at) docUpdateData.finalized_at = updateData.finalized_at;
+      if (updateData.finalized_by) docUpdateData.finalized_by = updateData.finalized_by;
 
       const docResult = await supabaseAdmin
         .from('documents')
