@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Loader2, UserCheck } from 'lucide-react';
-import { NoteInputData, Template, Intervention, Episode } from '@/lib/types';
+import { ArrowLeft, Loader2, UserCheck, Calendar } from 'lucide-react';
+import { NoteInputData, Template, Intervention, Episode, Visit } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { ensureSoapHeaders } from '@/lib/note-utils';
 import DateOfServiceForm from '@/components/note-wizard/DateOfServiceForm';
@@ -24,6 +24,7 @@ function DailySoapNoteContent() {
   const { currentClinic } = useAuth();
 
   const episodeId = searchParams.get('episode_id');
+  const visitId = searchParams.get('visit_id');
 
   const [inputData, setInputData] = useState<NoteInputData>({});
   const [template, setTemplate] = useState<Template | null>(null);
@@ -33,8 +34,11 @@ function DailySoapNoteContent() {
 
   // Episode context state
   const [episode, setEpisode] = useState<Episode | null>(null);
-  const [loadingEpisode, setLoadingEpisode] = useState(!!episodeId);
+  const [loadingEpisode, setLoadingEpisode] = useState(!!episodeId || !!visitId);
   const [autoLoaded, setAutoLoaded] = useState(false);
+
+  // Visit context state (for auto-generated SOAP notes from completed visits)
+  const [visitData, setVisitData] = useState<Visit | null>(null);
 
   useEffect(() => {
     fetchInterventions();
@@ -47,6 +51,13 @@ function DailySoapNoteContent() {
       fetchEpisodeAndPrePopulate(episodeId);
     }
   }, [episodeId]);
+
+  // Auto-load visit data when visit_id is present (from schedule page completion)
+  useEffect(() => {
+    if (visitId && !episodeId) {
+      fetchVisitAndPrePopulate(visitId);
+    }
+  }, [visitId]);
 
   const fetchInterventions = async () => {
     try {
@@ -74,6 +85,133 @@ function DailySoapNoteContent() {
       }
     } catch (error) {
       console.error('Error fetching template:', error);
+    }
+  };
+
+  const fetchVisitAndPrePopulate = async (vId: string) => {
+    setLoadingEpisode(true);
+    try {
+      // Fetch visit data
+      const visitRes = await fetch(`/api/visits/${vId}`);
+      if (!visitRes.ok) {
+        throw new Error('Failed to fetch visit details');
+      }
+      const visit: Visit = await visitRes.json();
+      setVisitData(visit);
+
+      // Extract date of service and times from visit
+      const startDate = new Date(visit.start_time);
+      const endDate = new Date(visit.end_time);
+      const dateOfService = startDate.toISOString().split('T')[0];
+      const startTime = startDate.toTimeString().slice(0, 5); // HH:MM
+      const endTime = endDate.toTimeString().slice(0, 5);
+
+      // Pre-populate form with visit data
+      const prePopulatedData: NoteInputData = {
+        dateOfService,
+        startTime,
+        endTime,
+        patientDemographic: {},
+      };
+
+      // Fetch patient data if patient_id is available
+      if (visit.patient_id) {
+        try {
+          const patientRes = await fetch(`/api/patients/${visit.patient_id}`);
+          if (patientRes.ok) {
+            const patient = await patientRes.json();
+            const patientName = [patient.first_name, patient.last_name]
+              .filter(Boolean)
+              .join(' ') || patient.name || undefined;
+
+            const dob = patient.date_of_birth
+              ? new Date(patient.date_of_birth).toISOString().split('T')[0]
+              : undefined;
+
+            prePopulatedData.patientDemographic = {
+              patientName,
+              dateOfBirth: dob,
+              diagnosis: patient.diagnosis || patient.primary_diagnosis || undefined,
+              insuranceId: patient.insurance_id || undefined,
+              allergies: patient.allergies || undefined,
+              precautions: patient.precautions || undefined,
+            };
+          }
+        } catch (patErr) {
+          console.error('Error fetching patient data for visit:', patErr);
+        }
+      }
+
+      // If the visit has an episode_id, try to also load episode-level data
+      if (visit.episode_id) {
+        try {
+          const episodeRes = await fetch(`/api/episodes/${visit.episode_id}`);
+          if (episodeRes.ok) {
+            const episodeData: Episode = await episodeRes.json();
+            setEpisode(episodeData);
+
+            // Enrich demographics from episode if not already set
+            const diagnosisCodes = episodeData.diagnosis_codes as string[] | null;
+            const medicalDx = diagnosisCodes && diagnosisCodes.length > 0
+              ? diagnosisCodes.join(', ')
+              : (episodeData.diagnosis || episodeData.primary_diagnosis || undefined);
+
+            const treatmentDxCodes = episodeData.treatment_diagnosis_codes as Array<{ code: string; description: string }> | null;
+            const treatmentDx = treatmentDxCodes && treatmentDxCodes.length > 0
+              ? treatmentDxCodes.map(d => `${d.code} - ${d.description}`).join(', ')
+              : undefined;
+
+            prePopulatedData.patientDemographic = {
+              ...prePopulatedData.patientDemographic,
+              diagnosis: prePopulatedData.patientDemographic?.diagnosis || medicalDx,
+              treatmentDiagnosis: treatmentDx,
+              referralSource: episodeData.referring_physician || undefined,
+              insuranceId: prePopulatedData.patientDemographic?.insuranceId || episodeData.insurance_id || undefined,
+              allergies: prePopulatedData.patientDemographic?.allergies || episodeData.allergies || undefined,
+              precautions: prePopulatedData.patientDemographic?.precautions || episodeData.precautions || undefined,
+            };
+
+            if (episodeData.frequency) {
+              prePopulatedData.plan = { frequency_duration: episodeData.frequency };
+            }
+
+            // Also try to carry forward from previous notes in this episode
+            const prevNoteData = await fetchPreviousNoteData(visit.episode_id);
+            if (prevNoteData) {
+              if (prevNoteData.objective) {
+                prePopulatedData.objective = {
+                  interventions: prevNoteData.objective.interventions,
+                  assist_level: prevNoteData.objective.assist_level,
+                  tolerance: prevNoteData.objective.tolerance,
+                };
+              }
+              if (prevNoteData.assessment) {
+                prePopulatedData.assessment = {
+                  impairments: prevNoteData.assessment.impairments,
+                };
+              }
+              if (prevNoteData.plan) {
+                prePopulatedData.plan = {
+                  frequency_duration: prevNoteData.plan.frequency_duration || episodeData.frequency || undefined,
+                  next_session_focus: prevNoteData.plan.next_session_focus,
+                  hep: prevNoteData.plan.hep,
+                  education_provided: prevNoteData.plan.education_provided,
+                };
+              }
+            }
+          }
+        } catch (epErr) {
+          console.error('Error fetching episode data for visit:', epErr);
+        }
+      }
+
+      setInputData(prePopulatedData);
+      setAutoLoaded(true);
+    } catch (err) {
+      console.error('Error auto-loading visit data:', err);
+      setError('Failed to auto-load visit data. You can still fill out the form manually.');
+    } finally {
+      setLoadingEpisode(false);
     }
   };
 
@@ -272,6 +410,8 @@ function DailySoapNoteContent() {
           hep_summary: null,
           template_id: template.id,
           clinic_id: currentClinic?.clinic_id || null,
+          patient_id: visitData?.patient_id || episode?.patient_id || null,
+          visit_id: visitId || null,
         }),
       });
 
@@ -285,14 +425,15 @@ function DailySoapNoteContent() {
       console.log('[Frontend] Note saved successfully');
 
       // If we have episode context, also create a document record linked to the episode
-      if (episodeId && episode && currentClinic) {
+      const effectiveEpisodeId = episodeId || visitData?.episode_id;
+      if (effectiveEpisodeId && episode && currentClinic) {
         try {
           console.log('[Frontend] Creating document record for episode...');
           await fetch('/api/documents', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              episode_id: episodeId,
+              episode_id: effectiveEpisodeId,
               clinic_id: currentClinic.clinic_id,
               patient_id: episode.patient_id,
               doc_type: 'daily_note',
@@ -337,8 +478,8 @@ function DailySoapNoteContent() {
   };
 
   // Determine the back link based on context
-  const backHref = episodeId ? `/charts/${episodeId}` : '/new';
-  const backLabel = episodeId ? 'Back to Chart' : 'Change Note Type';
+  const backHref = episodeId ? `/charts/${episodeId}` : visitId ? '/schedule' : '/new';
+  const backLabel = episodeId ? 'Back to Chart' : visitId ? 'Back to Schedule' : 'Change Note Type';
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
@@ -358,13 +499,25 @@ function DailySoapNoteContent() {
         <h1 className="text-3xl font-bold text-slate-900 mb-8">Document Your Daily Visit</h1>
 
         {/* Auto-loaded patient banner */}
-        {autoLoaded && episode && (
+        {autoLoaded && episode && !visitData && (
           <Alert className="mb-6 border-emerald-200 bg-emerald-50">
             <UserCheck className="h-4 w-4 text-emerald-600" />
             <AlertDescription className="text-emerald-800">
               Patient data auto-loaded for <strong>{episode.first_name} {episode.last_name}</strong>.
               Demographics and plan frequency have been pre-filled from the chart.
               You can edit any field before generating.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Auto-loaded from completed visit banner */}
+        {autoLoaded && visitData && (
+          <Alert className="mb-6 border-blue-200 bg-blue-50">
+            <Calendar className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              SOAP note pre-filled from completed visit ({visitData.visit_type === 'evaluation' ? 'Evaluation' : 'Treatment'}).
+              Date of service, times{inputData.patientDemographic?.patientName ? ', and patient demographics' : ''} have been pre-populated.
+              Review and complete all sections before generating.
             </AlertDescription>
           </Alert>
         )}
