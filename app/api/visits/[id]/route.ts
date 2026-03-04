@@ -74,6 +74,7 @@ export async function PATCH(
       'total_units',
       'recurrence_rule',
       'recurrence_group_id',
+      'source',
     ];
 
     const updateData: Record<string, unknown> = {};

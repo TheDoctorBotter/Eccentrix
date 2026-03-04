@@ -131,6 +131,7 @@ export async function POST(
           status: 'cancelled',
           cancelled_at: new Date().toISOString(),
           cancel_reason: cancelReason,
+          source: 'ptbot',
           updated_at: new Date().toISOString(),
         })
         .eq('id', id)
