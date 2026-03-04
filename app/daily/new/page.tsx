@@ -434,30 +434,48 @@ function DailySoapNoteContent() {
       const savedNote = await saveResponse.json();
       console.log('[Frontend] Note saved successfully');
 
-      // If we have episode context, also create a document record linked to the episode
-      const effectiveEpisodeId = episodeId || visitData?.episode_id;
-      if (effectiveEpisodeId && episode && currentClinic) {
+      // Create a document record linked to the patient's episode
+      const effectivePatientId = visitData?.patient_id || episode?.patient_id;
+      const clinicId = currentClinic?.clinic_id;
+      if (effectivePatientId && clinicId) {
         try {
-          console.log('[Frontend] Creating document record for episode...');
-          await fetch('/api/documents', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              episode_id: effectiveEpisodeId,
-              clinic_id: currentClinic.clinic_id,
-              patient_id: episode.patient_id,
-              doc_type: 'daily_note',
-              title: 'Daily Note',
-              date_of_service: inputData.dateOfService || new Date().toISOString().split('T')[0],
-              input_data: inputData,
-              output_text: noteText,
-              billing_justification: null,
-              hep_summary: null,
-              template_id: template.id,
-              legacy_note_id: savedNote.id,
-            }),
-          });
-          console.log('[Frontend] Document record created successfully');
+          let docEpisodeId = episodeId || visitData?.episode_id || episode?.id;
+
+          // If no episode_id available, look up the patient's active episode
+          if (!docEpisodeId) {
+            const epRes = await fetch(`/api/episodes?patient_id=${effectivePatientId}&status=active`);
+            if (epRes.ok) {
+              const episodes = await epRes.json();
+              if (episodes.length > 0) {
+                docEpisodeId = episodes[0].id;
+              }
+            }
+          }
+
+          if (docEpisodeId) {
+            console.log('[Frontend] Creating document record for episode...');
+            await fetch('/api/documents', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                episode_id: docEpisodeId,
+                clinic_id: clinicId,
+                patient_id: effectivePatientId,
+                doc_type: 'daily_note',
+                title: 'Daily Note',
+                date_of_service: inputData.dateOfService || new Date().toISOString().split('T')[0],
+                input_data: inputData,
+                output_text: noteText,
+                billing_justification: null,
+                hep_summary: null,
+                template_id: template.id,
+                legacy_note_id: savedNote.id,
+              }),
+            });
+            console.log('[Frontend] Document record created successfully');
+          } else {
+            console.log('[Frontend] No episode found for patient — skipping document creation');
+          }
         } catch (docErr) {
           // Non-fatal - note was already saved, just log the error
           console.error('[Frontend] Failed to create document record:', docErr);

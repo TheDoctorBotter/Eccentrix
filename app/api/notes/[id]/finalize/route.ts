@@ -116,6 +116,20 @@ export async function POST(
       );
     }
 
+    // Also finalize any linked document record
+    try {
+      await client
+        .from('documents')
+        .update({
+          status: 'final',
+          finalized_at: new Date().toISOString(),
+          finalized_by: user_id,
+        })
+        .eq('legacy_note_id', noteId);
+    } catch (docErr) {
+      console.error('Error syncing document finalization:', docErr);
+    }
+
     return NextResponse.json({
       success: true,
       note: updatedNote,
@@ -212,6 +226,20 @@ export async function DELETE(
         { error: updateError.message },
         { status: 500 }
       );
+    }
+
+    // Also revert any linked document record
+    try {
+      await client
+        .from('documents')
+        .update({
+          status: 'draft',
+          finalized_at: null,
+          finalized_by: null,
+        })
+        .eq('legacy_note_id', noteId);
+    } catch (docErr) {
+      console.error('Error syncing document revert:', docErr);
     }
 
     return NextResponse.json({
