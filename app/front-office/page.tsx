@@ -45,6 +45,7 @@ export default function FrontOfficePage() {
   const [alerts, setAlerts] = useState<DocumentationAlert[]>([]);
   const [todayVisitCount, setTodayVisitCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [providerNames, setProviderNames] = useState<Map<string, string>>(new Map());
 
   // Assign Care Team modal state
   const [assignModalOpen, setAssignModalOpen] = useState(false);
@@ -81,6 +82,30 @@ export default function FrontOfficePage() {
       if (episodesRes.ok) {
         const data = await episodesRes.json();
         setEpisodes(data);
+
+        // Fetch provider names for assigned PTs
+        const ptIds = Array.from(new Set(
+          (data as Episode[])
+            .map((e: Episode) => e.primary_pt_id)
+            .filter(Boolean) as string[]
+        ));
+        if (ptIds.length > 0) {
+          try {
+            const staffRes = await fetch(`/api/user/membership?clinic_id=${clinicId}`);
+            if (staffRes.ok) {
+              const staffData = await staffRes.json();
+              const nameMap = new Map<string, string>();
+              for (const s of staffData) {
+                if (s.display_name && s.display_name !== s.user_id?.slice(0, 8) + '...') {
+                  nameMap.set(s.user_id, s.display_name);
+                }
+              }
+              setProviderNames(nameMap);
+            }
+          } catch {
+            // Non-critical — fall back to badge only
+          }
+        }
       }
       if (alertsRes.ok) {
         const data = await alertsRes.json();
@@ -305,12 +330,14 @@ export default function FrontOfficePage() {
                             </TableCell>
                             <TableCell>
                               {episode.primary_pt_id ? (
-                                <Badge
-                                  variant="outline"
-                                  className="bg-emerald-50 text-emerald-700 border-emerald-200"
-                                >
-                                  Assigned
-                                </Badge>
+                                <div className="flex items-center gap-2">
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  >
+                                    {providerNames.get(episode.primary_pt_id) || 'Assigned'}
+                                  </Badge>
+                                </div>
                               ) : (
                                 <Badge
                                   variant="outline"

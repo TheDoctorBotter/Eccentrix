@@ -124,7 +124,7 @@ export default function ProvidersPage() {
 
   // Clinic members for user linking
   const [clinicMembers, setClinicMembers] = useState<
-    Array<{ user_id: string; role: string }>
+    Array<{ user_id: string; role: string; display_name?: string }>
   >([]);
 
   useEffect(() => {
@@ -465,7 +465,7 @@ export default function ProvidersPage() {
                   <SelectContent>
                     {clinicMembers.map((member) => (
                       <SelectItem key={member.user_id} value={member.user_id}>
-                        {member.user_id.slice(0, 8)}... ({member.role})
+                        {member.display_name || `${member.user_id.slice(0, 8)}...`} ({member.role})
                       </SelectItem>
                     ))}
                   </SelectContent>

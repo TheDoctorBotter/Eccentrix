@@ -33,14 +33,48 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
+      // Fetch provider profiles for these users to get display names
+      const userIds = (staffMembers || []).map((m: Record<string, unknown>) => m.user_id as string);
+      let providerMap = new Map<string, { first_name: string; last_name: string; credentials: string | null }>();
+
+      if (userIds.length > 0) {
+        const { data: providers } = await client
+          .from('provider_profiles')
+          .select('user_id, first_name, last_name, credentials')
+          .in('user_id', userIds)
+          .eq('is_active', true);
+
+        if (providers) {
+          providerMap = new Map(
+            providers.map((p: { user_id: string; first_name: string; last_name: string; credentials: string | null }) => [
+              p.user_id,
+              { first_name: p.first_name, last_name: p.last_name, credentials: p.credentials },
+            ])
+          );
+        }
+      }
+
       return NextResponse.json(
-        (staffMembers || []).map((m: Record<string, unknown>) => ({
-          user_id: m.user_id,
-          email: (m.user_id as string)?.slice(0, 8) + '...',
-          role: m.role,
-          clinic_name: m.clinic_name,
-          id: m.id,
-        }))
+        (staffMembers || []).map((m: Record<string, unknown>) => {
+          const userId = m.user_id as string;
+          const provider = providerMap.get(userId);
+          const displayName = provider
+            ? `${provider.first_name} ${provider.last_name}${provider.credentials ? `, ${provider.credentials}` : ''}`
+            : userId.slice(0, 8) + '...';
+
+          return {
+            user_id: userId,
+            email: displayName,
+            display_name: displayName,
+            first_name: provider?.first_name || null,
+            last_name: provider?.last_name || null,
+            credentials: provider?.credentials || null,
+            has_provider_profile: !!provider,
+            role: m.role,
+            clinic_name: m.clinic_name,
+            id: m.id,
+          };
+        })
       );
     }
 
