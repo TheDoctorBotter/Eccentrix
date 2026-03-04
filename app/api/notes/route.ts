@@ -20,6 +20,18 @@ export async function GET(request: NextRequest) {
       query = query.eq('clinic_id', clinicId);
     }
 
+    // Filter by patient_id
+    const patientId = searchParams.get('patient_id');
+    if (patientId) {
+      query = query.eq('patient_id', patientId);
+    }
+
+    // Filter by visit_id
+    const visitId = searchParams.get('visit_id');
+    if (visitId) {
+      query = query.eq('visit_id', visitId);
+    }
+
     // Filter to only PTBot-imported notes
     const ptbot = searchParams.get('ptbot');
     if (ptbot === 'true') {
