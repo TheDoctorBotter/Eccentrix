@@ -42,11 +42,9 @@ export async function PATCH(
       return NextResponse.json({ error: 'status is required' }, { status: 400 });
     }
 
-    // Update the appointments table
-    const updateData: Record<string, unknown> = {
-      status,
-      updated_at: new Date().toISOString(),
-    };
+    // Update the appointments table — only set `status`.
+    // The external appointments table may not have columns like updated_at.
+    const updateData: Record<string, unknown> = { status };
 
     const { data: updatedAppt, error: updateError } = await client
       .from('appointments')
