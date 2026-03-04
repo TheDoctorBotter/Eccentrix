@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import { formatLocalDate } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -667,7 +668,7 @@ export default function GoalsPage() {
                                   <p className="text-xs text-slate-500">Target Date</p>
                                   <p className="font-medium flex items-center gap-1">
                                     <Calendar className="h-3 w-3" />
-                                    {new Date(goal.target_date).toLocaleDateString()}
+                                    {formatLocalDate(goal.target_date, 'MM/dd/yyyy')}
                                   </p>
                                 </div>
                               )}
@@ -676,7 +677,7 @@ export default function GoalsPage() {
                                   <p className="text-xs text-slate-500">Met Date</p>
                                   <p className="font-medium text-emerald-600 flex items-center gap-1">
                                     <CheckCircle2 className="h-3 w-3" />
-                                    {new Date(goal.met_date).toLocaleDateString()}
+                                    {formatLocalDate(goal.met_date, 'MM/dd/yyyy')}
                                   </p>
                                 </div>
                               )}
@@ -729,9 +730,7 @@ export default function GoalsPage() {
                                         <div className="flex-1 bg-white border rounded-lg p-3 text-sm">
                                           <div className="flex items-center justify-between mb-1">
                                             <span className="text-xs text-slate-500">
-                                              {new Date(
-                                                note.date_recorded
-                                              ).toLocaleDateString()}
+                                              {formatLocalDate(note.date_recorded, 'MM/dd/yyyy')}
                                             </span>
                                             <div className="flex items-center gap-2">
                                               {note.progress_percentage !== null &&

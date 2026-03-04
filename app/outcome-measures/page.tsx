@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import { formatLocalDate } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -483,7 +484,7 @@ export default function OutcomeMeasuresPage() {
                           {recentScores.map((score) => (
                             <tr key={score.id} className="border-b last:border-b-0 hover:bg-slate-50">
                               <td className="py-3 px-4 text-slate-600">
-                                {new Date(score.date_administered).toLocaleDateString()}
+                                {formatLocalDate(score.date_administered, 'MM/dd/yyyy')}
                               </td>
                               <td className="py-3 px-4">
                                 <span className="font-medium text-slate-900">
@@ -742,7 +743,7 @@ export default function OutcomeMeasuresPage() {
                       data={[...historyScores]
                         .reverse()
                         .map((s) => ({
-                          date: new Date(s.date_administered).toLocaleDateString(),
+                          date: formatLocalDate(s.date_administered, 'MM/dd/yyyy'),
                           score: s.raw_score,
                           fullDate: s.date_administered,
                         }))}
@@ -815,7 +816,7 @@ export default function OutcomeMeasuresPage() {
                         return (
                           <tr key={score.id} className="border-b last:border-b-0">
                             <td className="py-2 px-3 text-slate-600">
-                              {new Date(score.date_administered).toLocaleDateString()}
+                              {formatLocalDate(score.date_administered, 'MM/dd/yyyy')}
                             </td>
                             <td className="py-2 px-3 text-right font-mono font-semibold">
                               {score.raw_score}

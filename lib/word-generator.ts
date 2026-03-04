@@ -40,6 +40,7 @@ import {
 import { Note, NOTE_TYPE_LABELS, BrandingSettings } from './types';
 import { formatNoteTitle, formatSafePDFFilename } from './note-utils';
 import { format } from 'date-fns';
+import { formatLocalDate } from './utils';
 
 // ============================================================================
 // Types
@@ -465,7 +466,7 @@ function createMetadataParagraphs(
 
   const dateOfService = note.date_of_service || note.input_data?.dateOfService;
   if (dateOfService) {
-    let dateText = `Date of Service: ${format(new Date(dateOfService), 'MMMM d, yyyy')}`;
+    let dateText = `Date of Service: ${formatLocalDate(dateOfService, 'MMMM d, yyyy')}`;
     if (note.input_data?.startTime && note.input_data?.endTime) {
       dateText += `    ${note.input_data.startTime} - ${note.input_data.endTime}`;
       const [sH, sM] = note.input_data.startTime.split(':').map(Number);
@@ -496,7 +497,7 @@ function createMetadataParagraphs(
     new Paragraph({
       children: [
         new TextRun({
-          text: `Generated: ${format(new Date(note.created_at), 'MMMM d, yyyy h:mm a')}`,
+          text: `Generated: ${formatLocalDate(note.created_at, 'MMMM d, yyyy h:mm a')}`,
           size: ptToHalfPt(10),
           font: settings.fontFamily,
           color: '64748B',
@@ -754,7 +755,7 @@ export async function generateNoteWord({
                     alignment: AlignmentType.RIGHT,
                     children: [
                       new TextRun({
-                        text: format(new Date(), 'MM/dd/yyyy'),
+                        text: formatLocalDate(new Date(), 'MM/dd/yyyy'),
                         size: ptToHalfPt(9),
                         font: settings.fontFamily,
                         color: '94A3B8',

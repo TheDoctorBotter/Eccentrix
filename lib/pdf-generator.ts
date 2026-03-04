@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { Note, NOTE_TYPE_LABELS, BrandingSettings } from './types';
 import { format } from 'date-fns';
+import { formatLocalDate } from './utils';
 import { formatSafePDFFilename } from './note-utils';
 import {
   RichTextDocument,
@@ -251,7 +252,7 @@ export async function generateNotePDF({
 
     const dateOfService = note.date_of_service || note.input_data?.dateOfService;
     if (dateOfService) {
-      let dateText = `Date of Service: ${format(new Date(dateOfService), 'MMMM d, yyyy')}`;
+      let dateText = `Date of Service: ${formatLocalDate(dateOfService, 'MMMM d, yyyy')}`;
       if (note.input_data?.startTime && note.input_data?.endTime) {
         dateText += `    ${note.input_data.startTime} - ${note.input_data.endTime}`;
         const [sH, sM] = note.input_data.startTime.split(':').map(Number);
@@ -267,7 +268,7 @@ export async function generateNotePDF({
       yPosition += 5;
     }
 
-    doc.text(`Generated: ${format(new Date(note.created_at), 'MMMM d, yyyy h:mm a')}`, margin, yPosition);
+    doc.text(`Generated: ${formatLocalDate(note.created_at, 'MMMM d, yyyy h:mm a')}`, margin, yPosition);
     yPosition += 10;
 
     if (note.input_data?.patientDemographic) {
@@ -728,7 +729,7 @@ export async function generateRichNotePDF({
 
     const dateOfService = note.date_of_service || note.input_data?.dateOfService;
     if (dateOfService) {
-      let dateText = `Date of Service: ${format(new Date(dateOfService), 'MMMM d, yyyy')}`;
+      let dateText = `Date of Service: ${formatLocalDate(dateOfService, 'MMMM d, yyyy')}`;
       if (note.input_data?.startTime && note.input_data?.endTime) {
         dateText += `    ${note.input_data.startTime} - ${note.input_data.endTime}`;
         const [sH, sM] = note.input_data.startTime.split(':').map(Number);
@@ -744,7 +745,7 @@ export async function generateRichNotePDF({
       yPosition += 5;
     }
 
-    doc.text(`Generated: ${format(new Date(note.created_at), 'MMMM d, yyyy h:mm a')}`, margin, yPosition);
+    doc.text(`Generated: ${formatLocalDate(note.created_at, 'MMMM d, yyyy h:mm a')}`, margin, yPosition);
     yPosition += 10;
 
     // Patient demographic

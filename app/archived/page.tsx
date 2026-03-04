@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
-import { format } from 'date-fns';
+import { formatLocalDate } from '@/lib/utils';
 
 interface ArchivedEpisode {
   id: string;
@@ -189,7 +189,7 @@ export default function ArchivedPage() {
                               {ep.discharged_at && (
                                 <>
                                   {' · '}
-                                  Discharged {format(new Date(ep.discharged_at), 'MMM d, yyyy')}
+                                  Discharged {formatLocalDate(ep.discharged_at, 'MMM d, yyyy')}
                                 </>
                               )}
                               {ep.discharge_reason && (

@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
-import { format } from 'date-fns';
+import { formatLocalDate } from '@/lib/utils';
 
 interface PatientFile {
   id: string;
@@ -211,7 +211,7 @@ export default function PTBotPatientFilePage() {
                     {patient?.date_of_birth && (
                       <span>
                         {' '}
-                        &middot; DOB: {format(new Date(patient.date_of_birth), 'MM/dd/yyyy')}
+                        &middot; DOB: {formatLocalDate(patient.date_of_birth, 'MM/dd/yyyy')}
                       </span>
                     )}
                   </CardDescription>
@@ -424,8 +424,8 @@ export default function PTBotPatientFilePage() {
                           <p className="font-medium text-slate-900 text-sm">{note.title}</p>
                           <p className="text-xs text-slate-500">
                             {note.date_of_service
-                              ? format(new Date(note.date_of_service), 'MMM d, yyyy')
-                              : format(new Date(note.created_at), 'MMM d, yyyy')}
+                              ? formatLocalDate(note.date_of_service, 'MMM d, yyyy')
+                              : formatLocalDate(note.created_at, 'MMM d, yyyy')}
                             {' · '}
                             {note.note_type === 'pt_evaluation' ? 'PT Evaluation' : 'Daily SOAP'}
                           </p>
@@ -462,7 +462,7 @@ function FileRow({ file }: { file: PatientFile }) {
             {FILE_TYPE_LABELS[file.file_type] || file.file_type}
             {file.file_size ? ` · ${formatFileSize(file.file_size)}` : ''}
             {' · '}
-            Uploaded {format(new Date(file.created_at), 'MMM d, yyyy')}
+            Uploaded {formatLocalDate(file.created_at, 'MMM d, yyyy')}
             {file.uploaded_by === 'ptbot' && (
               <span className="text-violet-500"> via telehealth</span>
             )}

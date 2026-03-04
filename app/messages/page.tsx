@@ -45,7 +45,8 @@ import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
 import { Message } from '@/lib/types';
 import { toast } from 'sonner';
-import { format, formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
+import { formatLocalDate } from '@/lib/utils';
 
 interface ClinicMember {
   id: string;
@@ -391,7 +392,7 @@ export default function MessagesPage() {
                         </div>
                         <div className="flex items-center gap-1 text-xs text-slate-400">
                           <Clock className="h-3 w-3" />
-                          {format(new Date(selectedMessage.created_at), 'MMM d, yyyy h:mm a')}
+                          {formatLocalDate(selectedMessage.created_at, 'MMM d, yyyy h:mm a')}
                         </div>
                       </div>
                     </div>
@@ -428,7 +429,7 @@ export default function MessagesPage() {
                               <User className="h-3 w-3" />
                               {msg.sender_name || msg.sender_id?.slice(0, 8)}
                               <span>-</span>
-                              {format(new Date(msg.created_at), 'MMM d, yyyy h:mm a')}
+                              {formatLocalDate(msg.created_at, 'MMM d, yyyy h:mm a')}
                             </div>
                           )}
                           <div className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">

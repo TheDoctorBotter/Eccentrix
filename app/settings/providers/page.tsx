@@ -47,7 +47,8 @@ import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
 import { ProviderProfile } from '@/lib/types';
 import { toast } from 'sonner';
-import { format, isPast, parseISO } from 'date-fns';
+import { isPast, parseISO } from 'date-fns';
+import { formatLocalDate } from '@/lib/utils';
 
 const SPECIALTIES = [
   'Orthopedic',
@@ -390,8 +391,8 @@ export default function ProvidersPage() {
                                   : 'text-slate-600'
                               }`}
                             >
-                              {format(
-                                parseISO(provider.license_expiry),
+                              {formatLocalDate(
+                                provider.license_expiry,
                                 'MM/dd/yyyy'
                               )}
                               {expired && (

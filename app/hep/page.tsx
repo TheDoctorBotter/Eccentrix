@@ -54,7 +54,7 @@ import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
 import { HepProgram, Exercise, Episode, EXERCISE_CATEGORIES, BODY_REGIONS } from '@/lib/types';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { formatLocalDate } from '@/lib/utils';
 
 export default function HepPage() {
   const { currentClinic, loading: authLoading, user } = useAuth();
@@ -293,7 +293,7 @@ export default function HepPage() {
         </head>
         <body>
           <h1>Home Exercise Program: ${program.name}</h1>
-          <h2>Start Date: ${program.start_date ? format(new Date(program.start_date), 'MM/dd/yyyy') : 'N/A'}</h2>
+          <h2>Start Date: ${program.start_date ? formatLocalDate(program.start_date, 'MM/dd/yyyy') : 'N/A'}</h2>
           ${program.frequency ? `<p class="frequency"><strong>Frequency:</strong> ${program.frequency}</p>` : ''}
           <table>
             <thead>
@@ -452,8 +452,8 @@ export default function HepPage() {
                               </span>
                               <span className="text-xs text-slate-400">
                                 {program.start_date
-                                  ? format(
-                                      new Date(program.start_date),
+                                  ? formatLocalDate(
+                                      program.start_date,
                                       'MMM d, yyyy'
                                     )
                                   : ''}
@@ -609,7 +609,7 @@ export default function HepPage() {
                       {episodes.map((ep) => (
                         <SelectItem key={ep.id} value={ep.id}>
                           {ep.first_name} {ep.last_name} - {ep.diagnosis || 'No diagnosis'}{' '}
-                          ({format(new Date(ep.start_date), 'MM/dd/yyyy')})
+                          ({formatLocalDate(ep.start_date, 'MM/dd/yyyy')})
                         </SelectItem>
                       ))}
                     </SelectContent>

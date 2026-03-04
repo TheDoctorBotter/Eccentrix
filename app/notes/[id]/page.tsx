@@ -53,6 +53,7 @@ import {
 import { Note, NOTE_TYPE_LABELS, BrandingSettings, Claim, ClaimStatus, CLAIM_STATUS_LABELS, CLAIM_STATUS_COLORS } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { format } from 'date-fns';
+import { formatLocalDate } from '@/lib/utils';
 import BrandingHeader from '@/components/BrandingHeader';
 import { generateNotePDF, generateRichNotePDF } from '@/lib/pdf-generator';
 import { generateNoteWord } from '@/lib/word-generator';
@@ -610,8 +611,8 @@ export default function NoteDetailPage() {
               {(note.date_of_service || note.input_data?.dateOfService) && (
                 <p className="text-sm">
                   Service Date:{' '}
-                  {format(
-                    new Date(note.date_of_service || note.input_data.dateOfService!),
+                  {formatLocalDate(
+                    note.date_of_service || note.input_data.dateOfService!,
                     'MMMM d, yyyy'
                   )}
                   {note.input_data?.startTime && note.input_data?.endTime && (
@@ -631,7 +632,7 @@ export default function NoteDetailPage() {
                 </p>
               )}
               <p className="text-sm">
-                Created {format(new Date(note.created_at), 'MMMM d, yyyy h:mm a')}
+                Created {formatLocalDate(note.created_at, 'MMMM d, yyyy h:mm a')}
               </p>
             </div>
           </div>
@@ -1068,10 +1069,10 @@ export default function NoteDetailPage() {
               <CardDescription>
                 {linkedClaim.claim_lines?.length || 0} service line(s) &bull; Total: ${Number(linkedClaim.total_charges || 0).toFixed(2)}
                 {linkedClaim.submitted_at && (
-                  <span className="ml-2">&bull; Submitted {format(new Date(linkedClaim.submitted_at), 'MMM d, yyyy h:mm a')}</span>
+                  <span className="ml-2">&bull; Submitted {formatLocalDate(linkedClaim.submitted_at, 'MMM d, yyyy h:mm a')}</span>
                 )}
                 {linkedClaim.paid_at && (
-                  <span className="ml-2">&bull; Paid ${Number(linkedClaim.paid_amount || 0).toFixed(2)} on {format(new Date(linkedClaim.paid_at), 'MMM d, yyyy')}</span>
+                  <span className="ml-2">&bull; Paid ${Number(linkedClaim.paid_amount || 0).toFixed(2)} on {formatLocalDate(linkedClaim.paid_at, 'MMM d, yyyy')}</span>
                 )}
               </CardDescription>
             </CardHeader>

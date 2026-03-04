@@ -26,6 +26,7 @@ import {
 import { TopNav } from '@/components/layout/TopNav';
 import { Patient, Visit, Note, APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_COLORS } from '@/lib/types';
 import { format, parseISO } from 'date-fns';
+import { formatLocalDate } from '@/lib/utils';
 
 export default function PatientRecordPage() {
   const params = useParams();
@@ -158,7 +159,7 @@ export default function PatientRecordPage() {
               {patient.date_of_birth && (
                 <div className="flex items-center gap-2 text-sm text-slate-600">
                   <Calendar className="h-4 w-4 text-slate-400" />
-                  DOB: {format(parseISO(patient.date_of_birth), 'MM/dd/yyyy')}
+                  DOB: {formatLocalDate(patient.date_of_birth, 'MM/dd/yyyy')}
                 </div>
               )}
               {patient.primary_diagnosis && (
@@ -209,8 +210,8 @@ export default function PatientRecordPage() {
                     >
                       <div>
                         <div className="text-sm font-medium text-slate-900">
-                          {format(parseISO(appt.start_time), 'MMM d, yyyy')} at{' '}
-                          {format(parseISO(appt.start_time), 'h:mm a')}
+                          {formatLocalDate(appt.start_time, 'MMM d, yyyy')} at{' '}
+                          {formatLocalDate(appt.start_time, 'h:mm a')}
                         </div>
                         <div className="text-xs text-slate-500 mt-0.5">
                           <span className="capitalize">{(appt.visit_type || 'treatment').replace('_', ' ')}</span>

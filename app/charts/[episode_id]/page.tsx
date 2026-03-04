@@ -45,7 +45,7 @@ import {
   ClinicalDocType,
   CLINICAL_DOC_TYPE_LABELS,
 } from '@/lib/types';
-import { format } from 'date-fns';
+import { formatLocalDate } from '@/lib/utils';
 
 interface PageProps {
   params: { episode_id: string };
@@ -227,7 +227,7 @@ export default function PatientChartPage({ params }: PageProps) {
                       {episode.date_of_birth && (
                         <p className="flex items-center gap-2">
                           <Calendar className="h-4 w-4" />
-                          DOB: {format(new Date(episode.date_of_birth), 'MM/dd/yyyy')}{' '}
+                          DOB: {formatLocalDate(episode.date_of_birth, 'MM/dd/yyyy')}{' '}
                           ({calculateAge(episode.date_of_birth)})
                         </p>
                       )}
@@ -272,7 +272,7 @@ export default function PatientChartPage({ params }: PageProps) {
                   <div className="p-3 bg-slate-50 rounded-lg">
                     <p className="text-sm text-slate-500">Start Date</p>
                     <p className="font-medium text-slate-900">
-                      {format(new Date(episode.start_date), 'MM/dd/yyyy')}
+                      {formatLocalDate(episode.start_date, 'MM/dd/yyyy')}
                     </p>
                   </div>
                   <div className="p-3 bg-slate-50 rounded-lg">
@@ -462,7 +462,7 @@ export default function PatientChartPage({ params }: PageProps) {
                               {CLINICAL_DOC_TYPE_LABELS[doc.doc_type] || doc.doc_type}
                             </p>
                             <p className="text-sm text-slate-500">
-                              {format(new Date(doc.date_of_service), 'MMMM d, yyyy')}
+                              {formatLocalDate(doc.date_of_service, 'MMMM d, yyyy')}
                             </p>
                           </div>
                         </div>
