@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   format,
   startOfWeek,
@@ -145,6 +146,7 @@ interface AppointmentFormData {
 // ---------------------------------------------------------------------------
 
 export default function SchedulePage() {
+  const router = useRouter();
   const { currentClinic, loading: authLoading } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -384,6 +386,21 @@ export default function SchedulePage() {
       // If an SMS appointment was completed, a Visit record was auto-created
       if (isSms && newStatus === 'completed' && updated._createdVisit) {
         toast.success('Visit record auto-created from SMS appointment');
+      }
+
+      // When a visit is marked completed, redirect to SOAP note wizard
+      if (newStatus === 'completed') {
+        // For SMS appointments, use the auto-created Visit record ID
+        const noteVisitId = (isSms && updated._createdVisit?.id)
+          ? updated._createdVisit.id
+          : visitId.replace(/^sms-/, ''); // strip sms- prefix if present
+
+        // Only redirect for real visit IDs (not sms- prefixed without a created visit)
+        if (noteVisitId && !noteVisitId.startsWith('sms-')) {
+          toast.success('Redirecting to SOAP note...');
+          router.push(`/daily/new?visit_id=${noteVisitId}`);
+          return;
+        }
       }
     } catch (err) {
       console.error(err);

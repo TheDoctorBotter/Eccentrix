@@ -225,6 +225,8 @@ export interface Note {
   clinic_name?: string | null;
   /** Document template used for export */
   document_template_id?: string | null;
+  /** Linked visit ID (auto-populated when note is created from a completed visit) */
+  visit_id?: string | null;
   created_at: string;
 
   // Finalization fields

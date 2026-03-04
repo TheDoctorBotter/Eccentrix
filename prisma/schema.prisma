@@ -346,9 +346,13 @@ model notes {
   doc_type              clinical_doc_type?
   clinic_id             String?            @db.Uuid
   patient_id            String?            @db.Uuid
+  visit_id              String?            @db.Uuid
 
   // Relations
   patient               patients?          @relation(fields: [patient_id], references: [id], onDelete: SetNull)
+  visit                 visits?            @relation(fields: [visit_id], references: [id], onDelete: SetNull)
+
+  @@index([visit_id])
 }
 
 // ============================================================================
@@ -430,8 +434,9 @@ model visits {
   clinic          clinics          @relation(fields: [clinic_id], references: [id], onDelete: Cascade)
   episode         episodes?        @relation(fields: [episode_id], references: [id], onDelete: SetNull)
   patient         patients?        @relation(fields: [patient_id], references: [id], onDelete: SetNull)
-  visit_charges   visit_charges[]
+  visit_charges    visit_charges[]
   patient_payments patient_payments[]
+  note_records     notes[]
 
   @@index([clinic_id])
   @@index([episode_id])

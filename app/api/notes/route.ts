@@ -69,6 +69,8 @@ export async function POST(request: NextRequest) {
         hep_summary: body.hep_summary,
         template_id: body.template_id,
         clinic_id: body.clinic_id || null,
+        patient_id: body.patient_id || null,
+        visit_id: body.visit_id || null,
       })
       .select()
       .single();
