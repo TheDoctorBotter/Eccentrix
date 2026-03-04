@@ -1305,12 +1305,10 @@ export default function SchedulePage() {
                   });
                   if (!res.ok) throw new Error('Failed to revert status');
 
-                  // If there's a draft note, revert it to draft (in case it was auto-set)
+                  // Delete the draft note so a fresh one can be generated on next completion
                   if (selectedVisitNote && selectedVisitNote.status === 'draft') {
                     await fetch(`/api/notes/${selectedVisitNote.id}`, {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ status: 'draft' }),
+                      method: 'DELETE',
                     });
                   }
 
@@ -1318,8 +1316,10 @@ export default function SchedulePage() {
                   const statusUpdate = { status: 'checked_in' as AppointmentStatus };
                   setVisits((prev: Visit[]) => prev.map((v: Visit) => (v.id === selectedVisit.id ? { ...v, ...statusUpdate } : v)));
                   setSelectedVisit((prev: Visit | null) => (prev && prev.id === selectedVisit.id ? { ...prev, ...statusUpdate } : prev));
+                  setSelectedVisitNote(null);
 
                   toast.success('Visit reopened — status set to Checked In');
+                  setDetailsOpen(false);
                 } catch (err) {
                   console.error(err);
                   toast.error('Failed to undo completion');
