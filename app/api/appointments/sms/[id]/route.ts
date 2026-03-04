@@ -43,10 +43,10 @@ export async function PATCH(
     }
 
     // Update the appointments table
-    const updateData: Record<string, unknown> = { status };
-    if (status === 'cancelled') {
-      updateData.cancelled_at = new Date().toISOString();
-    }
+    const updateData: Record<string, unknown> = {
+      status,
+      updated_at: new Date().toISOString(),
+    };
 
     const { data: updatedAppt, error: updateError } = await client
       .from('appointments')
