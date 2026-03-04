@@ -81,7 +81,7 @@ export async function PATCH(
         patient_id: patientId || null,
         start_time: startDate.toISOString(),
         end_time: endDate.toISOString(),
-        visit_type: visitType === 'eval' ? 'evaluation' : 'treatment',
+        visit_type: visitType === 'eval' ? 'evaluation' : (visitType || 'treatment'),
         source: 'sms',
         status: 'completed',
         notes: 'Auto-created from completed SMS appointment',
