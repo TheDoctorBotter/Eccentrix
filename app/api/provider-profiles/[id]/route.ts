@@ -62,6 +62,37 @@ export async function PATCH(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Keep clinic_memberships role in sync when credentials change
+    if (data && body.credentials !== undefined) {
+      try {
+        const { data: clinic } = await client
+          .from('clinics')
+          .select('name')
+          .eq('id', data.clinic_id)
+          .single();
+
+        if (clinic?.name) {
+          const role = data.credentials && /\bPTA\b/i.test(data.credentials) ? 'pta' : 'pt';
+          await client
+            .from('clinic_memberships')
+            .upsert(
+              {
+                user_id: data.user_id,
+                clinic_name: clinic.name,
+                clinic_id_ref: data.clinic_id,
+                clinic_id: data.clinic_id,
+                role,
+                is_active: data.is_active,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'user_id,clinic_name' }
+            );
+        }
+      } catch (membershipError) {
+        console.error('Error syncing clinic membership:', membershipError);
+      }
+    }
+
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error in PATCH /api/provider-profiles/[id]:', error);

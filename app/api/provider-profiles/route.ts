@@ -104,6 +104,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Ensure a clinic_memberships row exists so this provider appears in care team dropdowns.
+    // Determine role from credentials: if credentials contain "PTA" → pta, else → pt.
+    try {
+      const { data: clinic } = await client
+        .from('clinics')
+        .select('name')
+        .eq('id', clinic_id)
+        .single();
+
+      if (clinic?.name) {
+        const role = credentials && /\bPTA\b/i.test(credentials) ? 'pta' : 'pt';
+        await client
+          .from('clinic_memberships')
+          .upsert(
+            {
+              user_id,
+              clinic_name: clinic.name,
+              clinic_id_ref: clinic_id,
+              clinic_id,
+              role,
+              is_active: is_active !== undefined ? is_active : true,
+              updated_at: now,
+            },
+            { onConflict: 'user_id,clinic_name' }
+          );
+      }
+    } catch (membershipError) {
+      // Log but don't fail the provider creation
+      console.error('Error syncing clinic membership:', membershipError);
+    }
+
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     console.error('Error in POST /api/provider-profiles:', error);
