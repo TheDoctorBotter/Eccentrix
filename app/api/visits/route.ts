@@ -37,6 +37,12 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await query;
 
+    console.log('[GET /api/visits] clinic_id:', clinicId, 'from:', from, 'to:', to);
+    console.log('[GET /api/visits] results:', data?.length ?? 0, 'visits returned');
+    if (data && data.length > 0) {
+      console.log('[GET /api/visits] first visit:', JSON.stringify(data[0], null, 2));
+    }
+
     if (error) {
       console.error('Error fetching visits:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });

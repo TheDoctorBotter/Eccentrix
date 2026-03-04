@@ -208,23 +208,43 @@ export default function SchedulePage() {
         to = endOfDay(currentDate).toISOString();
       }
 
+      console.log('[Schedule] fetchVisits — clinic_id:', currentClinic.clinic_id, 'from:', from, 'to:', to);
+
       // Fetch EMR visits and SMS appointments in parallel
       const [visitsRes, smsRes] = await Promise.all([
         fetch(`/api/visits?clinic_id=${currentClinic.clinic_id}&from=${from}&to=${to}`),
         fetch(`/api/appointments/sms?from=${from}&to=${to}`),
       ]);
 
-      if (!visitsRes.ok) throw new Error('Failed to fetch visits');
+      console.log('[Schedule] visits response status:', visitsRes.status);
+      console.log('[Schedule] sms response status:', smsRes.status);
+
+      if (!visitsRes.ok) {
+        const errText = await visitsRes.text();
+        console.error('[Schedule] visits API error:', errText);
+        throw new Error('Failed to fetch visits');
+      }
       const visitsData: Visit[] = await visitsRes.json();
+      console.log('[Schedule] visits from EMR:', visitsData.length, 'results');
+      if (visitsData.length > 0) {
+        console.log('[Schedule] first visit:', JSON.stringify(visitsData[0]));
+      }
 
       // SMS appointments are optional — don't fail the whole load if they error
       let smsData: Visit[] = [];
       if (smsRes.ok) {
         smsData = await smsRes.json();
+        console.log('[Schedule] SMS appointments:', smsData.length, 'results');
+      } else {
+        const smsErr = await smsRes.text();
+        console.warn('[Schedule] SMS appointments API error:', smsErr);
       }
 
+      const merged = [...visitsData, ...smsData];
+      console.log('[Schedule] total merged appointments:', merged.length);
+
       // Merge: EMR visits first, then SMS appointments
-      setVisits([...visitsData, ...smsData]);
+      setVisits(merged);
     } catch (err) {
       console.error(err);
       toast.error('Failed to load appointments');
