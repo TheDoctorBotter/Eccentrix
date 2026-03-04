@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     let query = client
       .from('visits')
-      .select('*, patients(id, name, first_name, last_name, phone)')
+      .select('*, patients(id, first_name, last_name, phone)')
       .eq('clinic_id', clinicId)
       .order('start_time', { ascending: true });
 
@@ -54,9 +54,7 @@ export async function GET(request: NextRequest) {
       let patientName: string | null = null;
 
       if (patient) {
-        if (patient.name && typeof patient.name === 'string') {
-          patientName = patient.name;
-        } else if (patient.first_name || patient.last_name) {
+        if (patient.first_name || patient.last_name) {
           patientName = [patient.first_name, patient.last_name].filter(Boolean).join(' ');
         }
       }

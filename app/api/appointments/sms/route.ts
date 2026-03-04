@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     {
       let query = client
         .from('appointments')
-        .select('*, patients(id, name, first_name, last_name, phone)')
+        .select('*, patients(id, first_name, last_name, phone)')
         .order('scheduled_at', { ascending: true });
 
       if (from) {
@@ -114,9 +114,7 @@ export async function GET(request: NextRequest) {
       let patientPhone = '';
 
       if (patient) {
-        if (patient.name && typeof patient.name === 'string') {
-          patientName = patient.name;
-        } else if (patient.first_name || patient.last_name) {
+        if (patient.first_name || patient.last_name) {
           patientName = [patient.first_name, patient.last_name].filter(Boolean).join(' ');
         }
         patientPhone = (patient.phone as string) || '';
