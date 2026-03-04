@@ -223,6 +223,10 @@ export interface Note {
   template_id: string | null;
   /** Clinic/brand name for template-based export */
   clinic_name?: string | null;
+  /** Clinic that owns this note */
+  clinic_id?: string | null;
+  /** Patient linked to this note */
+  patient_id?: string | null;
   /** Document template used for export */
   document_template_id?: string | null;
   /** Linked visit ID (auto-populated when note is created from a completed visit) */
@@ -969,6 +973,7 @@ export interface Claim {
   // Joined
   patient_name?: string;
   lines?: ClaimLine[];
+  claim_lines?: ClaimLine[];
 }
 
 export interface ClaimLine {
