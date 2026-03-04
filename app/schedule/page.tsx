@@ -97,14 +97,14 @@ const STATUS_ACTIONS: { from: AppointmentStatus[]; to: AppointmentStatus; label:
 
 // Background color by visit type
 const VISIT_TYPE_COLORS: Record<string, string> = {
-  evaluation: 'bg-blue-100 hover:bg-blue-150',
-  eval: 'bg-blue-100 hover:bg-blue-150',
-  treatment: 'bg-green-100 hover:bg-green-150',
-  treat: 'bg-green-100 hover:bg-green-150',
-  re_evaluation: 'bg-purple-100 hover:bg-purple-150',
-  discharge: 'bg-orange-100 hover:bg-orange-150',
+  evaluation: 'bg-blue-100 hover:bg-blue-200',
+  eval: 'bg-blue-100 hover:bg-blue-200',
+  treatment: 'bg-green-100 hover:bg-green-200',
+  treat: 'bg-green-100 hover:bg-green-200',
+  re_evaluation: 'bg-purple-100 hover:bg-purple-200',
+  discharge: 'bg-orange-100 hover:bg-orange-200',
 };
-const VISIT_TYPE_DEFAULT_BG = 'bg-green-100 hover:bg-green-150';
+const VISIT_TYPE_DEFAULT_BG = 'bg-green-100 hover:bg-green-200';
 
 // Left border stripe by status
 const STATUS_BORDER: Record<AppointmentStatus, string> = {

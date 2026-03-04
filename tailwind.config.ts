@@ -7,6 +7,18 @@ const config: Config = {
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  safelist: [
+    'bg-purple-100',
+    'hover:bg-purple-200',
+    'bg-blue-100',
+    'hover:bg-blue-200',
+    'bg-green-100',
+    'hover:bg-green-200',
+    'bg-orange-100',
+    'hover:bg-orange-200',
+    'bg-red-50/60',
+    'hover:bg-red-100/60',
+  ],
   theme: {
     extend: {
       backgroundImage: {
