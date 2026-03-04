@@ -27,6 +27,11 @@ interface CareTeamMember {
 interface ClinicStaff {
   user_id: string;
   email: string;
+  display_name?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  credentials?: string | null;
+  has_provider_profile?: boolean;
   role: string;
   clinic_name: string;
 }
@@ -199,7 +204,9 @@ export function AssignCareTeamModal({
                         selectedPt === staff.user_id ? null : staff.user_id
                       )}
                     >
-                      <span className="text-sm font-medium">{staff.email}</span>
+                      <span className="text-sm font-medium">
+                        {staff.display_name || staff.email}
+                      </span>
                       <Badge
                         variant="outline"
                         className="bg-emerald-100 text-emerald-700 border-emerald-200"
@@ -236,7 +243,9 @@ export function AssignCareTeamModal({
                           checked={selectedPtas.includes(staff.user_id)}
                           onCheckedChange={() => togglePta(staff.user_id)}
                         />
-                        <span className="text-sm font-medium">{staff.email}</span>
+                        <span className="text-sm font-medium">
+                          {staff.display_name || staff.email}
+                        </span>
                       </div>
                       <Badge
                         variant="outline"
