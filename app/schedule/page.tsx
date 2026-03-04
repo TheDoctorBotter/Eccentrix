@@ -91,17 +91,41 @@ const STATUS_ACTIONS: { from: AppointmentStatus[]; to: AppointmentStatus; label:
   { from: ['scheduled', 'confirmed', 'checked_in', 'in_progress'], to: 'cancelled', label: 'Cancel' },
 ];
 
-// Appointment block color (left border) by status
-const BLOCK_COLORS: Record<AppointmentStatus, string> = {
-  scheduled: 'border-l-blue-500 bg-blue-50 hover:bg-blue-100',
-  confirmed: 'border-l-teal-500 bg-teal-50 hover:bg-teal-100',
-  checked_in: 'border-l-cyan-500 bg-cyan-50 hover:bg-cyan-100',
-  in_progress: 'border-l-amber-500 bg-amber-50 hover:bg-amber-100',
-  checked_out: 'border-l-purple-500 bg-purple-50 hover:bg-purple-100',
-  completed: 'border-l-emerald-500 bg-emerald-50 hover:bg-emerald-100',
-  no_show: 'border-l-red-500 bg-red-50 hover:bg-red-100',
-  cancelled: 'border-l-slate-400 bg-slate-50 hover:bg-slate-100',
-  rescheduled: 'border-l-orange-500 bg-orange-50 hover:bg-orange-100',
+// Background color by visit type
+const VISIT_TYPE_COLORS: Record<string, string> = {
+  evaluation: 'bg-blue-100 hover:bg-blue-150',
+  eval: 'bg-blue-100 hover:bg-blue-150',
+  treatment: 'bg-green-100 hover:bg-green-150',
+  treat: 'bg-green-100 hover:bg-green-150',
+  re_evaluation: 'bg-purple-100 hover:bg-purple-150',
+  discharge: 'bg-orange-100 hover:bg-orange-150',
+};
+const VISIT_TYPE_DEFAULT_BG = 'bg-green-100 hover:bg-green-150';
+
+// Left border stripe by status
+const STATUS_BORDER: Record<AppointmentStatus, string> = {
+  scheduled: 'border-l-slate-400',
+  confirmed: 'border-l-green-500',
+  checked_in: 'border-l-yellow-500',
+  in_progress: 'border-l-amber-500',
+  checked_out: 'border-l-teal-500',
+  completed: 'border-l-teal-600',
+  no_show: 'border-l-red-500',
+  cancelled: 'border-l-red-400',
+  rescheduled: 'border-l-orange-500',
+};
+
+// Status badge classes
+const STATUS_BADGE: Record<AppointmentStatus, string> = {
+  scheduled: 'bg-slate-100 text-slate-600 border-slate-200',
+  confirmed: 'bg-green-100 text-green-700 border-green-200',
+  checked_in: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+  in_progress: 'bg-amber-100 text-amber-700 border-amber-200',
+  checked_out: 'bg-teal-100 text-teal-700 border-teal-200',
+  completed: 'bg-teal-100 text-teal-700 border-teal-200',
+  no_show: 'bg-red-100 text-red-700 border-red-200',
+  cancelled: 'bg-red-50 text-red-500 border-red-200',
+  rescheduled: 'bg-orange-100 text-orange-700 border-orange-200',
 };
 
 // ---------------------------------------------------------------------------
@@ -704,6 +728,36 @@ export default function SchedulePage() {
         </div>
 
         {/* ----------------------------------------------------------------- */}
+        {/* Color legend                                                      */}
+        {/* ----------------------------------------------------------------- */}
+        <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[11px] text-slate-600">
+          {/* Visit type */}
+          <span className="font-semibold text-slate-500 uppercase tracking-wide">Type:</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-100 border border-blue-300" />Eval</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-100 border border-green-300" />Treat</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-purple-100 border border-purple-300" />Re-Eval</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-orange-100 border border-orange-300" />Discharge</span>
+
+          <span className="text-slate-300">|</span>
+
+          {/* Status (left border) */}
+          <span className="font-semibold text-slate-500 uppercase tracking-wide">Status:</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-slate-400 bg-slate-50" />Scheduled</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-green-500 bg-slate-50" />Confirmed</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-yellow-500 bg-slate-50" />Checked In</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-teal-600 bg-slate-50" />Completed</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-red-500 bg-slate-50" />No Show</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-red-400 bg-red-50/60 line-through" />Cancelled</span>
+
+          <span className="text-slate-300">|</span>
+
+          {/* Source */}
+          <span className="font-semibold text-slate-500 uppercase tracking-wide">Source:</span>
+          <span className="flex items-center gap-1"><span className="text-[8px] font-semibold px-1 py-px rounded bg-slate-200 text-slate-600">SMS</span>Buckeye</span>
+          <span className="flex items-center gap-1"><span className="text-[8px] font-semibold px-1 py-px rounded bg-indigo-100 text-indigo-600">App</span>PTBot</span>
+        </div>
+
+        {/* ----------------------------------------------------------------- */}
         {/* Calendar grid                                                     */}
         {/* ----------------------------------------------------------------- */}
         <div className="border rounded-lg bg-white overflow-hidden">
@@ -822,32 +876,34 @@ export default function SchedulePage() {
                       const top = minutesToTop(startMin);
                       const height = ((endMin - startMin) / 60) * HOUR_HEIGHT;
                       const status: AppointmentStatus = visit.status || 'scheduled';
-                      const blockColor = BLOCK_COLORS[status] || BLOCK_COLORS.scheduled;
+                      const isCancelled = status === 'cancelled';
+                      const visitType = (visit.visit_type || 'treatment').toLowerCase();
 
+                      // Visit-type background + status left border
+                      const typeBg = isCancelled
+                        ? 'bg-red-50/60 hover:bg-red-100/60'
+                        : (VISIT_TYPE_COLORS[visitType] || VISIT_TYPE_DEFAULT_BG);
+                      const statusBorder = STATUS_BORDER[status] || STATUS_BORDER.scheduled;
+
+                      // Source tag
                       const isSmsAppt = visit.source === 'sms';
+                      const isPtbot = (visit.source as string) === 'ptbot';
 
                       return (
                         <button
                           key={visit.id}
                           onClick={() => handleVisitClick(visit)}
-                          className={`absolute left-1 right-1 rounded-md border-l-4 px-2 py-1 text-left transition-colors cursor-pointer z-10 overflow-hidden ${
-                            isSmsAppt
-                              ? 'border-l-violet-500 bg-violet-50 hover:bg-violet-100'
-                              : blockColor
-                          }`}
+                          className={`absolute left-1 right-1 rounded-md border-l-4 px-2 py-1 text-left transition-colors cursor-pointer z-10 overflow-hidden ${statusBorder} ${typeBg}`}
                           style={{
                             top: `${Math.max(top, 0)}px`,
                             height: `${Math.max(height, 20)}px`,
                           }}
                         >
-                          <div className="text-xs font-semibold text-slate-900 truncate flex items-center gap-1">
-                            {isSmsAppt && (
-                              <Smartphone className="h-3 w-3 text-violet-600 flex-shrink-0" />
-                            )}
+                          <div className={`text-xs font-semibold text-slate-900 truncate flex items-center gap-1 ${isCancelled ? 'line-through text-red-400' : ''}`}>
                             {visit.patient_name || getPatientName(visit.patient_id)}
                           </div>
                           {height > 30 && (
-                            <div className="text-[10px] text-slate-600 truncate">
+                            <div className={`text-[10px] text-slate-600 truncate ${isCancelled ? 'line-through text-red-300' : ''}`}>
                               {formatTime12h(visit.start_time)} -{' '}
                               {formatTime12h(visit.end_time)}
                             </div>
@@ -858,18 +914,22 @@ export default function SchedulePage() {
                             </div>
                           )}
                           <div className="flex items-center gap-1 mt-0.5">
+                            {/* Source tag */}
                             {isSmsAppt && (
-                              <Badge
-                                variant="outline"
-                                className="text-[9px] px-1 py-0 bg-violet-100 text-violet-700 border-violet-200"
-                              >
+                              <span className="text-[8px] font-semibold px-1 py-px rounded bg-slate-200 text-slate-600">
                                 SMS
-                              </Badge>
+                              </span>
                             )}
-                            {height > 62 && (
+                            {isPtbot && (
+                              <span className="text-[8px] font-semibold px-1 py-px rounded bg-indigo-100 text-indigo-600">
+                                App
+                              </span>
+                            )}
+                            {/* Status badge */}
+                            {height > 40 && (
                               <Badge
                                 variant="outline"
-                                className={`text-[9px] px-1 py-0 ${APPOINTMENT_STATUS_COLORS[status]}`}
+                                className={`text-[9px] px-1 py-0 ${STATUS_BADGE[status] || STATUS_BADGE.scheduled}`}
                               >
                                 {APPOINTMENT_STATUS_LABELS[status]}
                               </Badge>
