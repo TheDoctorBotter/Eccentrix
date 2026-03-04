@@ -24,13 +24,13 @@ const DURATION_MAP: Record<string, number> = {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const client = serviceRoleKey ? supabaseAdmin : supabase;
 
-    const { id } = params;
+    const { id } = await context.params;
     if (!id) {
       return NextResponse.json({ error: 'Appointment ID is required' }, { status: 400 });
     }
@@ -52,7 +52,7 @@ export async function PATCH(
       .from('appointments')
       .update(updateData)
       .eq('id', id)
-      .select('*, patients(id, name, first_name, last_name, phone)')
+      .select('*, patients(id, first_name, last_name, phone)')
       .single();
 
     if (updateError) {
