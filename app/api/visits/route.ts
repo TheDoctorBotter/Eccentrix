@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     let query = client
       .from('visits')
-      .select('*')
+      .select('*, patients(id, name, first_name, last_name, phone)')
       .eq('clinic_id', clinicId)
       .order('start_time', { ascending: true });
 
@@ -48,7 +48,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(data || []);
+    // Flatten the joined patients data into patient_name on each visit
+    const enriched = (data || []).map((visit: Record<string, unknown>) => {
+      const patient = visit.patients as Record<string, unknown> | null;
+      let patientName: string | null = null;
+
+      if (patient) {
+        if (patient.name && typeof patient.name === 'string') {
+          patientName = patient.name;
+        } else if (patient.first_name || patient.last_name) {
+          patientName = [patient.first_name, patient.last_name].filter(Boolean).join(' ');
+        }
+      }
+
+      const { patients: _patients, ...rest } = visit;
+      return {
+        ...rest,
+        patient_name: patientName,
+      };
+    });
+
+    return NextResponse.json(enriched);
   } catch (error) {
     console.error('Error in GET /api/visits:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
