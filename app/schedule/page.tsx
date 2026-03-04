@@ -213,6 +213,8 @@ export default function SchedulePage() {
   const [patientSearch, setPatientSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
 
   // ---------------------------------------------------------------------------
   // Data fetching
@@ -1091,7 +1093,14 @@ export default function SchedulePage() {
                     size="sm"
                     variant={action.to === 'cancelled' || action.to === 'no_show' ? 'destructive' : 'outline'}
                     disabled={updatingStatus}
-                    onClick={() => handleStatusChange(selectedVisit.id, action.to)}
+                    onClick={() => {
+                      if (action.to === 'cancelled') {
+                        setPendingCancelId(selectedVisit.id);
+                        setCancelConfirmOpen(true);
+                      } else {
+                        handleStatusChange(selectedVisit.id, action.to);
+                      }
+                    }}
                   >
                     {updatingStatus ? (
                       <Loader2 className="h-3 w-3 animate-spin mr-1" />
@@ -1114,6 +1123,42 @@ export default function SchedulePage() {
             )}
             <Button variant="outline" size="sm" onClick={() => setDetailsOpen(false)}>
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* =================================================================== */}
+      {/* Cancel Confirmation Dialog                                          */}
+      {/* =================================================================== */}
+      <Dialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Cancel Appointment</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to cancel this appointment? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setCancelConfirmOpen(false)}>
+              Keep Appointment
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={updatingStatus}
+              onClick={async () => {
+                if (pendingCancelId) {
+                  await handleStatusChange(pendingCancelId, 'cancelled');
+                }
+                setCancelConfirmOpen(false);
+                setPendingCancelId(null);
+              }}
+            >
+              {updatingStatus ? (
+                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              ) : null}
+              Yes, Cancel
             </Button>
           </DialogFooter>
         </DialogContent>
