@@ -52,7 +52,7 @@ export async function PATCH(
       .from('appointments')
       .update(updateData)
       .eq('id', id)
-      .select('*, patients(id, first_name, last_name, phone)')
+      .select('*')
       .single();
 
     if (updateError) {
@@ -74,8 +74,7 @@ export async function PATCH(
       const startDate = new Date(scheduledAt);
       const endDate = new Date(startDate.getTime() + durationMinutes * 60_000);
 
-      const patient = updatedAppt.patients as Record<string, unknown> | null;
-      const patientId = patient ? (patient.id as string) : (updatedAppt.patient_id as string);
+      const patientId = updatedAppt.patient_id as string;
 
       const visitPayload: Record<string, unknown> = {
         patient_id: patientId || null,
