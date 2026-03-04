@@ -54,11 +54,14 @@ import {
   Smartphone,
   ExternalLink,
   Phone,
+  FileText,
+  Undo2,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
 import {
   Visit,
+  Note,
   AppointmentStatus,
   APPOINTMENT_STATUS_LABELS,
   APPOINTMENT_STATUS_COLORS,
@@ -216,6 +219,9 @@ export default function SchedulePage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
+  const [selectedVisitNote, setSelectedVisitNote] = useState<Note | null>(null);
+  const [loadingNote, setLoadingNote] = useState(false);
+  const [undoConfirmOpen, setUndoConfirmOpen] = useState(false);
 
   // ---------------------------------------------------------------------------
   // Data fetching
@@ -385,7 +391,20 @@ export default function SchedulePage() {
 
   const handleVisitClick = (visit: Visit) => {
     setSelectedVisit(visit);
+    setSelectedVisitNote(null);
     setDetailsOpen(true);
+
+    // Fetch note for this visit if completed
+    if (visit.status === 'completed') {
+      setLoadingNote(true);
+      fetch(`/api/notes?visit_id=${visit.id}`)
+        .then((res) => (res.ok ? res.json() : []))
+        .then((notes: Note[]) => {
+          setSelectedVisitNote(notes.length > 0 ? notes[0] : null);
+        })
+        .catch(() => setSelectedVisitNote(null))
+        .finally(() => setLoadingNote(false));
+    }
   };
 
   // ---------------------------------------------------------------------------
@@ -1117,7 +1136,90 @@ export default function SchedulePage() {
                     {action.label}
                   </Button>
                 ))}
+
+                {/* Undo Complete (Bug 2) */}
+                {selectedVisit.status === 'completed' && (
+                  <>
+                    {selectedVisitNote?.status === 'final' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled
+                        title="Cannot undo — note has been finalized"
+                        className="opacity-50"
+                      >
+                        <Undo2 className="h-3 w-3 mr-1" />
+                        Undo Complete
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={updatingStatus || loadingNote}
+                        onClick={() => setUndoConfirmOpen(true)}
+                      >
+                        {loadingNote ? (
+                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        ) : (
+                          <Undo2 className="h-3 w-3 mr-1" />
+                        )}
+                        Undo Complete
+                      </Button>
+                    )}
+                  </>
+                )}
               </div>
+
+              {/* SOAP Note actions for completed visits */}
+              {selectedVisit.status === 'completed' && (
+                <div className="flex items-center gap-2 pt-2 border-t">
+                  {loadingNote ? (
+                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Loading note...
+                    </div>
+                  ) : selectedVisitNote ? (
+                    <>
+                      <Badge
+                        variant="outline"
+                        className={
+                          selectedVisitNote.status === 'final'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }
+                      >
+                        <FileText className="h-3 w-3 mr-1" />
+                        {selectedVisitNote.status === 'final' ? 'Final' : 'Draft'}
+                      </Badge>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1"
+                        onClick={() => router.push(`/notes/${selectedVisitNote.id}`)}
+                      >
+                        <FileText className="h-3 w-3" />
+                        Open Note
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200">
+                        <FileText className="h-3 w-3 mr-1" />
+                        Missing
+                      </Badge>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1"
+                        onClick={() => router.push(`/daily/new?visit_id=${selectedVisit.id}`)}
+                      >
+                        <FileText className="h-3 w-3" />
+                        Create Note
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
@@ -1168,6 +1270,69 @@ export default function SchedulePage() {
                 <Loader2 className="h-3 w-3 animate-spin mr-1" />
               ) : null}
               Yes, Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* =================================================================== */}
+      {/* Undo Complete Confirmation Dialog                                   */}
+      {/* =================================================================== */}
+      <Dialog open={undoConfirmOpen} onOpenChange={setUndoConfirmOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Undo Complete</DialogTitle>
+            <DialogDescription>
+              This will reopen the visit and revert the SOAP note to draft. Continue?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setUndoConfirmOpen(false)}>
+              Keep Completed
+            </Button>
+            <Button
+              size="sm"
+              disabled={updatingStatus}
+              onClick={async () => {
+                if (!selectedVisit) return;
+                setUpdatingStatus(true);
+                try {
+                  // Revert visit status to checked_in
+                  const res = await fetch(`/api/visits/${selectedVisit.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'checked_in' }),
+                  });
+                  if (!res.ok) throw new Error('Failed to revert status');
+
+                  // If there's a draft note, revert it to draft (in case it was auto-set)
+                  if (selectedVisitNote && selectedVisitNote.status === 'draft') {
+                    await fetch(`/api/notes/${selectedVisitNote.id}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ status: 'draft' }),
+                    });
+                  }
+
+                  // Update local state
+                  const statusUpdate = { status: 'checked_in' as AppointmentStatus };
+                  setVisits((prev: Visit[]) => prev.map((v: Visit) => (v.id === selectedVisit.id ? { ...v, ...statusUpdate } : v)));
+                  setSelectedVisit((prev: Visit | null) => (prev && prev.id === selectedVisit.id ? { ...prev, ...statusUpdate } : prev));
+
+                  toast.success('Visit reopened — status set to Checked In');
+                } catch (err) {
+                  console.error(err);
+                  toast.error('Failed to undo completion');
+                } finally {
+                  setUpdatingStatus(false);
+                  setUndoConfirmOpen(false);
+                }
+              }}
+            >
+              {updatingStatus ? (
+                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              ) : null}
+              Yes, Undo Complete
             </Button>
           </DialogFooter>
         </DialogContent>

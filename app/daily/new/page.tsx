@@ -91,6 +91,16 @@ function DailySoapNoteContent() {
   const fetchVisitAndPrePopulate = async (vId: string) => {
     setLoadingEpisode(true);
     try {
+      // Check if a note already exists for this visit — redirect to it instead of generating new
+      const existingNotesRes = await fetch(`/api/notes?visit_id=${vId}`);
+      if (existingNotesRes.ok) {
+        const existingNotes = await existingNotesRes.json();
+        if (existingNotes.length > 0) {
+          router.replace(`/notes/${existingNotes[0].id}`);
+          return;
+        }
+      }
+
       // Fetch visit data
       const visitRes = await fetch(`/api/visits/${vId}`);
       if (!visitRes.ok) {

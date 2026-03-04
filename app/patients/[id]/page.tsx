@@ -20,9 +20,11 @@ import {
   ArrowLeft,
   ClipboardList,
   ExternalLink,
+  FileText,
+  FilePlus,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
-import { Patient, Visit, APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_COLORS } from '@/lib/types';
+import { Patient, Visit, Note, APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_COLORS } from '@/lib/types';
 import { format, parseISO } from 'date-fns';
 
 export default function PatientRecordPage() {
@@ -32,6 +34,7 @@ export default function PatientRecordPage() {
 
   const [patient, setPatient] = useState<Patient | null>(null);
   const [appointments, setAppointments] = useState<Visit[]>([]);
+  const [notesByVisit, setNotesByVisit] = useState<Record<string, Note>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,10 +60,25 @@ export default function PatientRecordPage() {
           );
           if (visitsRes.ok) {
             const visitsData: Visit[] = await visitsRes.json();
-            setAppointments(
-              visitsData.filter((v) => v.patient_id === patientId)
-            );
+            const patientVisits = visitsData.filter((v) => v.patient_id === patientId);
+            setAppointments(patientVisits);
           }
+        }
+
+        // Fetch notes for this patient to map visit_id -> note
+        const notesRes = await fetch(`/api/notes?patient_id=${patientId}`);
+        if (notesRes.ok) {
+          const notesData: Note[] = await notesRes.json();
+          const map: Record<string, Note> = {};
+          for (const note of notesData) {
+            if (note.visit_id) {
+              // Keep the most recent note per visit
+              if (!map[note.visit_id] || new Date(note.created_at) > new Date(map[note.visit_id].created_at)) {
+                map[note.visit_id] = note;
+              }
+            }
+          }
+          setNotesByVisit(map);
         }
       } catch {
         setError('Failed to load patient record');
@@ -165,51 +183,92 @@ export default function PatientRecordPage() {
           </CardContent>
         </Card>
 
-        {/* Appointments */}
+        {/* Visit History */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Appointments</CardTitle>
+            <CardTitle className="text-lg">Visit History</CardTitle>
           </CardHeader>
           <CardContent>
             {appointments.length === 0 ? (
               <p className="text-sm text-slate-500 text-center py-6">
-                No appointments found
+                No visits found
               </p>
             ) : (
               <div className="space-y-3">
-                {appointments.map((appt) => (
-                  <div
-                    key={appt.id}
-                    className="flex items-center justify-between p-3 rounded-lg border border-slate-200"
-                  >
-                    <div>
-                      <div className="text-sm font-medium text-slate-900">
-                        {format(parseISO(appt.start_time), 'MMM d, yyyy')} at{' '}
-                        {format(parseISO(appt.start_time), 'h:mm a')}
+                {appointments.map((appt) => {
+                  const note = notesByVisit[appt.id];
+                  const isCompleted = appt.status === 'completed';
+                  const noteStatus = note
+                    ? (note.status === 'final' ? 'Final' : 'Draft')
+                    : (isCompleted ? 'Missing' : null);
+
+                  return (
+                    <div
+                      key={appt.id}
+                      className="flex items-center justify-between p-3 rounded-lg border border-slate-200"
+                    >
+                      <div>
+                        <div className="text-sm font-medium text-slate-900">
+                          {format(parseISO(appt.start_time), 'MMM d, yyyy')} at{' '}
+                          {format(parseISO(appt.start_time), 'h:mm a')}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          <span className="capitalize">{(appt.visit_type || 'treatment').replace('_', ' ')}</span>
+                          {appt.location ? ` — ${appt.location}` : ''}
+                        </div>
                       </div>
-                      <div className="text-xs text-slate-500 mt-0.5">
-                        {appt.visit_type || 'Treatment'}
-                        {appt.location ? ` — ${appt.location}` : ''}
+                      <div className="flex items-center gap-2">
+                        {/* SOAP note indicator */}
+                        {noteStatus && (
+                          <Badge
+                            variant="outline"
+                            className={
+                              noteStatus === 'Final'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : noteStatus === 'Draft'
+                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : 'bg-red-50 text-red-600 border-red-200'
+                            }
+                          >
+                            <FileText className="h-3 w-3 mr-1" />
+                            {noteStatus}
+                          </Badge>
+                        )}
+                        {/* Status badge */}
+                        <Badge
+                          variant="outline"
+                          className={APPOINTMENT_STATUS_COLORS[appt.status] || ''}
+                        >
+                          {APPOINTMENT_STATUS_LABELS[appt.status] || appt.status}
+                        </Badge>
+                        {/* Open/Create Note button */}
+                        {note ? (
+                          <Link href={`/notes/${note.id}`}>
+                            <Button variant="ghost" size="sm" className="gap-1 text-xs">
+                              <FileText className="h-3.5 w-3.5" />
+                              Open Note
+                            </Button>
+                          </Link>
+                        ) : isCompleted ? (
+                          <Link href={`/daily/new?visit_id=${appt.id}`}>
+                            <Button variant="ghost" size="sm" className="gap-1 text-xs">
+                              <FilePlus className="h-3.5 w-3.5" />
+                              Create Note
+                            </Button>
+                          </Link>
+                        ) : null}
+                        {appt.episode_id && (
+                          <Link href={`/charts/${appt.episode_id}`}>
+                            <Button variant="ghost" size="sm" className="gap-1">
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              Chart
+                            </Button>
+                          </Link>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant="outline"
-                        className={APPOINTMENT_STATUS_COLORS[appt.status] || ''}
-                      >
-                        {APPOINTMENT_STATUS_LABELS[appt.status] || appt.status}
-                      </Badge>
-                      {appt.episode_id && (
-                        <Link href={`/charts/${appt.episode_id}`}>
-                          <Button variant="ghost" size="sm" className="gap-1">
-                            <ExternalLink className="h-3.5 w-3.5" />
-                            Chart
-                          </Button>
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
