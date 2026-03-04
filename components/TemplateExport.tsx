@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { formatLocalDate } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -87,11 +88,7 @@ export function TemplateExport({
         therapistName: branding?.provider_name || '',
         therapistCredentials: branding?.provider_credentials || '',
         therapistLicense: branding?.provider_license || '',
-        signatureDate: new Date().toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        }),
+        signatureDate: formatLocalDate(new Date(), 'MMMM d, yyyy'),
         clinicName: branding?.clinic_name || '',
         clinicAddress: branding?.address || '',
         clinicPhone: branding?.phone || '',

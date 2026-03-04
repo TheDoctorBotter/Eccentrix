@@ -44,6 +44,7 @@ import { useAuth } from '@/lib/auth-context';
 import { AuditLogEntry, AuditAction } from '@/lib/types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { formatLocalDate } from '@/lib/utils';
 
 const ACTION_OPTIONS: AuditAction[] = [
   'view',
@@ -148,7 +149,7 @@ export default function AuditPage() {
 
     const headers = ['Timestamp', 'User', 'Action', 'Resource Type', 'Resource ID', 'Description'];
     const rows = entries.map((entry) => [
-      format(new Date(entry.created_at), 'yyyy-MM-dd HH:mm:ss'),
+      formatLocalDate(entry.created_at, 'yyyy-MM-dd h:mm:ss a'),
       entry.user_email || entry.user_id || '',
       entry.action,
       entry.resource_type,
@@ -167,7 +168,7 @@ export default function AuditPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `audit-log-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    link.download = `audit-log-${formatLocalDate(new Date(), 'yyyy-MM-dd')}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -358,9 +359,9 @@ export default function AuditPage() {
                           }
                         >
                           <TableCell className="text-xs text-slate-600">
-                            {format(
-                              new Date(entry.created_at),
-                              'MMM d, yyyy HH:mm:ss'
+                            {formatLocalDate(
+                              entry.created_at,
+                              'MMM d, yyyy h:mm:ss a'
                             )}
                           </TableCell>
                           <TableCell className="text-sm">

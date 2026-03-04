@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { authenticatePatient, isAuthError } from '@/lib/ptbot-patient-auth';
+import { formatLocalDate } from '@/lib/utils';
 
 /**
  * Send an SMS notification via Twilio when an appointment is cancelled.
@@ -35,13 +36,7 @@ async function sendCancellationSms(
   }
 
   try {
-    const dateStr = new Date(appointmentDate).toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
+    const dateStr = formatLocalDate(appointmentDate, 'EEEE, MMMM d, h:mm a');
 
     const message = `[Buckeye PT] Patient ${patientName} has cancelled their appointment on ${dateStr} via the patient app.`;
 

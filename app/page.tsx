@@ -29,6 +29,7 @@ import {
   DocumentationAlert,
 } from '@/lib/types';
 import { format } from 'date-fns';
+import { formatLocalDate } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
 import { PTBotFolder } from '@/components/PTBotFolder';
 
@@ -237,8 +238,8 @@ export default function HomePage() {
                               <p className="font-medium text-slate-900 text-sm">{note.title}</p>
                               <p className="text-xs text-slate-500">
                                 {note.date_of_service
-                                  ? format(new Date(note.date_of_service), 'MMM d, yyyy')
-                                  : format(new Date(note.created_at), 'MMM d, yyyy')}
+                                  ? formatLocalDate(note.date_of_service, 'MMM d, yyyy')
+                                  : formatLocalDate(note.created_at, 'MMM d, yyyy')}
                                 {' · '}
                                 {note.note_type === 'pt_evaluation' ? 'PT Evaluation' : 'Daily SOAP'}
                               </p>
@@ -303,7 +304,7 @@ export default function HomePage() {
                               </p>
                               {episode.date_of_birth && (
                                 <span className="text-sm text-slate-500">
-                                  DOB: {format(new Date(episode.date_of_birth), 'MM/dd/yyyy')}
+                                  DOB: {formatLocalDate(episode.date_of_birth, 'MM/dd/yyyy')}
                                   {' '}({calculateAge(episode.date_of_birth)})
                                 </span>
                               )}

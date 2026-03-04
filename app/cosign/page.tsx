@@ -12,6 +12,7 @@ import {
   ClinicRole,
 } from '@/lib/types';
 import { format, parseISO } from 'date-fns';
+import { formatLocalDate } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -377,7 +378,7 @@ export default function CosignPage() {
                             </Badge>
                             {sig.document?.date_of_service && (
                               <span className="text-xs text-slate-500">
-                                DOS: {format(parseISO(sig.document.date_of_service), 'MM/dd/yyyy')}
+                                DOS: {formatLocalDate(sig.document.date_of_service, 'MM/dd/yyyy')}
                               </span>
                             )}
                           </div>
@@ -406,7 +407,7 @@ export default function CosignPage() {
                       {sig.status === 'signed' && sig.signed_at && (
                         <div className="ml-8 mt-1">
                           <span className="text-xs text-slate-400">
-                            Signed {format(parseISO(sig.signed_at), 'MM/dd/yyyy h:mm a')}
+                            Signed {formatLocalDate(sig.signed_at, 'MM/dd/yyyy h:mm a')}
                           </span>
                         </div>
                       )}
@@ -459,7 +460,7 @@ export default function CosignPage() {
                 {selectedSignature?.document?.date_of_service && (
                   <span>
                     {' - '}
-                    DOS: {format(parseISO(selectedSignature.document.date_of_service), 'MM/dd/yyyy')}
+                    DOS: {formatLocalDate(selectedSignature.document.date_of_service, 'MM/dd/yyyy')}
                   </span>
                 )}
               </DialogDescription>
@@ -522,7 +523,7 @@ export default function CosignPage() {
                     <div className="flex items-center gap-2 text-emerald-700">
                       <CheckCircle2 className="h-5 w-5" />
                       <span className="font-medium">
-                        Signed on {format(parseISO(selectedSignature.signed_at), 'MM/dd/yyyy h:mm a')}
+                        Signed on {formatLocalDate(selectedSignature.signed_at, 'MM/dd/yyyy h:mm a')}
                       </span>
                     </div>
                   </div>
@@ -535,7 +536,7 @@ export default function CosignPage() {
                       <span className="font-medium">
                         Rejected
                         {selectedSignature.rejected_at &&
-                          ` on ${format(parseISO(selectedSignature.rejected_at), 'MM/dd/yyyy h:mm a')}`}
+                          ` on ${formatLocalDate(selectedSignature.rejected_at, 'MM/dd/yyyy h:mm a')}`}
                       </span>
                     </div>
                     {selectedSignature.rejection_reason && (

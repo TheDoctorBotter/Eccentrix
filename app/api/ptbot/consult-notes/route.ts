@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { NoteInputData } from '@/lib/types';
+import { formatLocalDate } from '@/lib/utils';
 
 interface PTBotNotePayload {
   external_id: string;
@@ -85,9 +86,7 @@ function buildOutputText(
   lines.push('=== TELEHEALTH CONSULTATION NOTE ===');
   lines.push('Source: PTBot Telehealth');
   if (session?.date) {
-    lines.push(`Date of Service: ${new Date(session.date).toLocaleDateString('en-US', {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-    })}`);
+    lines.push(`Date of Service: ${formatLocalDate(session.date, 'EEEE, MMMM d, yyyy')}`);
   }
   if (session?.duration_minutes) {
     lines.push(`Session Duration: ${session.duration_minutes} minutes`);

@@ -17,6 +17,7 @@ import {
   setHours,
   setMinutes,
 } from 'date-fns';
+import { formatLocalDate, toLocalDate } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -142,7 +143,7 @@ interface TherapistOption {
 }
 
 function timeToMinutesSinceMidnight(dateStr: string): number {
-  const d = parseISO(dateStr);
+  const d = toLocalDate(dateStr);
   return d.getHours() * 60 + d.getMinutes();
 }
 
@@ -152,7 +153,7 @@ function minutesToTop(minutes: number): number {
 }
 
 function formatTime12h(dateStr: string): string {
-  return format(parseISO(dateStr), 'h:mm a');
+  return formatLocalDate(dateStr, 'h:mm a');
 }
 
 interface AppointmentFormData {
@@ -381,7 +382,7 @@ export default function SchedulePage() {
 
   const visitsForDay = useCallback(
     (day: Date) =>
-      filteredVisits.filter((v: Visit) => isSameDay(parseISO(v.start_time), day)),
+      filteredVisits.filter((v: Visit) => isSameDay(toLocalDate(v.start_time), day)),
     [filteredVisits]
   );
 
@@ -1039,7 +1040,7 @@ export default function SchedulePage() {
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-slate-500" />
                 <span className="text-sm">
-                  {format(parseISO(selectedVisit.start_time), 'EEEE, MMM d, yyyy')}
+                  {formatLocalDate(selectedVisit.start_time, 'EEEE, MMM d, yyyy')}
                   {' -- '}
                   {formatTime12h(selectedVisit.start_time)} -{' '}
                   {formatTime12h(selectedVisit.end_time)}

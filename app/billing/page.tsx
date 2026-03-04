@@ -22,6 +22,7 @@ import {
   ELIGIBILITY_STATUS_COLORS,
 } from '@/lib/types';
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { formatLocalDate, localNow } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -130,7 +131,7 @@ export default function BillingPage() {
     modifier_1: '',
     modifier_2: '',
     diagnosis_pointer: '',
-    date_of_service: format(new Date(), 'yyyy-MM-dd'),
+    date_of_service: formatLocalDate(new Date(), 'yyyy-MM-dd'),
     charge_amount: '',
   });
   const [cptSearch, setCptSearch] = useState('');
@@ -143,7 +144,7 @@ export default function BillingPage() {
     insurance_name: '',
     insurance_phone: '',
     authorized_visits: '',
-    start_date: format(new Date(), 'yyyy-MM-dd'),
+    start_date: formatLocalDate(new Date(), 'yyyy-MM-dd'),
     end_date: '',
     status: 'pending' as AuthorizationStatus,
     notes: '',
@@ -156,7 +157,7 @@ export default function BillingPage() {
     payment_type: 'copay' as PaymentType,
     payment_method: 'credit_card' as PaymentMethod,
     reference_number: '',
-    date_received: format(new Date(), 'yyyy-MM-dd'),
+    date_received: formatLocalDate(new Date(), 'yyyy-MM-dd'),
     notes: '',
   });
 
@@ -181,7 +182,7 @@ export default function BillingPage() {
   const [eligibilityForm, setEligibilityForm] = useState({
     patient_id: '',
     medicaid_id: '',
-    date_of_service: format(new Date(), 'yyyy-MM-dd'),
+    date_of_service: formatLocalDate(new Date(), 'yyyy-MM-dd'),
   });
 
   // Batch selection
@@ -195,7 +196,7 @@ export default function BillingPage() {
     setLoading(true);
 
     try {
-      const today = format(new Date(), 'yyyy-MM-dd');
+      const today = formatLocalDate(new Date(), 'yyyy-MM-dd');
       const monthStart = format(startOfMonth(new Date()), 'yyyy-MM-dd');
       const monthEnd = format(endOfMonth(new Date()), 'yyyy-MM-dd');
 
@@ -697,7 +698,7 @@ export default function BillingPage() {
     setEligibilityForm({
       patient_id: '',
       medicaid_id: '',
-      date_of_service: format(new Date(), 'yyyy-MM-dd'),
+      date_of_service: formatLocalDate(new Date(), 'yyyy-MM-dd'),
     });
   };
 
@@ -715,7 +716,7 @@ export default function BillingPage() {
       modifier_1: '',
       modifier_2: '',
       diagnosis_pointer: '',
-      date_of_service: format(new Date(), 'yyyy-MM-dd'),
+      date_of_service: formatLocalDate(new Date(), 'yyyy-MM-dd'),
       charge_amount: '',
     });
     setCptSearch('');
@@ -729,7 +730,7 @@ export default function BillingPage() {
       insurance_name: '',
       insurance_phone: '',
       authorized_visits: '',
-      start_date: format(new Date(), 'yyyy-MM-dd'),
+      start_date: formatLocalDate(new Date(), 'yyyy-MM-dd'),
       end_date: '',
       status: 'pending',
       notes: '',
@@ -743,7 +744,7 @@ export default function BillingPage() {
       payment_type: 'copay',
       payment_method: 'credit_card',
       reference_number: '',
-      date_received: format(new Date(), 'yyyy-MM-dd'),
+      date_received: formatLocalDate(new Date(), 'yyyy-MM-dd'),
       notes: '',
     });
   };
@@ -1259,7 +1260,7 @@ export default function BillingPage() {
                               )}
                             </TableCell>
                             <TableCell className="text-sm">
-                              {format(parseISO(charge.date_of_service), 'MM/dd/yyyy')}
+                              {formatLocalDate(charge.date_of_service, 'MM/dd/yyyy')}
                             </TableCell>
                             <TableCell className="text-sm font-medium">
                               {getPatientName(charge.patient_id)}
@@ -1460,7 +1461,7 @@ export default function BillingPage() {
                                       {charge.units} unit(s)
                                     </span>
                                     <span className="text-sm text-slate-600">
-                                      {format(parseISO(charge.date_of_service), 'MM/dd/yy')}
+                                      {formatLocalDate(charge.date_of_service, 'MM/dd/yy')}
                                     </span>
                                     <span className="text-sm font-medium">
                                       {charge.charge_amount ? `$${charge.charge_amount.toFixed(2)}` : '-'}
@@ -1566,7 +1567,7 @@ export default function BillingPage() {
                               </Badge>
                             </TableCell>
                             <TableCell className="text-sm text-slate-500">
-                              {format(parseISO(claim.created_at), 'MM/dd/yy')}
+                              {formatLocalDate(claim.created_at, 'MM/dd/yy')}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-1">
@@ -1772,7 +1773,7 @@ export default function BillingPage() {
                         {eligibilityChecks.map((check) => (
                           <TableRow key={check.id}>
                             <TableCell className="text-sm text-slate-500">
-                              {format(parseISO(check.created_at), 'MM/dd/yy HH:mm')}
+                              {formatLocalDate(check.created_at, 'MM/dd/yy h:mm a')}
                             </TableCell>
                             <TableCell className="text-sm font-medium">
                               {check.patient_last_name
@@ -1784,7 +1785,7 @@ export default function BillingPage() {
                             </TableCell>
                             <TableCell className="text-sm">
                               {check.check_date
-                                ? format(parseISO(check.check_date), 'MM/dd/yyyy')
+                                ? formatLocalDate(check.check_date, 'MM/dd/yyyy')
                                 : '-'}
                             </TableCell>
                             <TableCell>
@@ -2098,8 +2099,8 @@ export default function BillingPage() {
                               {auth.remaining_visits ?? '-'}
                             </TableCell>
                             <TableCell className="text-sm">
-                              {format(parseISO(auth.start_date), 'MM/dd/yy')} -{' '}
-                              {format(parseISO(auth.end_date), 'MM/dd/yy')}
+                              {formatLocalDate(auth.start_date, 'MM/dd/yy')} -{' '}
+                              {formatLocalDate(auth.end_date, 'MM/dd/yy')}
                             </TableCell>
                             <TableCell>{getAuthStatusBadge(auth.status)}</TableCell>
                           </TableRow>
@@ -2329,7 +2330,7 @@ export default function BillingPage() {
                         {payments.map((payment) => (
                           <TableRow key={payment.id}>
                             <TableCell className="text-sm">
-                              {format(parseISO(payment.date_received), 'MM/dd/yyyy')}
+                              {formatLocalDate(payment.date_received, 'MM/dd/yyyy')}
                             </TableCell>
                             <TableCell className="text-sm font-medium">
                               {getPatientName(payment.patient_id)}

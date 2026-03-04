@@ -41,6 +41,7 @@ import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
 import { toast } from 'sonner';
 import { format, subDays } from 'date-fns';
+import { formatLocalDate } from '@/lib/utils';
 
 const CHART_COLORS = [
   '#3b82f6',

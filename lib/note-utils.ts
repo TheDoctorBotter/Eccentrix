@@ -1,5 +1,6 @@
 import { NoteType, NOTE_TYPE_LABELS } from './types';
 import { format } from 'date-fns';
+import { formatLocalDate } from './utils';
 
 export const NOTE_TYPE_SHORT_LABELS: Record<NoteType, string> = {
   daily_soap: 'DAILY NOTE',
@@ -58,14 +59,14 @@ export function formatNoteTitle(
   if (dateOfService) {
     try {
       const date = new Date(dateOfService);
-      datePart = format(date, 'yyyy-MM-dd');
+      datePart = formatLocalDate(date, 'yyyy-MM-dd');
     } catch {
       datePart = dateOfService;
     }
   } else if (createdAt) {
     try {
       const date = new Date(createdAt);
-      datePart = format(date, 'yyyy-MM-dd');
+      datePart = formatLocalDate(date, 'yyyy-MM-dd');
     } catch {
       datePart = '';
     }
@@ -156,14 +157,14 @@ export function formatSafePDFFilename(
   if (dateOfService) {
     try {
       const date = new Date(dateOfService);
-      datePart = format(date, 'yyyy-MM-dd');
+      datePart = formatLocalDate(date, 'yyyy-MM-dd');
     } catch {
       datePart = dateOfService.replace(/[^0-9-]/g, '');
     }
   } else if (createdAt) {
     try {
       const date = new Date(createdAt);
-      datePart = format(date, 'yyyy-MM-dd');
+      datePart = formatLocalDate(date, 'yyyy-MM-dd');
     } catch {
       datePart = '';
     }
