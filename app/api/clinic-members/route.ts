@@ -36,20 +36,20 @@ export async function GET(request: NextRequest) {
 
     // Fetch provider profiles for display names
     const userIds = (members || []).map((m: Record<string, unknown>) => m.user_id as string);
-    let providerMap = new Map<string, { first_name: string; last_name: string; credentials: string | null }>();
+    let providerMap = new Map<string, { first_name: string; last_name: string; credentials: string | null; primary_discipline: string | null }>();
 
     if (userIds.length > 0) {
       const { data: providers } = await client
         .from('provider_profiles')
-        .select('user_id, first_name, last_name, credentials')
+        .select('user_id, first_name, last_name, credentials, primary_discipline')
         .in('user_id', userIds)
         .eq('is_active', true);
 
       if (providers) {
         providerMap = new Map(
-          providers.map((p: { user_id: string; first_name: string; last_name: string; credentials: string | null }) => [
+          providers.map((p: { user_id: string; first_name: string; last_name: string; credentials: string | null; primary_discipline: string | null }) => [
             p.user_id,
-            { first_name: p.first_name, last_name: p.last_name, credentials: p.credentials },
+            { first_name: p.first_name, last_name: p.last_name, credentials: p.credentials, primary_discipline: p.primary_discipline },
           ])
         );
       }
@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
         display_name: displayName,
         first_name: provider?.first_name || null,
         last_name: provider?.last_name || null,
+        primary_discipline: provider?.primary_discipline || 'PT',
         role: m.role,
         is_active: m.is_active,
         clinic_name: m.clinic_name,

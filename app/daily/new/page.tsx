@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, Loader2, UserCheck, Calendar } from 'lucide-react';
-import { NoteInputData, Template, Intervention, Episode, Visit } from '@/lib/types';
+import { NoteInputData, Template, Intervention, Episode, Visit, resolveDiscipline } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { ensureSoapHeaders } from '@/lib/note-utils';
 import DateOfServiceForm from '@/components/note-wizard/DateOfServiceForm';
@@ -371,6 +371,7 @@ function DailySoapNoteContent() {
           inputData,
           template: template.content,
           styleSettings: template.style_settings,
+          discipline: resolveDiscipline(visitData?.discipline),
         }),
       });
 
@@ -594,11 +595,13 @@ function DailySoapNoteContent() {
 
           <AssessmentForm
             data={inputData.assessment}
+            discipline={resolveDiscipline(visitData?.discipline)}
             onChange={(data) => updateInputData('assessment', data)}
           />
 
           <PlanForm
             data={inputData.plan}
+            discipline={resolveDiscipline(visitData?.discipline)}
             onChange={(data) => updateInputData('plan', data)}
           />
 

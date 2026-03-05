@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { NEXT_SESSION_FOCUS_OPTIONS } from '@/lib/types';
+import { getNextSessionFocusOptions } from '@/lib/types';
 
 interface PlanFormProps {
   data?: {
@@ -12,11 +12,13 @@ interface PlanFormProps {
     hep?: string;
     education_provided?: string;
   };
+  discipline?: string;
   onChange: (data: any) => void;
 }
 
 export default function PlanForm({
   data = {},
+  discipline = 'PT',
   onChange,
 }: PlanFormProps) {
   const handleChange = (field: string, value: any) => {
@@ -58,7 +60,7 @@ export default function PlanForm({
         <div className="space-y-3">
           <Label>Next Session Focus</Label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {NEXT_SESSION_FOCUS_OPTIONS.map((focus) => (
+            {getNextSessionFocusOptions(discipline).map((focus) => (
               <div
                 key={focus}
                 className={`flex items-center gap-2 p-2 rounded-md border cursor-pointer transition-colors ${
@@ -85,10 +87,10 @@ export default function PlanForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="hep">Home Exercise Program (HEP)</Label>
+          <Label htmlFor="hep">{discipline === 'ST' ? 'Home Practice Tasks' : discipline === 'OT' ? 'Home Activity Program' : 'Home Exercise Program (HEP)'}</Label>
           <Textarea
             id="hep"
-            placeholder="List exercises, frequency, and any modifications. e.g., Quad sets 3x10 2x/day, heel slides 3x10 2x/day, standing hip abduction 2x10 1x/day"
+            placeholder={discipline === 'ST' ? 'List home practice tasks, frequency, and any modifications' : discipline === 'OT' ? 'List home activities, frequency, and any modifications' : 'List exercises, frequency, and any modifications. e.g., Quad sets 3x10 2x/day, heel slides 3x10 2x/day, standing hip abduction 2x10 1x/day'}
             value={data.hep || ''}
             onChange={(e) => handleChange('hep', e.target.value)}
             rows={4}

@@ -28,7 +28,7 @@ export async function POST(
     // Try the visits table first
     const { data: visit } = await supabaseAdmin
       .from('visits')
-      .select('id, patient_id, status')
+      .select('id, patient_id, status, discipline')
       .eq('id', id)
       .single();
 
@@ -52,7 +52,7 @@ export async function POST(
         .from('visits')
         .update({ status: 'confirmed', source: 'ptbot', updated_at: new Date().toISOString() })
         .eq('id', id)
-        .select('id, status, start_time, visit_type')
+        .select('id, status, start_time, visit_type, discipline')
         .single();
 
       if (error) {
@@ -62,14 +62,17 @@ export async function POST(
       return NextResponse.json({
         success: true,
         source: 'visit',
-        appointment: updated,
+        appointment: {
+          ...updated,
+          discipline: (updated.discipline as string) || 'PT',
+        },
       });
     }
 
     // Try the SMS appointments table
     const { data: smsAppt } = await supabaseAdmin
       .from('appointments')
-      .select('id, patient_id, status')
+      .select('id, patient_id, status, discipline')
       .eq('id', id)
       .single();
 
@@ -92,7 +95,7 @@ export async function POST(
         .from('appointments')
         .update({ status: 'confirmed', updated_at: new Date().toISOString() })
         .eq('id', id)
-        .select('id, status, scheduled_at, visit_type')
+        .select('id, status, scheduled_at, visit_type, discipline')
         .single();
 
       if (error) {
@@ -102,7 +105,10 @@ export async function POST(
       return NextResponse.json({
         success: true,
         source: 'sms',
-        appointment: updated,
+        appointment: {
+          ...updated,
+          discipline: (updated.discipline as string) || 'PT',
+        },
       });
     }
 

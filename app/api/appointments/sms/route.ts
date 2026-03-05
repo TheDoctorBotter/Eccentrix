@@ -140,6 +140,7 @@ export async function GET(request: NextRequest) {
         recurrence_rule: null,
         recurrence_group_id: null,
         visit_type: visitType === 'eval' ? 'evaluation' : (visitType || 'treatment'),
+        discipline: (appt.discipline as string) || 'PT',
         total_treatment_minutes: null,
         total_units: null,
         created_at: appt.created_at as string,

@@ -77,14 +77,42 @@ const INTERVENTION_NAME_TO_CPT: Record<string, string> = {
   'orthotic training': '97760',
 };
 
-// Map visit types to evaluation CPT codes
-const VISIT_TYPE_TO_EVAL_CPT: Record<string, string> = {
-  evaluation: '97163',        // Default to moderate complexity
-  eval_low: '97161',
-  eval_moderate: '97162',
-  eval_high: '97163',
-  re_evaluation: '97164',
-  're-evaluation': '97164',
+// Map visit types to evaluation CPT codes by discipline
+const EVAL_CPT_BY_DISCIPLINE: Record<string, Record<string, string>> = {
+  PT: {
+    evaluation: '97163',
+    eval_low: '97161',
+    eval_moderate: '97162',
+    eval_high: '97163',
+    re_evaluation: '97164',
+    're-evaluation': '97164',
+  },
+  OT: {
+    evaluation: '97167',
+    eval_low: '97165',
+    eval_moderate: '97166',
+    eval_high: '97167',
+    re_evaluation: '97168',
+    're-evaluation': '97168',
+  },
+  ST: {
+    evaluation: '92523',
+    eval_fluency: '92521',
+    eval_sound: '92522',
+    eval_sound_lang: '92523',
+    eval_voice: '92524',
+    eval_swallow: '92610',
+    eval_aac: '92605',
+    re_evaluation: '92523',
+    're-evaluation': '92523',
+  },
+};
+
+// Discipline-to-modifier mapping
+const DISCIPLINE_MODIFIER: Record<string, string> = {
+  PT: 'GP',
+  OT: 'GO',
+  ST: 'GN',
 };
 
 interface InterventionInput {
@@ -136,19 +164,25 @@ export async function POST(request: NextRequest) {
       total_minutes,
       start_time,
       end_time,
+      discipline: rawDiscipline,
     } = body as {
       visit_type?: string;
       interventions?: InterventionInput[];
       total_minutes?: number;
       start_time?: string;
       end_time?: string;
+      discipline?: string;
     };
 
-    // Fetch all active CPT codes from DB
+    const discipline = rawDiscipline === 'OT' ? 'OT' : rawDiscipline === 'ST' ? 'ST' : 'PT';
+    const modifier = DISCIPLINE_MODIFIER[discipline] || 'GP';
+
+    // Fetch active CPT codes filtered by discipline
     const { data: cptCodes, error: cptError } = await client
       .from('cpt_codes')
       .select('*')
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .eq('discipline', discipline);
 
     if (cptError) {
       return NextResponse.json({ error: cptError.message }, { status: 500 });
@@ -181,7 +215,8 @@ export async function POST(request: NextRequest) {
 
     // 1. Add evaluation code if visit type is evaluation/re-evaluation
     if (visit_type && (visit_type.includes('eval') || visit_type === 're_evaluation' || visit_type === 're-evaluation')) {
-      const evalCpt = VISIT_TYPE_TO_EVAL_CPT[visit_type] || VISIT_TYPE_TO_EVAL_CPT['evaluation'];
+      const evalMap = EVAL_CPT_BY_DISCIPLINE[discipline] || EVAL_CPT_BY_DISCIPLINE['PT'];
+      const evalCpt = evalMap[visit_type] || evalMap['evaluation'];
       const cptRecord = cptMap.get(evalCpt) as { id: string; code: string; description: string; is_timed: boolean; category: string } | undefined;
 
       if (cptRecord) {
@@ -191,9 +226,9 @@ export async function POST(request: NextRequest) {
           description: cptRecord.description,
           units: 1,
           minutes: 0,
-          modifier_1: 'GP', // Physical therapy modifier
+          modifier_1: modifier,
           modifier_2: null,
-          charge_amount: 0, // Fee schedule lookup TBD
+          charge_amount: 0,
           is_timed: false,
           category: cptRecord.category || 'Evaluation',
         });
@@ -236,7 +271,7 @@ export async function POST(request: NextRequest) {
           description: cptRecord.description,
           units,
           minutes: group.minutes,
-          modifier_1: 'GP',
+          modifier_1: modifier,
           modifier_2: null,
           charge_amount: 0,
           is_timed: isTimed,
@@ -256,7 +291,7 @@ export async function POST(request: NextRequest) {
           description: defaultCpt.description,
           units: calculateBillingUnits(sessionMinutes),
           minutes: sessionMinutes,
-          modifier_1: 'GP',
+          modifier_1: modifier,
           modifier_2: null,
           charge_amount: 0,
           is_timed: true,

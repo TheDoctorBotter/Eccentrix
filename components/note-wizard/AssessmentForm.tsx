@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   ProgressionStatus,
   PROGRESSION_OPTIONS,
-  IMPAIRMENT_OPTIONS,
+  getImpairmentOptions,
 } from '@/lib/types';
 
 interface AssessmentFormProps {
@@ -15,11 +15,13 @@ interface AssessmentFormProps {
     skilled_need?: string;
     response_to_treatment?: string;
   };
+  discipline?: string;
   onChange: (data: any) => void;
 }
 
 export default function AssessmentForm({
   data = {},
+  discipline = 'PT',
   onChange,
 }: AssessmentFormProps) {
   const handleChange = (field: string, value: any) => {
@@ -97,7 +99,7 @@ export default function AssessmentForm({
             Select impairments to generate a skilled need statement for billing justification.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {IMPAIRMENT_OPTIONS.map((impairment) => (
+            {getImpairmentOptions(discipline).map((impairment) => (
               <div
                 key={impairment}
                 className={`flex items-center gap-2 p-2 rounded-md border cursor-pointer transition-colors ${

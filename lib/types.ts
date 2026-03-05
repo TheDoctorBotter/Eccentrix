@@ -8,8 +8,34 @@ export const NOTE_TYPE_LABELS: Record<NoteType, string> = {
 };
 
 // ============================================================================
-// Clinical Finalization Types
+// Discipline Types
 // ============================================================================
+
+export type Discipline = 'PT' | 'OT' | 'ST';
+
+export const DISCIPLINE_LABELS: Record<Discipline, string> = {
+  PT: 'Physical Therapy',
+  OT: 'Occupational Therapy',
+  ST: 'Speech Therapy',
+};
+
+export const DISCIPLINE_SHORT_LABELS: Record<Discipline, string> = {
+  PT: 'PT',
+  OT: 'OT',
+  ST: 'ST',
+};
+
+export const DISCIPLINE_COLORS: Record<Discipline, { bg: string; border: string; text: string; badge: string }> = {
+  PT: { bg: 'bg-blue-50', border: 'border-blue-400', text: 'text-blue-800', badge: 'bg-blue-100 text-blue-700 border-blue-200' },
+  OT: { bg: 'bg-amber-50', border: 'border-amber-400', text: 'text-amber-800', badge: 'bg-amber-100 text-amber-700 border-amber-200' },
+  ST: { bg: 'bg-rose-50', border: 'border-rose-400', text: 'text-rose-800', badge: 'bg-rose-100 text-rose-700 border-rose-200' },
+};
+
+/** Resolve a possibly-null discipline to a concrete Discipline value (default PT). */
+export function resolveDiscipline(d: string | null | undefined): Discipline {
+  if (d === 'OT' || d === 'ST') return d;
+  return 'PT';
+}
 
 // Clinical document types for finalization rules
 export type ClinicalDocType =
@@ -41,11 +67,15 @@ export const PT_ONLY_FINALIZATION_TYPES: ClinicalDocType[] = [
 export type DocumentStatus = 'draft' | 'final';
 
 // Clinic roles
-export type ClinicRole = 'pt' | 'pta' | 'admin' | 'front_office';
+export type ClinicRole = 'pt' | 'pta' | 'ot' | 'ota' | 'slp' | 'slpa' | 'admin' | 'front_office';
 
 export const CLINIC_ROLE_LABELS: Record<ClinicRole, string> = {
   pt: 'Physical Therapist',
   pta: 'Physical Therapist Assistant',
+  ot: 'Occupational Therapist',
+  ota: 'Occupational Therapy Assistant',
+  slp: 'Speech-Language Pathologist',
+  slpa: 'Speech-Language Pathology Assistant',
   admin: 'Administrator',
   front_office: 'Front Office',
 };
@@ -178,6 +208,50 @@ export const IMPAIRMENT_OPTIONS = [
   'Increased pain',
 ] as const;
 
+export const OT_IMPAIRMENT_OPTIONS = [
+  'Impaired fine motor coordination',
+  'Impaired grasp/pinch strength',
+  'Impaired visual motor integration',
+  'Impaired sensory processing',
+  'Decreased ADL independence',
+  'Impaired handwriting legibility',
+  'Decreased bilateral coordination',
+  'Impaired self-care skills',
+  'Decreased play skills',
+  'Impaired upper extremity function',
+  'Decreased attention/focus',
+  'Impaired body awareness/proprioception',
+  'Delayed developmental milestones',
+  'Impaired tool use',
+  'Decreased frustration tolerance',
+  'Impaired feeding skills',
+] as const;
+
+export const ST_IMPAIRMENT_OPTIONS = [
+  'Impaired articulation/phonology',
+  'Decreased expressive language',
+  'Decreased receptive language',
+  'Impaired fluency',
+  'Impaired voice quality',
+  'Impaired pragmatic/social communication',
+  'Decreased oral motor function',
+  'Impaired swallowing function',
+  'Decreased intelligibility',
+  'Impaired AAC device use',
+  'Delayed language milestones',
+  'Impaired phonological awareness',
+  'Decreased vocabulary',
+  'Impaired narrative skills',
+  'Impaired auditory processing',
+  'Decreased functional communication',
+] as const;
+
+export function getImpairmentOptions(discipline: string): readonly string[] {
+  if (discipline === 'OT') return OT_IMPAIRMENT_OPTIONS;
+  if (discipline === 'ST') return ST_IMPAIRMENT_OPTIONS;
+  return IMPAIRMENT_OPTIONS;
+}
+
 export const NEXT_SESSION_FOCUS_OPTIONS = [
   'Progressing functional transitions',
   'Progressing weight bearing',
@@ -191,6 +265,40 @@ export const NEXT_SESSION_FOCUS_OPTIONS = [
   'Progressing gross motor skills',
   'Progressing home exercise program',
 ] as const;
+
+export const OT_NEXT_SESSION_FOCUS_OPTIONS = [
+  'Improving fine motor skills',
+  'Improving visual motor integration',
+  'Progressing ADL independence',
+  'Improving handwriting',
+  'Improving sensory regulation',
+  'Progressing self-care skills',
+  'Improving bilateral coordination',
+  'Improving play skills',
+  'Progressing feeding skills',
+  'Improving upper extremity function',
+  'Progressing home activity program',
+] as const;
+
+export const ST_NEXT_SESSION_FOCUS_OPTIONS = [
+  'Improving articulation accuracy',
+  'Improving expressive language',
+  'Improving receptive language',
+  'Improving fluency',
+  'Improving voice quality',
+  'Improving social communication',
+  'Progressing AAC device use',
+  'Improving swallowing safety',
+  'Improving intelligibility',
+  'Improving phonological awareness',
+  'Progressing home practice tasks',
+] as const;
+
+export function getNextSessionFocusOptions(discipline: string): readonly string[] {
+  if (discipline === 'OT') return OT_NEXT_SESSION_FOCUS_OPTIONS;
+  if (discipline === 'ST') return ST_NEXT_SESSION_FOCUS_OPTIONS;
+  return NEXT_SESSION_FOCUS_OPTIONS;
+}
 
 export interface InterventionDetail {
   id: string;
@@ -472,6 +580,7 @@ export interface Visit {
   recurrence_rule?: string | null;
   recurrence_group_id?: string | null;
   visit_type?: string | null;
+  discipline?: string | null;
   total_treatment_minutes?: number | null;
   total_units?: number | null;
   created_at: string;
@@ -635,9 +744,12 @@ export interface CptCode {
   code: string;
   description: string;
   category?: string | null;
+  discipline: string;
   is_timed: boolean;
+  is_evaluation: boolean;
   default_units: number;
   unit_minutes?: number | null;
+  minutes_per_unit?: number | null;
   is_active: boolean;
   created_at: string;
 }
@@ -882,6 +994,8 @@ export interface ProviderProfile {
   license_state?: string | null;
   license_expiry?: string | null;
   specialty?: string | null;
+  primary_discipline?: string | null;
+  disciplines?: string[] | null;
   email?: string | null;
   phone?: string | null;
   default_appointment_duration: number;
