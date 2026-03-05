@@ -59,6 +59,7 @@ import {
   Undo2,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
+import { VisitAuthSummary } from '@/components/schedule/VisitAuthSummary';
 import { useAuth } from '@/lib/auth-context';
 import {
   Visit,
@@ -1400,6 +1401,15 @@ export default function SchedulePage() {
                   <span className="capitalize text-slate-600">{selectedVisit.visit_type.replace('_', ' ')}</span>
                 )}
               </div>
+
+              {/* Auth summary (read-only) */}
+              {selectedVisit.patient_id && currentClinic?.clinic_id && (
+                <VisitAuthSummary
+                  patientId={selectedVisit.patient_id}
+                  clinicId={currentClinic.clinic_id}
+                  discipline={selectedVisit.discipline}
+                />
+              )}
 
               {/* Recurrence info */}
               {selectedVisit.recurrence_group_id && (

@@ -126,7 +126,23 @@ export async function GET(
       })),
     ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    return NextResponse.json({ appointments });
+    // Optional: active authorization summary (non-breaking)
+    const { data: authData } = await supabaseAdmin
+      .from('prior_authorizations')
+      .select('discipline, auth_type, authorized_visits, used_visits, remaining_visits, units_authorized, units_used, end_date, status')
+      .eq('patient_id', patientId)
+      .eq('status', 'approved');
+
+    const authSummary = (authData || []).map(a => ({
+      discipline: a.discipline,
+      auth_type: a.auth_type,
+      remaining: a.auth_type === 'units'
+        ? (a.units_authorized ?? 0) - (a.units_used ?? 0)
+        : a.remaining_visits ?? ((a.authorized_visits ?? 0) - a.used_visits),
+      end_date: a.end_date,
+    }));
+
+    return NextResponse.json({ appointments, auth_summary: authSummary });
   } catch (error) {
     console.error('Error in GET /api/ptbot/patient-appointments/[patientId]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

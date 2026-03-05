@@ -21,10 +21,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowLeft, UserPlus, Loader2 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
 import { ICD10CodeInput, type ICD10Code } from '@/components/ICD10CodeInput';
+
+interface DisciplineFreq {
+  enabled: boolean;
+  frequency: string;
+}
 
 export default function AddPatientPage() {
   const router = useRouter();
@@ -56,6 +62,27 @@ export default function AddPatientPage() {
   // ICD-10 codes state
   const [primaryDiagnosisCodes, setPrimaryDiagnosisCodes] = useState<ICD10Code[]>([]);
   const [treatmentDiagnosisCodes, setTreatmentDiagnosisCodes] = useState<ICD10Code[]>([]);
+
+  // Per-discipline frequency
+  const [disciplineFreqs, setDisciplineFreqs] = useState<Record<string, DisciplineFreq>>({
+    PT: { enabled: false, frequency: '' },
+    OT: { enabled: false, frequency: '' },
+    ST: { enabled: false, frequency: '' },
+  });
+
+  const toggleDiscipline = (disc: string) => {
+    setDisciplineFreqs((prev) => ({
+      ...prev,
+      [disc]: { ...prev[disc], enabled: !prev[disc].enabled },
+    }));
+  };
+
+  const setDisciplineFrequency = (disc: string, freq: string) => {
+    setDisciplineFreqs((prev) => ({
+      ...prev,
+      [disc]: { ...prev[disc], frequency: freq },
+    }));
+  };
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -135,6 +162,28 @@ export default function AddPatientPage() {
       }
 
       const episode = await episodeRes.json();
+
+      // 3. Create per-discipline episode-of-care records
+      const enabledDisciplines = Object.entries(disciplineFreqs).filter(
+        ([, v]) => v.enabled
+      );
+      if (enabledDisciplines.length > 0) {
+        await Promise.all(
+          enabledDisciplines.map(([disc, v]) =>
+            fetch('/api/episode-of-care', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                patient_id: patient.id,
+                episode_id: episode.id,
+                clinic_id: currentClinic.clinic_id,
+                discipline: disc,
+                frequency: v.frequency || null,
+              }),
+            })
+          )
+        );
+      }
 
       // Navigate to the new patient's chart
       router.push(`/charts/${episode.id}`);
@@ -392,6 +441,59 @@ export default function AddPatientPage() {
                         <SelectItem value="PRN">PRN</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  {/* Per-discipline frequency */}
+                  <div className="space-y-3">
+                    <Label>Disciplines & Frequency</Label>
+                    <p className="text-xs text-slate-500">
+                      Select which disciplines this patient receives and set per-discipline frequency.
+                    </p>
+                    {(['PT', 'OT', 'ST'] as const).map((disc) => {
+                      const colors: Record<string, string> = {
+                        PT: 'text-blue-700',
+                        OT: 'text-green-700',
+                        ST: 'text-purple-700',
+                      };
+                      const labels: Record<string, string> = {
+                        PT: 'Physical Therapy',
+                        OT: 'Occupational Therapy',
+                        ST: 'Speech Therapy',
+                      };
+                      return (
+                        <div key={disc} className="flex items-center gap-3">
+                          <Checkbox
+                            id={`disc-${disc}`}
+                            checked={disciplineFreqs[disc].enabled}
+                            onCheckedChange={() => toggleDiscipline(disc)}
+                          />
+                          <label
+                            htmlFor={`disc-${disc}`}
+                            className={`text-sm font-medium cursor-pointer ${colors[disc]}`}
+                          >
+                            {labels[disc]}
+                          </label>
+                          {disciplineFreqs[disc].enabled && (
+                            <Select
+                              value={disciplineFreqs[disc].frequency}
+                              onValueChange={(v) => setDisciplineFrequency(disc, v)}
+                            >
+                              <SelectTrigger className="w-[140px] h-8 text-xs">
+                                <SelectValue placeholder="Frequency" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1x/week">1x/week</SelectItem>
+                                <SelectItem value="2x/week">2x/week</SelectItem>
+                                <SelectItem value="3x/week">3x/week</SelectItem>
+                                <SelectItem value="4x/week">4x/week</SelectItem>
+                                <SelectItem value="5x/week">5x/week</SelectItem>
+                                <SelectItem value="PRN">PRN</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
 
                   <div className="border-t pt-4">

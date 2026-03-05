@@ -40,23 +40,63 @@ interface AssignCareTeamModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   episodeId: string;
+  patientId?: string;
   patientName: string;
   clinicId: string;
   onSaved?: () => void;
 }
 
+type Discipline = 'PT' | 'OT' | 'ST';
+
+interface DisciplineAssignment {
+  primary: string | null;
+  assistants: string[];
+}
+
+const DISCIPLINES: Discipline[] = ['PT', 'OT', 'ST'];
+
+const DISCIPLINE_STYLES: Record<Discipline, { border: string; bg: string; text: string; label: string }> = {
+  PT: { border: 'border-l-blue-500', bg: 'bg-blue-50', text: 'text-blue-700', label: 'Physical Therapy' },
+  OT: { border: 'border-l-green-500', bg: 'bg-green-50', text: 'text-green-700', label: 'Occupational Therapy' },
+  ST: { border: 'border-l-purple-500', bg: 'bg-purple-50', text: 'text-purple-700', label: 'Speech Therapy' },
+};
+
+const ROLE_TO_DISCIPLINE: Record<string, Discipline> = {
+  pt: 'PT', pta: 'PT', ot: 'OT', ota: 'OT', slp: 'ST', slpa: 'ST',
+};
+
+const PRIMARY_ROLES: Record<Discipline, string> = { PT: 'pt', OT: 'ot', ST: 'slp' };
+const ASSISTANT_ROLES: Record<Discipline, string> = { PT: 'pta', OT: 'ota', ST: 'slpa' };
+
+const roleLabels: Record<string, string> = {
+  pt: 'PT', pta: 'PTA', ot: 'OT', ota: 'OTA/COTA', slp: 'SLP', slpa: 'SLPA',
+};
+
+const roleBadgeStyles: Record<string, string> = {
+  pt: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  pta: 'bg-blue-100 text-blue-700 border-blue-200',
+  ot: 'bg-purple-100 text-purple-700 border-purple-200',
+  ota: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  slp: 'bg-amber-100 text-amber-700 border-amber-200',
+  slpa: 'bg-orange-100 text-orange-700 border-orange-200',
+};
+
 export function AssignCareTeamModal({
   open,
   onOpenChange,
   episodeId,
+  patientId,
   patientName,
   clinicId,
   onSaved,
 }: AssignCareTeamModalProps) {
   const [currentTeam, setCurrentTeam] = useState<CareTeamMember[]>([]);
   const [clinicStaff, setClinicStaff] = useState<ClinicStaff[]>([]);
-  const [selectedPt, setSelectedPt] = useState<string | null>(null);
-  const [selectedPtas, setSelectedPtas] = useState<string[]>([]);
+  const [assignments, setAssignments] = useState<Record<Discipline, DisciplineAssignment>>({
+    PT: { primary: null, assistants: [] },
+    OT: { primary: null, assistants: [] },
+    ST: { primary: null, assistants: [] },
+  });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -69,24 +109,32 @@ export function AssignCareTeamModal({
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch current care team
-      const teamRes = await fetch(`/api/care-team?episode_id=${episodeId}`);
-      const teamData = teamRes.ok ? await teamRes.json() : [];
+      const [teamRes, staffRes] = await Promise.all([
+        fetch(`/api/care-team?episode_id=${episodeId}`),
+        fetch(`/api/user/membership?clinic_id=${clinicId}`),
+      ]);
+      const teamData: CareTeamMember[] = teamRes.ok ? await teamRes.json() : [];
+      const staffData: ClinicStaff[] = staffRes.ok ? await staffRes.json() : [];
       setCurrentTeam(teamData);
-
-      // Fetch clinic staff (all memberships for this clinic)
-      const staffRes = await fetch(`/api/user/membership?clinic_id=${clinicId}`);
-      const staffData = staffRes.ok ? await staffRes.json() : [];
       setClinicStaff(staffData);
 
-      // Pre-select current assignments
-      const ptMember = teamData.find((m: CareTeamMember) => m.role === 'pt');
-      setSelectedPt(ptMember?.user_id || null);
+      // Pre-populate assignments from current team
+      const newAssignments: Record<Discipline, DisciplineAssignment> = {
+        PT: { primary: null, assistants: [] },
+        OT: { primary: null, assistants: [] },
+        ST: { primary: null, assistants: [] },
+      };
 
-      const ptaMembers = teamData
-        .filter((m: CareTeamMember) => m.role === 'pta')
-        .map((m: CareTeamMember) => m.user_id);
-      setSelectedPtas(ptaMembers);
+      for (const member of teamData) {
+        const disc = ROLE_TO_DISCIPLINE[member.role];
+        if (!disc) continue;
+        if (member.role === PRIMARY_ROLES[disc]) {
+          newAssignments[disc].primary = member.user_id;
+        } else if (member.role === ASSISTANT_ROLES[disc]) {
+          newAssignments[disc].assistants.push(member.user_id);
+        }
+      }
+      setAssignments(newAssignments);
     } catch (error) {
       console.error('Error loading care team data:', error);
     } finally {
@@ -97,48 +145,88 @@ export function AssignCareTeamModal({
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Determine what needs to be added and removed
-      const currentPt = currentTeam.find((m) => m.role === 'pt');
-      const currentPtaIds = currentTeam
-        .filter((m) => m.role === 'pta')
-        .map((m) => m.user_id);
-
-      // Handle PT changes
-      if (currentPt && currentPt.user_id !== selectedPt) {
-        // Remove old PT
-        await fetch('/api/care-team', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ episode_id: episodeId, user_id: currentPt.user_id }),
-        });
-      }
-      if (selectedPt && selectedPt !== currentPt?.user_id) {
-        // Add new PT
-        await fetch('/api/care-team', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ episode_id: episodeId, user_id: selectedPt, role: 'pt' }),
-        });
+      // Compute desired full team
+      const desired: { user_id: string; role: string }[] = [];
+      for (const disc of DISCIPLINES) {
+        const a = assignments[disc];
+        if (a.primary) desired.push({ user_id: a.primary, role: PRIMARY_ROLES[disc] });
+        for (const uid of a.assistants) {
+          desired.push({ user_id: uid, role: ASSISTANT_ROLES[disc] });
+        }
       }
 
-      // Handle PTA changes
-      const ptasToRemove = currentPtaIds.filter((id) => !selectedPtas.includes(id));
-      const ptasToAdd = selectedPtas.filter((id) => !currentPtaIds.includes(id));
+      // Compute diff against current team
+      const currentSet = new Set(currentTeam.map((m) => `${m.user_id}:${m.role}`));
+      const desiredSet = new Set(desired.map((d) => `${d.user_id}:${d.role}`));
 
-      for (const userId of ptasToRemove) {
-        await fetch('/api/care-team', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ episode_id: episodeId, user_id: userId }),
-        });
+      const toRemove = currentTeam.filter((m) => !desiredSet.has(`${m.user_id}:${m.role}`));
+      const toAdd = desired.filter((d) => !currentSet.has(`${d.user_id}:${d.role}`));
+
+      // Execute removals and additions
+      const ops: Promise<Response>[] = [];
+
+      for (const m of toRemove) {
+        ops.push(
+          fetch('/api/care-team', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ episode_id: episodeId, user_id: m.user_id }),
+          })
+        );
       }
 
-      for (const userId of ptasToAdd) {
-        await fetch('/api/care-team', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ episode_id: episodeId, user_id: userId, role: 'pta' }),
-        });
+      for (const d of toAdd) {
+        ops.push(
+          fetch('/api/care-team', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ episode_id: episodeId, user_id: d.user_id, role: d.role }),
+          })
+        );
+      }
+
+      await Promise.all(ops);
+
+      // Also write to patient_clinician_assignments if patientId is available
+      if (patientId) {
+        const assignmentOps: Promise<Response>[] = [];
+        for (const disc of DISCIPLINES) {
+          const a = assignments[disc];
+          if (a.primary) {
+            assignmentOps.push(
+              fetch('/api/clinician-assignments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  patient_id: patientId,
+                  clinic_id: clinicId,
+                  user_id: a.primary,
+                  discipline: disc,
+                  role: PRIMARY_ROLES[disc],
+                }),
+              })
+            );
+          }
+          for (const uid of a.assistants) {
+            assignmentOps.push(
+              fetch('/api/clinician-assignments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  patient_id: patientId,
+                  clinic_id: clinicId,
+                  user_id: uid,
+                  discipline: disc,
+                  role: ASSISTANT_ROLES[disc],
+                }),
+              })
+            );
+          }
+        }
+        // Fire and forget — non-critical
+        Promise.all(assignmentOps).catch((err) =>
+          console.error('Error syncing clinician assignments:', err)
+        );
       }
 
       toast.success('Care team updated');
@@ -152,46 +240,41 @@ export function AssignCareTeamModal({
     }
   };
 
-  const therapistRoles = ['pt', 'pta', 'ot', 'ota', 'slp', 'slpa'];
-  const ptStaff = clinicStaff.filter((s) => therapistRoles.includes(s.role));
-  const ptaStaff = clinicStaff.filter((s) => s.role === 'pta' || s.role === 'ota' || s.role === 'slpa');
-
-  const roleLabels: Record<string, string> = {
-    pt: 'PT',
-    pta: 'PTA',
-    ot: 'OT',
-    ota: 'OTA/COTA',
-    slp: 'SLP',
-    slpa: 'SLPA',
+  const setPrimary = (disc: Discipline, userId: string | null) => {
+    setAssignments((prev) => ({
+      ...prev,
+      [disc]: { ...prev[disc], primary: prev[disc].primary === userId ? null : userId },
+    }));
   };
 
-  const roleBadgeStyles: Record<string, string> = {
-    pt: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    pta: 'bg-blue-100 text-blue-700 border-blue-200',
-    ot: 'bg-purple-100 text-purple-700 border-purple-200',
-    ota: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-    slp: 'bg-amber-100 text-amber-700 border-amber-200',
-    slpa: 'bg-orange-100 text-orange-700 border-orange-200',
+  const toggleAssistant = (disc: Discipline, userId: string) => {
+    setAssignments((prev) => ({
+      ...prev,
+      [disc]: {
+        ...prev[disc],
+        assistants: prev[disc].assistants.includes(userId)
+          ? prev[disc].assistants.filter((id) => id !== userId)
+          : [...prev[disc].assistants, userId],
+      },
+    }));
   };
 
-  const togglePta = (userId: string) => {
-    setSelectedPtas((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
-    );
+  const getStaffForDiscipline = (disc: Discipline, type: 'primary' | 'assistant') => {
+    const targetRole = type === 'primary' ? PRIMARY_ROLES[disc] : ASSISTANT_ROLES[disc];
+    return clinicStaff.filter((s) => s.role === targetRole);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5" />
             Assign Care Team
           </DialogTitle>
           <DialogDescription>
-            Assign therapists for <span className="font-medium">{patientName}</span>
+            Assign therapists by discipline for{' '}
+            <span className="font-medium">{patientName}</span>
           </DialogDescription>
         </DialogHeader>
 
@@ -200,87 +283,110 @@ export function AssignCareTeamModal({
             <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
           </div>
         ) : (
-          <div className="space-y-6 py-2">
-            {/* Primary Therapist Selection (single-select) */}
-            <div>
-              <Label className="text-sm font-medium flex items-center gap-2 mb-3">
-                <Stethoscope className="h-4 w-4 text-emerald-600" />
-                Primary Therapist
-              </Label>
-              {ptStaff.length === 0 ? (
-                <p className="text-sm text-slate-500">No therapists in this clinic</p>
-              ) : (
-                <div className="space-y-2">
-                  {ptStaff.map((staff) => (
-                    <label
-                      key={staff.user_id}
-                      className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
-                        selectedPt === staff.user_id
-                          ? 'border-emerald-300 bg-emerald-50'
-                          : 'border-slate-200 hover:bg-slate-50'
-                      }`}
-                      onClick={() => setSelectedPt(
-                        selectedPt === staff.user_id ? null : staff.user_id
-                      )}
-                    >
-                      <span className="text-sm font-medium">
-                        {staff.display_name || staff.email}
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className={roleBadgeStyles[staff.role] || 'bg-slate-100 text-slate-700 border-slate-200'}
-                      >
-                        {roleLabels[staff.role] || staff.role.toUpperCase()}
-                      </Badge>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
+          <div className="space-y-4 py-2">
+            {DISCIPLINES.map((disc) => {
+              const style = DISCIPLINE_STYLES[disc];
+              const primaries = getStaffForDiscipline(disc, 'primary');
+              const assistants = getStaffForDiscipline(disc, 'assistant');
+              const hasStaff = primaries.length > 0 || assistants.length > 0;
+              const hasAssignment =
+                assignments[disc].primary || assignments[disc].assistants.length > 0;
 
-            {/* Assistant Selection (multi-select) */}
-            <div>
-              <Label className="text-sm font-medium flex items-center gap-2 mb-3">
-                <UserCog className="h-4 w-4 text-blue-600" />
-                Assistant(s)
-              </Label>
-              {ptaStaff.length === 0 ? (
-                <p className="text-sm text-slate-500">No assistants in this clinic</p>
-              ) : (
-                <div className="space-y-2">
-                  {ptaStaff.map((staff) => (
-                    <label
-                      key={staff.user_id}
-                      className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
-                        selectedPtas.includes(staff.user_id)
-                          ? 'border-blue-300 bg-blue-50'
-                          : 'border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Checkbox
-                          checked={selectedPtas.includes(staff.user_id)}
-                          onCheckedChange={() => togglePta(staff.user_id)}
-                        />
-                        <span className="text-sm font-medium">
-                          {staff.display_name || staff.email}
-                        </span>
+              if (!hasStaff && !hasAssignment) return null;
+
+              return (
+                <div
+                  key={disc}
+                  className={`border rounded-lg border-l-4 ${style.border} p-3 space-y-3`}
+                >
+                  <Label className={`text-sm font-semibold ${style.text}`}>
+                    {style.label}
+                  </Label>
+
+                  {/* Primary therapist */}
+                  {primaries.length > 0 && (
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1.5 flex items-center gap-1">
+                        <Stethoscope className="h-3 w-3" />
+                        Primary Therapist
+                      </p>
+                      <div className="space-y-1">
+                        {primaries.map((staff) => (
+                          <button
+                            key={staff.user_id}
+                            type="button"
+                            onClick={() => setPrimary(disc, staff.user_id)}
+                            className={`w-full flex items-center justify-between p-2 rounded border text-sm transition-colors ${
+                              assignments[disc].primary === staff.user_id
+                                ? `${style.bg} border-current`
+                                : 'border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className="font-medium">
+                              {staff.display_name || staff.email}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={roleBadgeStyles[staff.role] || ''}
+                            >
+                              {roleLabels[staff.role] || staff.role.toUpperCase()}
+                            </Badge>
+                          </button>
+                        ))}
                       </div>
-                      <Badge
-                        variant="outline"
-                        className={roleBadgeStyles[staff.role] || 'bg-slate-100 text-slate-700 border-slate-200'}
-                      >
-                        {roleLabels[staff.role] || staff.role.toUpperCase()}
-                      </Badge>
-                    </label>
-                  ))}
+                    </div>
+                  )}
+
+                  {/* Assistants */}
+                  {assistants.length > 0 && (
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1.5 flex items-center gap-1">
+                        <UserCog className="h-3 w-3" />
+                        Assistant(s)
+                      </p>
+                      <div className="space-y-1">
+                        {assistants.map((staff) => (
+                          <label
+                            key={staff.user_id}
+                            className={`flex items-center justify-between p-2 rounded border cursor-pointer text-sm transition-colors ${
+                              assignments[disc].assistants.includes(staff.user_id)
+                                ? `${style.bg} border-current`
+                                : 'border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                checked={assignments[disc].assistants.includes(staff.user_id)}
+                                onCheckedChange={() => toggleAssistant(disc, staff.user_id)}
+                              />
+                              <span className="font-medium">
+                                {staff.display_name || staff.email}
+                              </span>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className={roleBadgeStyles[staff.role] || ''}
+                            >
+                              {roleLabels[staff.role] || staff.role.toUpperCase()}
+                            </Badge>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {!hasStaff && (
+                    <p className="text-xs text-slate-400">
+                      No {style.label} staff in this clinic
+                    </p>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })}
           </div>
         )}
 
-        <DialogFooter>
+        <DialogFooter className="sticky bottom-0 bg-white pt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>

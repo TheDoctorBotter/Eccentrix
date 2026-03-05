@@ -813,6 +813,45 @@ export interface PriorAuthorization {
   updated_at: string;
 }
 
+// ============================================================================
+// Patient Clinician Assignments
+// ============================================================================
+
+export interface PatientClinicianAssignment {
+  id: string;
+  patient_id: string;
+  clinic_id: string;
+  user_id: string;
+  discipline: 'PT' | 'OT' | 'ST';
+  role: ClinicRole;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  // Joined fields
+  user_name?: string;
+}
+
+// ============================================================================
+// Patient Episode of Care (per-discipline)
+// ============================================================================
+
+export type EpisodeOfCareStatus = 'active' | 'discharged' | 'on_hold';
+
+export interface PatientEpisodeOfCare {
+  id: string;
+  patient_id: string;
+  episode_id: string;
+  clinic_id: string;
+  discipline: 'PT' | 'OT' | 'ST';
+  frequency?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  status: EpisodeOfCareStatus;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export type PaymentType = 'copay' | 'coinsurance' | 'deductible' | 'self_pay' | 'other';
 export type PaymentMethod = 'cash' | 'check' | 'credit_card' | 'debit_card' | 'other';
 
