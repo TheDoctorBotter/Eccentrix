@@ -59,25 +59,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) throw error;
 
-      setMemberships(data || []);
+      // Normalize: ensure clinic_id is always populated (fall back to clinic_id_ref)
+      const normalized = (data || []).map((m) => ({
+        ...m,
+        clinic_id: m.clinic_id || m.clinic_id_ref,
+      }));
+
+      setMemberships(normalized);
 
       // Try to restore previously selected clinic from cookie
       const savedClinicId = getCookie(ACTIVE_CLINIC_COOKIE);
       let clinicToSet: ClinicMembership | null = null;
 
-      if (savedClinicId && data) {
-        clinicToSet = data.find((m) => m.clinic_id === savedClinicId) || null;
+      if (savedClinicId && normalized.length > 0) {
+        clinicToSet = normalized.find(
+          (m) => m.clinic_id === savedClinicId || m.clinic_id_ref === savedClinicId
+        ) || null;
       }
 
       // Fall back to first clinic if saved clinic not found
-      if (!clinicToSet && data && data.length > 0) {
-        clinicToSet = data[0];
+      if (!clinicToSet && normalized.length > 0) {
+        clinicToSet = normalized[0];
       }
 
       if (clinicToSet) {
         setCurrentClinicState(clinicToSet);
-        if (clinicToSet.clinic_id) {
-          setCookie(ACTIVE_CLINIC_COOKIE, clinicToSet.clinic_id);
+        const idForCookie = clinicToSet.clinic_id || clinicToSet.clinic_id_ref;
+        if (idForCookie) {
+          setCookie(ACTIVE_CLINIC_COOKIE, idForCookie);
         }
       }
     } catch (error) {

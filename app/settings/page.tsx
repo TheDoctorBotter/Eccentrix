@@ -22,6 +22,7 @@ import {
   ScrollText,
   ClipboardCheck,
   Send,
+  Users,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 
@@ -59,6 +60,14 @@ export default function SettingsPage() {
       href: '/templates/manage',
       iconColor: 'text-amber-600',
       bgColor: 'bg-amber-100',
+    },
+    {
+      title: 'Manage Team',
+      description: 'Add, remove, and change roles for clinic staff members',
+      icon: Users,
+      href: '/settings/team',
+      iconColor: 'text-indigo-600',
+      bgColor: 'bg-indigo-100',
     },
     {
       title: 'Provider Profiles',

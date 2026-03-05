@@ -144,6 +144,7 @@ export async function GET(request: NextRequest) {
 interface CreateMembershipBody {
   user_id: string;
   clinic_name: string;
+  clinic_id_ref?: string;
   role: ClinicRole;
 }
 
@@ -153,7 +154,7 @@ export async function POST(request: NextRequest) {
     const client = serviceRoleKey ? supabaseAdmin : supabase;
 
     const body: CreateMembershipBody = await request.json();
-    const { user_id, clinic_name, role } = body;
+    const { user_id, clinic_name, clinic_id_ref, role } = body;
 
     if (!user_id || !clinic_name || !role) {
       return NextResponse.json(
@@ -163,15 +164,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Upsert membership
+    const upsertData: Record<string, unknown> = {
+      user_id,
+      clinic_name,
+      role,
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Set both clinic_id fields if provided
+    if (clinic_id_ref) {
+      upsertData.clinic_id_ref = clinic_id_ref;
+      upsertData.clinic_id = clinic_id_ref;
+    }
+
     const { data: membership, error } = await client
       .from('clinic_memberships')
-      .upsert({
-        user_id,
-        clinic_name,
-        role,
-        is_active: true,
-        updated_at: new Date().toISOString(),
-      }, {
+      .upsert(upsertData, {
         onConflict: 'user_id,clinic_name',
       })
       .select()
