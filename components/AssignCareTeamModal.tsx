@@ -55,10 +55,10 @@ interface DisciplineAssignment {
 
 const DISCIPLINES: Discipline[] = ['PT', 'OT', 'ST'];
 
-const DISCIPLINE_STYLES: Record<Discipline, { border: string; bg: string; text: string; label: string }> = {
-  PT: { border: 'border-l-blue-500', bg: 'bg-blue-50', text: 'text-blue-700', label: 'Physical Therapy' },
-  OT: { border: 'border-l-green-500', bg: 'bg-green-50', text: 'text-green-700', label: 'Occupational Therapy' },
-  ST: { border: 'border-l-purple-500', bg: 'bg-purple-50', text: 'text-purple-700', label: 'Speech Therapy' },
+const DISCIPLINE_STYLES: Record<Discipline, { border: string; bg: string; text: string; badge: string; label: string }> = {
+  PT: { border: 'border-l-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700 border-emerald-200', label: 'Physical Therapy' },
+  OT: { border: 'border-l-amber-500', bg: 'bg-amber-50', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-700 border-amber-200', label: 'Occupational Therapy' },
+  ST: { border: 'border-l-rose-500', bg: 'bg-rose-50', text: 'text-rose-700', badge: 'bg-rose-100 text-rose-700 border-rose-200', label: 'Speech Therapy' },
 };
 
 const ROLE_TO_DISCIPLINE: Record<string, Discipline> = {
@@ -68,18 +68,16 @@ const ROLE_TO_DISCIPLINE: Record<string, Discipline> = {
 const PRIMARY_ROLES: Record<Discipline, string> = { PT: 'pt', OT: 'ot', ST: 'slp' };
 const ASSISTANT_ROLES: Record<Discipline, string> = { PT: 'pta', OT: 'ota', ST: 'slpa' };
 
-const roleLabels: Record<string, string> = {
-  pt: 'PT', pta: 'PTA', ot: 'OT', ota: 'OTA/COTA', slp: 'SLP', slpa: 'SLPA',
+// Map credential abbreviations to disciplines for filtering staff into correct sections
+const CREDENTIAL_TO_DISCIPLINE: Record<string, Discipline> = {
+  PT: 'PT', DPT: 'PT', PTA: 'PT',
+  OT: 'OT', OTR: 'OT', COTA: 'OT', OTA: 'OT',
+  SLP: 'ST', 'CCC-SLP': 'ST', SLPA: 'ST', 'CF-SLP': 'ST',
 };
 
-const roleBadgeStyles: Record<string, string> = {
-  pt: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  pta: 'bg-blue-100 text-blue-700 border-blue-200',
-  ot: 'bg-purple-100 text-purple-700 border-purple-200',
-  ota: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-  slp: 'bg-amber-100 text-amber-700 border-amber-200',
-  slpa: 'bg-orange-100 text-orange-700 border-orange-200',
-};
+// Credentials that indicate a primary (licensed) therapist vs assistant
+const PRIMARY_CREDENTIALS = new Set(['PT', 'DPT', 'OT', 'OTR', 'SLP', 'CCC-SLP', 'CF-SLP']);
+const ASSISTANT_CREDENTIALS = new Set(['PTA', 'COTA', 'OTA', 'SLPA']);
 
 export function AssignCareTeamModal({
   open,
@@ -260,8 +258,11 @@ export function AssignCareTeamModal({
   };
 
   const getStaffForDiscipline = (disc: Discipline, type: 'primary' | 'assistant') => {
-    const targetRole = type === 'primary' ? PRIMARY_ROLES[disc] : ASSISTANT_ROLES[disc];
-    return clinicStaff.filter((s) => s.role === targetRole);
+    const credentialSet = type === 'primary' ? PRIMARY_CREDENTIALS : ASSISTANT_CREDENTIALS;
+    return clinicStaff.filter((s) => {
+      const cred = s.credentials?.trim().toUpperCase() || '';
+      return CREDENTIAL_TO_DISCIPLINE[cred] === disc && credentialSet.has(cred);
+    });
   };
 
   return (
@@ -327,9 +328,9 @@ export function AssignCareTeamModal({
                             </span>
                             <Badge
                               variant="outline"
-                              className={roleBadgeStyles[staff.role] || ''}
+                              className={style.badge}
                             >
-                              {roleLabels[staff.role] || staff.role.toUpperCase()}
+                              {staff.credentials?.trim().toUpperCase() || disc}
                             </Badge>
                           </button>
                         ))}
@@ -365,9 +366,9 @@ export function AssignCareTeamModal({
                             </div>
                             <Badge
                               variant="outline"
-                              className={roleBadgeStyles[staff.role] || ''}
+                              className={style.badge}
                             >
-                              {roleLabels[staff.role] || staff.role.toUpperCase()}
+                              {staff.credentials?.trim().toUpperCase() || disc}
                             </Badge>
                           </label>
                         ))}
