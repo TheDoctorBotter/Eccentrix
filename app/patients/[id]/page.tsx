@@ -38,6 +38,7 @@ export default function PatientRecordPage() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [appointments, setAppointments] = useState<Visit[]>([]);
   const [notesByVisit, setNotesByVisit] = useState<Record<string, Note>>({});
+  const [activeEpisodeId, setActiveEpisodeId] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,11 +57,18 @@ export default function PatientRecordPage() {
         const patientData = await patientRes.json();
         setPatient(patientData);
 
-        // Fetch visits for this patient
+        // Fetch active episode and visits for this patient
         if (patientData.clinic_id) {
-          const visitsRes = await fetch(
-            `/api/visits?clinic_id=${patientData.clinic_id}`
-          );
+          const [episodesRes, visitsRes] = await Promise.all([
+            fetch(`/api/episodes?patient_id=${patientId}&clinic_id=${patientData.clinic_id}&status=active`),
+            fetch(`/api/visits?clinic_id=${patientData.clinic_id}`),
+          ]);
+          if (episodesRes.ok) {
+            const episodesData = await episodesRes.json();
+            if (Array.isArray(episodesData) && episodesData.length > 0) {
+              setActiveEpisodeId(episodesData[0].id);
+            }
+          }
           if (visitsRes.ok) {
             const visitsData: Visit[] = await visitsRes.json();
             const patientVisits = visitsData.filter((v) => v.patient_id === patientId);
@@ -190,7 +198,7 @@ export default function PatientRecordPage() {
         {patient.clinic_id && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <PatientInsuranceSection patientId={patientId} clinicId={patient.clinic_id} />
-            <PriorAuthSection patientId={patientId} clinicId={patient.clinic_id} />
+            <PriorAuthSection patientId={patientId} clinicId={patient.clinic_id} episodeId={activeEpisodeId} />
           </div>
         )}
 

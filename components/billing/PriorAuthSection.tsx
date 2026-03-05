@@ -75,9 +75,28 @@ export function PriorAuthSection({ patientId, clinicId, episodeId }: Props) {
     fetchAuths();
   }, [fetchAuths]);
 
+  const resetForm = () => {
+    setForm({
+      auth_number: '',
+      insurance_name: '',
+      authorized_visits: '',
+      auth_type: 'visits',
+      units_authorized: '',
+      discipline: 'PT',
+      start_date: formatLocalDate(new Date(), 'yyyy-MM-dd'),
+      end_date: '',
+      status: 'pending',
+      notes: '',
+    });
+  };
+
   const handleSubmit = async () => {
     if (!episodeId) {
       toast.error('An active episode is required to create a prior authorization');
+      return;
+    }
+    if (!form.start_date || !form.end_date) {
+      toast.error('Start date and end date are required');
       return;
     }
     setSubmitting(true);
@@ -94,12 +113,16 @@ export function PriorAuthSection({ patientId, clinicId, episodeId }: Props) {
           units_authorized: form.auth_type === 'units' ? parseInt(form.units_authorized) || null : null,
         }),
       });
-      if (!res.ok) throw new Error('Failed to create');
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || 'Failed to create');
+      }
       toast.success('Prior authorization created');
       setDialogOpen(false);
+      resetForm();
       fetchAuths();
-    } catch {
-      toast.error('Error creating authorization');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error creating authorization');
     } finally {
       setSubmitting(false);
     }
@@ -111,7 +134,7 @@ export function PriorAuthSection({ patientId, clinicId, episodeId }: Props) {
         <CardTitle className="text-base flex items-center gap-2">
           <Clock className="h-4 w-4" /> Prior Authorizations
         </CardTitle>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
             <Button size="sm" variant="outline"><Plus className="h-3 w-3 mr-1" /> Add</Button>
           </DialogTrigger>
