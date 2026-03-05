@@ -55,7 +55,7 @@ export default function FrontOfficePage() {
     patientName: string;
   } | null>(null);
 
-  const canAccess = hasRole(['admin', 'front_office', 'pt']);
+  const canAccess = hasRole(['admin', 'front_office', 'pt', 'ot', 'slp']);
 
   useEffect(() => {
     if (!authLoading && !canAccess) {

@@ -144,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const canFinalize = (): boolean => {
-    return hasRole(['pt', 'admin']);
+    return hasRole(['pt', 'ot', 'slp', 'admin']);
   };
 
   const value = {
