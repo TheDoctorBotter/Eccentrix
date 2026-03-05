@@ -119,6 +119,8 @@ export async function hasRole(
 ): Promise<boolean> {
   const userRole = await getUserClinicRole(userId, clinicId);
   if (!userRole) return false;
+  // Admin always has full access to all features
+  if (userRole === 'admin') return true;
   return roles.includes(userRole);
 }
 

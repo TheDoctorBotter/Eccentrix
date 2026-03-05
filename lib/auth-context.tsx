@@ -140,6 +140,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const hasRole = (roles: ClinicRole[]): boolean => {
     if (!currentClinic) return false;
+    // Admin always has full access to all features
+    if (currentClinic.role === 'admin') return true;
     return roles.includes(currentClinic.role);
   };
 

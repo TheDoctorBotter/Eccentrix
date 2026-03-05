@@ -95,9 +95,12 @@ export interface ClinicMembership {
 
 // Helper to check if user can finalize a doc type
 export function canUserFinalize(role: ClinicRole, docType: ClinicalDocType): boolean {
-  if (role === 'pt') return true;
+  // Admin and PT can finalize all document types
+  if (role === 'admin' || role === 'pt') return true;
   if (PT_ONLY_FINALIZATION_TYPES.includes(docType)) return false;
-  // PTA can finalize daily notes only (not implemented yet - return false for now)
+  // OT/SLP can finalize their own discipline docs
+  if (role === 'ot' || role === 'slp') return true;
+  // PTA/OTA/SLPA can finalize daily notes only (not implemented yet - return false for now)
   return false;
 }
 

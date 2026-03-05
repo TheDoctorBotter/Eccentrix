@@ -67,10 +67,10 @@ export async function POST(
     if (docType && PT_ONLY_FINALIZATION_TYPES.includes(docType)) {
       // Need to verify user is a PT
       // First check if role was provided
-      if (user_role && user_role !== 'pt') {
+      if (user_role && user_role !== 'pt' && user_role !== 'admin') {
         return NextResponse.json(
           {
-            error: 'Only licensed Physical Therapists (PT) can finalize this document type',
+            error: 'Only licensed Physical Therapists (PT) or Admins can finalize this document type',
             doc_type: docType,
           },
           { status: 403 }
@@ -85,10 +85,10 @@ export async function POST(
         .eq('is_active', true)
         .single();
 
-      if (!membership || membership.role !== 'pt') {
+      if (!membership || (membership.role !== 'pt' && membership.role !== 'admin')) {
         return NextResponse.json(
           {
-            error: 'Only licensed Physical Therapists (PT) can finalize this document type',
+            error: 'Only licensed Physical Therapists (PT) or Admins can finalize this document type',
             doc_type: docType,
             user_role: membership?.role || 'unknown',
           },
@@ -212,12 +212,12 @@ export async function DELETE(
       .eq('is_active', true)
       .single();
 
-    const isPT = membership?.role === 'pt';
+    const isPTOrAdmin = membership?.role === 'pt' || membership?.role === 'admin';
     const isOriginalFinalizer = note.finalized_by === user_id;
 
-    if (!isPT && !isOriginalFinalizer) {
+    if (!isPTOrAdmin && !isOriginalFinalizer) {
       return NextResponse.json(
-        { error: 'Only the original finalizer or a PT can revert this note to draft' },
+        { error: 'Only the original finalizer, a PT, or an Admin can revert this note to draft' },
         { status: 403 }
       );
     }
