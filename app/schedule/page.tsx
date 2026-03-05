@@ -176,6 +176,22 @@ interface AppointmentFormData {
   is_recurring: boolean;
   recurrence_weeks: number;
   recurrence_days: string[];
+  auth_id: string;
+}
+
+interface PatientAuth {
+  id: string;
+  discipline: string | null;
+  auth_number: string | null;
+  authorized_visits: number | null;
+  used_visits: number;
+  remaining_visits: number | null;
+  start_date: string;
+  end_date: string;
+  status: string;
+  auth_type: string;
+  units_authorized: number | null;
+  units_used: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -224,8 +240,10 @@ export default function SchedulePage() {
     is_recurring: false,
     recurrence_weeks: 8,
     recurrence_days: ['MO'] as string[],
+    auth_id: '',
   });
   const [patientSearch, setPatientSearch] = useState('');
+  const [patientAuths, setPatientAuths] = useState<PatientAuth[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
@@ -337,6 +355,37 @@ export default function SchedulePage() {
       console.error('Error fetching therapists:', err);
     }
   }, [currentClinic?.clinic_id]);
+
+  // Fetch active authorizations for the selected patient
+  const fetchPatientAuths = useCallback(async (patientId: string) => {
+    if (!patientId || !currentClinic?.clinic_id) {
+      setPatientAuths([]);
+      return;
+    }
+    try {
+      const params = new URLSearchParams({
+        patient_id: patientId,
+        clinic_id: currentClinic.clinic_id,
+        status: 'approved',
+      });
+      const res = await fetch(`/api/authorizations?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPatientAuths(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error('Error fetching patient auths:', err);
+    }
+  }, [currentClinic?.clinic_id]);
+
+  // When patient_id changes in the form, fetch their auths
+  useEffect(() => {
+    if (formData.patient_id) {
+      fetchPatientAuths(formData.patient_id);
+    } else {
+      setPatientAuths([]);
+    }
+  }, [formData.patient_id, fetchPatientAuths]);
 
   useEffect(() => {
     fetchVisits();
@@ -484,12 +533,59 @@ export default function SchedulePage() {
         toast.success('Visit record auto-created from SMS appointment');
       }
 
-      // When a visit is marked completed, redirect to SOAP note wizard
+      // When a visit is marked completed, decrement auth and redirect to SOAP note wizard
       if (newStatus === 'completed') {
-        // For SMS appointments, use the auto-created Visit record ID
-        const noteVisitId = (isSms && updated._createdVisit?.id)
+        // Decrement authorization visits if linked
+        const completedVisitId = (isSms && updated._createdVisit?.id)
           ? updated._createdVisit.id
-          : visitId.replace(/^sms-/, ''); // strip sms- prefix if present
+          : visitId.replace(/^sms-/, '');
+
+        // Try to find the auth_id — from the visit record or auto-match by discipline
+        let authIdToDecrement = visit?.auth_id || (updated as Record<string, unknown>).auth_id;
+
+        if (!authIdToDecrement && visit?.patient_id && visit?.discipline) {
+          // Auto-match: find the best active auth for this patient + discipline
+          try {
+            const params = new URLSearchParams({
+              patient_id: visit.patient_id,
+              clinic_id: currentClinic?.clinic_id || '',
+              status: 'approved',
+              discipline: visit.discipline,
+            });
+            const authRes = await fetch(`/api/authorizations?${params}`);
+            if (authRes.ok) {
+              const auths = await authRes.json();
+              if (Array.isArray(auths) && auths.length > 0) {
+                // Pick the auth with the nearest end_date that's still active
+                const now = new Date().toISOString().split('T')[0];
+                const active = auths.filter(
+                  (a: { start_date: string; end_date: string }) =>
+                    a.start_date <= now && a.end_date >= now
+                );
+                if (active.length > 0) {
+                  authIdToDecrement = active[0].id;
+                  toast.info('Auto-linked visit to active authorization');
+                }
+              }
+            }
+          } catch { /* non-critical */ }
+        }
+
+        if (authIdToDecrement && completedVisitId && !completedVisitId.startsWith('sms-')) {
+          try {
+            await fetch('/api/authorizations/decrement', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                auth_id: authIdToDecrement,
+                visit_id: completedVisitId,
+              }),
+            });
+          } catch { /* non-critical — auth decrement is best-effort */ }
+        }
+
+        // For SMS appointments, use the auto-created Visit record ID
+        const noteVisitId = completedVisitId;
 
         // Only redirect for real visit IDs (not sms- prefixed without a created visit)
         if (noteVisitId && !noteVisitId.startsWith('sms-')) {
@@ -580,6 +676,7 @@ export default function SchedulePage() {
             location: formData.location || null,
             notes: formData.notes || null,
             source: 'manual',
+            auth_id: formData.auth_id || null,
           }),
         });
 
@@ -759,8 +856,10 @@ export default function SchedulePage() {
       is_recurring: false,
       recurrence_weeks: 8,
       recurrence_days: ['MO'],
+      auth_id: '',
     });
     setPatientSearch('');
+    setPatientAuths([]);
   };
 
   // ---------------------------------------------------------------------------
@@ -1629,6 +1728,77 @@ export default function SchedulePage() {
                 </div>
               )}
             </div>
+
+            {/* Authorization selection — shows when patient is selected */}
+            {formData.patient_id && patientAuths.length > 0 && (
+              <div className="space-y-2">
+                <Label>Authorization</Label>
+                <div className="space-y-1">
+                  {patientAuths
+                    .filter((a) => !formData.discipline || a.discipline === formData.discipline || !a.discipline)
+                    .map((auth) => {
+                      const remaining = auth.auth_type === 'units'
+                        ? (auth.units_authorized ?? 0) - (auth.units_used ?? 0)
+                        : auth.remaining_visits ?? ((auth.authorized_visits ?? 0) - auth.used_visits);
+                      const isSelected = formData.auth_id === auth.id;
+                      const isLow = remaining <= 3;
+                      return (
+                        <button
+                          key={auth.id}
+                          type="button"
+                          onClick={() =>
+                            setFormData((p: AppointmentFormData) => ({
+                              ...p,
+                              auth_id: isSelected ? '' : auth.id,
+                            }))
+                          }
+                          className={`w-full text-left px-3 py-2 text-sm rounded border transition-colors ${
+                            isSelected
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {auth.discipline && (
+                                <span className={`inline-block w-2 h-2 rounded-full ${
+                                  auth.discipline === 'PT' ? 'bg-blue-500'
+                                    : auth.discipline === 'OT' ? 'bg-green-500'
+                                      : 'bg-purple-500'
+                                }`} />
+                              )}
+                              <span className="font-medium">
+                                {auth.discipline || 'All'} Auth
+                                {auth.auth_number ? ` #${auth.auth_number}` : ''}
+                              </span>
+                            </div>
+                            <span className={`font-mono text-xs ${isLow ? 'text-red-600 font-bold' : 'text-slate-600'}`}>
+                              {remaining} {auth.auth_type === 'units' ? 'units' : 'visits'} left
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            {auth.start_date} - {auth.end_date}
+                            {remaining === 0 && (
+                              <span className="ml-2 text-red-600 font-medium">EXHAUSTED</span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                </div>
+                {formData.auth_id && (
+                  <p className="text-xs text-blue-600">
+                    Visit will be linked to this authorization
+                  </p>
+                )}
+              </div>
+            )}
+
+            {formData.patient_id && patientAuths.length === 0 && (
+              <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
+                No active authorizations found for this patient
+              </div>
+            )}
 
             {/* Therapist */}
             <div className="space-y-2">

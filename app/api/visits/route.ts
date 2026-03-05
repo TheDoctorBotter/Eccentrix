@@ -92,6 +92,7 @@ export async function POST(request: NextRequest) {
       notes,
       visit_type,
       discipline,
+      auth_id,
     } = body;
 
     if (!clinic_id || !start_time || !end_time) {
@@ -116,6 +117,7 @@ export async function POST(request: NextRequest) {
         notes: notes || null,
         visit_type: visit_type || 'treatment',
         discipline: discipline || 'PT',
+        auth_id: auth_id || null,
       })
       .select()
       .single();

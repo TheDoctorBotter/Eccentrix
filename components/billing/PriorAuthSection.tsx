@@ -35,6 +35,7 @@ interface PriorAuth {
   auth_type?: string | null;
   units_authorized?: number | null;
   units_used?: number | null;
+  day_180_date?: string | null;
 }
 
 interface Props {
@@ -216,14 +217,26 @@ export function PriorAuthSection({ patientId, clinicId, episodeId }: Props) {
               return (
                 <div
                   key={auth.id}
-                  className={`border rounded p-3 ${isWarning ? 'border-amber-300 bg-amber-50' : ''} ${isExpiring ? 'border-red-300 bg-red-50' : ''}`}
+                  className={`border rounded p-3 ${
+                    auth.discipline === 'PT' ? 'border-l-4 border-l-blue-500' :
+                    auth.discipline === 'OT' ? 'border-l-4 border-l-green-500' :
+                    auth.discipline === 'ST' ? 'border-l-4 border-l-purple-500' : ''
+                  } ${isWarning ? 'border-amber-300 bg-amber-50' : ''} ${isExpiring ? 'border-red-300 bg-red-50' : ''}`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Badge variant={auth.status === 'approved' ? 'default' : 'secondary'}>
                         {auth.status}
                       </Badge>
-                      {auth.discipline && <Badge variant="outline">{auth.discipline}</Badge>}
+                      {auth.discipline && (
+                        <Badge variant="outline" className={
+                          auth.discipline === 'PT' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                          auth.discipline === 'OT' ? 'bg-green-100 text-green-700 border-green-200' :
+                          auth.discipline === 'ST' ? 'bg-purple-100 text-purple-700 border-purple-200' : ''
+                        }>
+                          {auth.discipline}
+                        </Badge>
+                      )}
                       {auth.auth_number && <span className="font-mono text-sm">{auth.auth_number}</span>}
                     </div>
                     {isWarning && (
