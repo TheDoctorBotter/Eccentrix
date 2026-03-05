@@ -589,6 +589,8 @@ export interface Visit {
   // Joined fields
   patient_name?: string;
   therapist_name?: string;
+  // Authorization link
+  auth_id?: string | null;
   // SMS appointment fields (present when source === 'sms')
   sms_appointment_id?: string | null;
   sms_patient_phone?: string | null;
@@ -799,6 +801,13 @@ export interface PriorAuthorization {
   approved_date?: string | null;
   status: AuthorizationStatus;
   notes?: string | null;
+  discipline?: string | null;
+  auth_type?: string | null;
+  units_authorized?: number | null;
+  units_used?: number | null;
+  day_180_date?: string | null;
+  alert_30_dismissed_at?: string | null;
+  alert_15_dismissed_at?: string | null;
   created_by?: string | null;
   created_at: string;
   updated_at: string;

@@ -440,10 +440,22 @@ export default function BillingDashboard() {
                         const isWarning = daysToExpiry <= 30 || (remaining !== null && remaining <= 10);
 
                         return (
-                          <TableRow key={auth.id} className={isWarning ? 'bg-amber-50' : ''}>
+                          <TableRow key={auth.id} className={`${isWarning ? 'bg-amber-50' : ''} ${
+                            auth.discipline === 'PT' ? 'border-l-4 border-l-blue-500' :
+                            auth.discipline === 'OT' ? 'border-l-4 border-l-green-500' :
+                            auth.discipline === 'ST' ? 'border-l-4 border-l-purple-500' : ''
+                          }`}>
                             <TableCell className="font-mono text-sm">{auth.auth_number || '-'}</TableCell>
                             <TableCell>{auth.patient_id?.slice(0, 8)}</TableCell>
-                            <TableCell>{auth.discipline || 'PT'}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={
+                                auth.discipline === 'PT' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                                auth.discipline === 'OT' ? 'bg-green-100 text-green-700 border-green-200' :
+                                auth.discipline === 'ST' ? 'bg-purple-100 text-purple-700 border-purple-200' : ''
+                              }>
+                                {auth.discipline || 'PT'}
+                              </Badge>
+                            </TableCell>
                             <TableCell>{auth.authorized_visits ?? auth.units_authorized ?? '-'}</TableCell>
                             <TableCell>{auth.used_visits ?? auth.units_used ?? 0}</TableCell>
                             <TableCell>

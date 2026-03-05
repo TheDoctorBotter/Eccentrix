@@ -18,6 +18,8 @@ export async function GET(request: NextRequest) {
     const patientId = searchParams.get('patient_id');
     const clinicId = searchParams.get('clinic_id');
     const status = searchParams.get('status');
+    const discipline = searchParams.get('discipline');
+    const activeForDate = searchParams.get('active_for_date');
 
     let query = client
       .from('prior_authorizations')
@@ -35,6 +37,14 @@ export async function GET(request: NextRequest) {
     }
     if (status) {
       query = query.eq('status', status);
+    }
+    if (discipline) {
+      query = query.eq('discipline', discipline);
+    }
+    if (activeForDate) {
+      query = query
+        .lte('start_date', activeForDate)
+        .gte('end_date', activeForDate);
     }
 
     const { data, error } = await query;
@@ -72,6 +82,10 @@ export async function POST(request: NextRequest) {
       status,
       notes,
       created_by,
+      discipline,
+      auth_type,
+      units_authorized,
+      day_180_date,
     } = body;
 
     if (!episode_id || !patient_id || !clinic_id || !start_date || !end_date) {
@@ -81,26 +95,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Build insert payload — do NOT include remaining_visits (it's a GENERATED column)
+    const insertData: Record<string, unknown> = {
+      episode_id,
+      patient_id,
+      clinic_id,
+      auth_number: auth_number || null,
+      insurance_name: insurance_name || null,
+      insurance_phone: insurance_phone || null,
+      used_visits: 0,
+      start_date,
+      end_date,
+      requested_date: requested_date || null,
+      approved_date: approved_date || null,
+      status: status || 'pending',
+      notes: notes || null,
+      created_by: created_by || null,
+      discipline: discipline || null,
+      auth_type: auth_type || 'visits',
+    };
+
+    if (auth_type === 'units') {
+      insertData.units_authorized = units_authorized ? parseInt(String(units_authorized), 10) : null;
+      insertData.units_used = 0;
+      insertData.authorized_visits = null;
+    } else {
+      insertData.authorized_visits = authorized_visits ? parseInt(String(authorized_visits), 10) : null;
+    }
+
+    // Auto-calculate 180-day date from start_date if not explicitly provided
+    if (day_180_date) {
+      insertData.day_180_date = day_180_date;
+    } else if (start_date) {
+      const d = new Date(start_date);
+      d.setDate(d.getDate() + 180);
+      insertData.day_180_date = d.toISOString().split('T')[0];
+    }
+
     const { data, error } = await client
       .from('prior_authorizations')
-      .insert({
-        episode_id,
-        patient_id,
-        clinic_id,
-        auth_number: auth_number || null,
-        insurance_name: insurance_name || null,
-        insurance_phone: insurance_phone || null,
-        authorized_visits: authorized_visits || null,
-        used_visits: 0,
-        remaining_visits: authorized_visits || null,
-        start_date,
-        end_date,
-        requested_date: requested_date || null,
-        approved_date: approved_date || null,
-        status: status || 'pending',
-        notes: notes || null,
-        created_by: created_by || null,
-      })
+      .insert(insertData)
       .select()
       .single();
 

@@ -76,6 +76,7 @@ export async function PATCH(
       'recurrence_rule',
       'recurrence_group_id',
       'source',
+      'auth_id',
     ];
 
     const updateData: Record<string, unknown> = {};

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,6 +22,8 @@ import {
   Plus,
   Video,
   FileText,
+  Clock,
+  Check,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import {
@@ -32,6 +34,7 @@ import { format } from 'date-fns';
 import { formatLocalDate } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
 import { PTBotFolder } from '@/components/PTBotFolder';
+import { toast } from 'sonner';
 
 interface TelehealthDraft {
   id: string;
@@ -42,20 +45,109 @@ interface TelehealthDraft {
   input_data: { ptbot_external_id?: string; patient_name?: string };
 }
 
+interface AuthAlert {
+  id: string;
+  patient_id: string;
+  discipline: string | null;
+  day_180_date: string;
+  days_remaining: number;
+  auth_number: string | null;
+  alert_30_dismissed_at: string | null;
+  alert_15_dismissed_at: string | null;
+  patient_name?: string;
+}
+
 export default function HomePage() {
   const { currentClinic, loading: authLoading } = useAuth();
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [alerts, setAlerts] = useState<DocumentationAlert[]>([]);
   const [telehealthDrafts, setTelehealthDrafts] = useState<TelehealthDraft[]>([]);
+  const [authAlerts, setAuthAlerts] = useState<AuthAlert[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const fetchAuthAlerts = useCallback(async (clinicId: string) => {
+    try {
+      const res = await fetch(`/api/authorizations?clinic_id=${clinicId}&status=approved`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!Array.isArray(data)) return;
+
+      const now = Date.now();
+      const alertAuths: AuthAlert[] = [];
+
+      for (const auth of data) {
+        if (!auth.day_180_date) continue;
+        const daysRemaining = Math.ceil(
+          (new Date(auth.day_180_date).getTime() - now) / (1000 * 60 * 60 * 24)
+        );
+        // Show alerts at 30 days and 15 days
+        const show30 = daysRemaining <= 30 && daysRemaining > 15 && !auth.alert_30_dismissed_at;
+        const show15 = daysRemaining <= 15 && !auth.alert_15_dismissed_at;
+
+        if (show30 || show15) {
+          alertAuths.push({
+            id: auth.id,
+            patient_id: auth.patient_id,
+            discipline: auth.discipline,
+            day_180_date: auth.day_180_date,
+            days_remaining: daysRemaining,
+            auth_number: auth.auth_number,
+            alert_30_dismissed_at: auth.alert_30_dismissed_at,
+            alert_15_dismissed_at: auth.alert_15_dismissed_at,
+          });
+        }
+      }
+
+      // Resolve patient names
+      if (alertAuths.length > 0) {
+        const patRes = await fetch(`/api/patients?clinic_id=${clinicId}`);
+        if (patRes.ok) {
+          const patients = await patRes.json();
+          const patMap = new Map(
+            (Array.isArray(patients) ? patients : []).map(
+              (p: { id: string; first_name: string; last_name: string }) => [
+                p.id,
+                `${p.last_name}, ${p.first_name}`,
+              ]
+            )
+          );
+          for (const a of alertAuths) {
+            a.patient_name = (patMap.get(a.patient_id) as string) || 'Unknown';
+          }
+        }
+      }
+
+      setAuthAlerts(alertAuths.sort((a, b) => a.days_remaining - b.days_remaining));
+    } catch (error) {
+      console.error('Error fetching auth alerts:', error);
+    }
+  }, []);
+
+  const dismissAuthAlert = async (authId: string, level: '30' | '15') => {
+    try {
+      const field = level === '30' ? 'alert_30_dismissed_at' : 'alert_15_dismissed_at';
+      const res = await fetch(`/api/authorizations/${authId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: new Date().toISOString() }),
+      });
+      if (res.ok) {
+        setAuthAlerts((prev) => prev.filter((a) => a.id !== authId));
+        toast.success('Alert dismissed');
+      }
+    } catch {
+      toast.error('Failed to dismiss alert');
+    }
+  };
 
   useEffect(() => {
     if (currentClinic?.clinic_id) {
       fetchCaseload(currentClinic.clinic_id);
       fetchAlerts(currentClinic.clinic_id);
       fetchTelehealthDrafts(currentClinic.clinic_id);
+      fetchAuthAlerts(currentClinic.clinic_id);
     }
-  }, [currentClinic]);
+  }, [currentClinic, fetchAuthAlerts]);
 
   const fetchCaseload = async (clinicId: string) => {
     setLoading(true);
@@ -211,6 +303,77 @@ export default function HomePage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* 180-Day Authorization Alerts */}
+            {authAlerts.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-5 w-5 text-orange-500" />
+                      <CardTitle className="text-lg">Upcoming 180-Day Checks</CardTitle>
+                    </div>
+                    <Badge variant="destructive">{authAlerts.length}</Badge>
+                  </div>
+                  <CardDescription>Authorization 180-day marks approaching</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {authAlerts.map((alert) => {
+                      const isUrgent = alert.days_remaining <= 15;
+                      const level = isUrgent ? '15' : '30';
+                      return (
+                        <div
+                          key={alert.id}
+                          className={`flex items-center justify-between p-3 rounded-lg border ${
+                            isUrgent
+                              ? 'bg-red-50 border-red-200'
+                              : 'bg-amber-50 border-amber-200'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Clock className={`h-5 w-5 ${isUrgent ? 'text-red-500' : 'text-amber-500'}`} />
+                            <div>
+                              <p className="font-medium text-slate-900">
+                                {alert.patient_name || alert.patient_id.slice(0, 8)}
+                                {alert.discipline && (
+                                  <Badge
+                                    variant="outline"
+                                    className={`ml-2 text-xs ${
+                                      alert.discipline === 'PT'
+                                        ? 'bg-blue-100 text-blue-700 border-blue-200'
+                                        : alert.discipline === 'OT'
+                                          ? 'bg-green-100 text-green-700 border-green-200'
+                                          : 'bg-purple-100 text-purple-700 border-purple-200'
+                                    }`}
+                                  >
+                                    {alert.discipline}
+                                  </Badge>
+                                )}
+                              </p>
+                              <p className={`text-sm ${isUrgent ? 'text-red-700' : 'text-amber-700'}`}>
+                                180-day mark: {formatLocalDate(alert.day_180_date, 'MMM d, yyyy')}
+                                {' '}&mdash; <strong>{alert.days_remaining} days remaining</strong>
+                                {alert.auth_number && ` (Auth #${alert.auth_number})`}
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="shrink-0"
+                            onClick={() => dismissAuthAlert(alert.id, level)}
+                            title="Dismiss this alert"
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Telehealth Drafts */}
             {telehealthDrafts.length > 0 && (

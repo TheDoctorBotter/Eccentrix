@@ -18,51 +18,32 @@ export async function PATCH(
     const { id } = params;
     const body = await request.json();
 
+    // remaining_visits is GENERATED — never write to it directly
     const allowedFields = [
       'auth_number',
       'insurance_name',
       'insurance_phone',
       'authorized_visits',
       'used_visits',
-      'remaining_visits',
       'start_date',
       'end_date',
       'requested_date',
       'approved_date',
       'status',
       'notes',
+      'discipline',
+      'auth_type',
+      'units_authorized',
+      'units_used',
+      'day_180_date',
+      'alert_30_dismissed_at',
+      'alert_15_dismissed_at',
     ];
 
     const updateData: Record<string, unknown> = {};
     for (const field of allowedFields) {
       if (body[field] !== undefined) {
         updateData[field] = body[field];
-      }
-    }
-
-    // Auto-calculate remaining_visits if authorized_visits or used_visits changed
-    if (updateData.authorized_visits !== undefined || updateData.used_visits !== undefined) {
-      // Fetch current values if needed
-      if (updateData.authorized_visits === undefined || updateData.used_visits === undefined) {
-        const { data: current } = await client
-          .from('prior_authorizations')
-          .select('authorized_visits, used_visits')
-          .eq('id', id)
-          .single();
-
-        if (current) {
-          const authVisits = (updateData.authorized_visits as number) ?? current.authorized_visits;
-          const usedVisits = (updateData.used_visits as number) ?? current.used_visits;
-          if (authVisits !== null) {
-            updateData.remaining_visits = Math.max(0, authVisits - usedVisits);
-          }
-        }
-      } else {
-        const authVisits = updateData.authorized_visits as number;
-        const usedVisits = updateData.used_visits as number;
-        if (authVisits !== null) {
-          updateData.remaining_visits = Math.max(0, authVisits - usedVisits);
-        }
       }
     }
 

@@ -144,8 +144,12 @@ export default function BillingPage() {
     insurance_name: '',
     insurance_phone: '',
     authorized_visits: '',
+    auth_type: 'visits' as 'visits' | 'units',
+    units_authorized: '',
+    discipline: 'PT',
     start_date: formatLocalDate(new Date(), 'yyyy-MM-dd'),
     end_date: '',
+    day_180_date: '',
     status: 'pending' as AuthorizationStatus,
     notes: '',
   });
@@ -374,6 +378,19 @@ export default function BillingPage() {
   // Create authorization
   const handleCreateAuth = async () => {
     if (!clinicId) return;
+    // Inline validation
+    if (!authForm.patient_id || !authForm.episode_id || !authForm.start_date || !authForm.end_date) {
+      toast.error('Patient, episode, start date, and end date are required');
+      return;
+    }
+    if (authForm.auth_type === 'visits' && !authForm.authorized_visits) {
+      toast.error('Authorized visits count is required');
+      return;
+    }
+    if (authForm.auth_type === 'units' && !authForm.units_authorized) {
+      toast.error('Authorized units count is required');
+      return;
+    }
     setSubmitting(true);
 
     try {
@@ -381,9 +398,25 @@ export default function BillingPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...authForm,
+          patient_id: authForm.patient_id,
+          episode_id: authForm.episode_id,
           clinic_id: clinicId,
-          authorized_visits: authForm.authorized_visits ? parseInt(authForm.authorized_visits, 10) : null,
+          auth_number: authForm.auth_number,
+          insurance_name: authForm.insurance_name,
+          insurance_phone: authForm.insurance_phone,
+          authorized_visits: authForm.auth_type === 'visits' && authForm.authorized_visits
+            ? parseInt(authForm.authorized_visits, 10)
+            : null,
+          units_authorized: authForm.auth_type === 'units' && authForm.units_authorized
+            ? parseInt(authForm.units_authorized, 10)
+            : null,
+          auth_type: authForm.auth_type,
+          discipline: authForm.discipline,
+          start_date: authForm.start_date,
+          end_date: authForm.end_date,
+          day_180_date: authForm.day_180_date || null,
+          status: authForm.status,
+          notes: authForm.notes,
           created_by: user?.id || null,
         }),
       });
@@ -398,6 +431,7 @@ export default function BillingPage() {
       resetAuthForm();
       fetchData();
     } catch (error) {
+      console.error('Create auth error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to create authorization');
     } finally {
       setSubmitting(false);
@@ -730,8 +764,12 @@ export default function BillingPage() {
       insurance_name: '',
       insurance_phone: '',
       authorized_visits: '',
+      auth_type: 'visits',
+      units_authorized: '',
+      discipline: 'PT',
       start_date: formatLocalDate(new Date(), 'yyyy-MM-dd'),
       end_date: '',
+      day_180_date: '',
       status: 'pending',
       notes: '',
     });
@@ -789,6 +827,29 @@ export default function BillingPage() {
       return 'text-emerald-600 font-semibold';
     }
     return '';
+  };
+
+  // Discipline color coding: PT=blue, OT=green, ST=purple
+  const getDisciplineBorder = (discipline?: string | null): string => {
+    switch (discipline) {
+      case 'PT': return 'border-l-4 border-l-blue-500';
+      case 'OT': return 'border-l-4 border-l-green-500';
+      case 'ST': return 'border-l-4 border-l-purple-500';
+      default: return '';
+    }
+  };
+  const getDisciplineBadge = (discipline?: string | null) => {
+    const styles: Record<string, string> = {
+      PT: 'bg-blue-100 text-blue-700 border-blue-200',
+      OT: 'bg-green-100 text-green-700 border-green-200',
+      ST: 'bg-purple-100 text-purple-700 border-purple-200',
+    };
+    if (!discipline) return null;
+    return (
+      <Badge variant="outline" className={styles[discipline] || ''}>
+        {discipline}
+      </Badge>
+    );
   };
 
   // Toggle charge selection
@@ -1878,116 +1939,186 @@ export default function BillingPage() {
                         New Authorization
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-lg">
-                      <DialogHeader>
+                    <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
+                      <DialogHeader className="flex-shrink-0">
                         <DialogTitle>New Prior Authorization</DialogTitle>
                         <DialogDescription>
                           Record a new insurance authorization
                         </DialogDescription>
                       </DialogHeader>
 
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label>Patient</Label>
-                          <Select
-                            value={authForm.patient_id}
-                            onValueChange={(val) =>
-                              setAuthForm((prev) => ({ ...prev, patient_id: val, episode_id: '' }))
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select patient" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {patients.map((p) => (
-                                <SelectItem key={p.id} value={p.id}>
-                                  {p.last_name}, {p.first_name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Episode</Label>
-                          <Select
-                            value={authForm.episode_id}
-                            onValueChange={(val) =>
-                              setAuthForm((prev) => ({ ...prev, episode_id: val }))
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select episode" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {filteredAuthEpisodes.map((e) => (
-                                <SelectItem key={e.id} value={e.id}>
-                                  {e.diagnosis || 'Episode'} ({e.status})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Authorization Number</Label>
-                          <Input
-                            placeholder="Auth #"
-                            value={authForm.auth_number}
-                            onChange={(e) =>
-                              setAuthForm((prev) => ({ ...prev, auth_number: e.target.value }))
-                            }
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Insurance Name</Label>
-                          <Input
-                            placeholder="e.g., Blue Cross Blue Shield"
-                            value={authForm.insurance_name}
-                            onChange={(e) =>
-                              setAuthForm((prev) => ({ ...prev, insurance_name: e.target.value }))
-                            }
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Insurance Phone</Label>
-                          <Input
-                            placeholder="e.g., (800) 555-1234"
-                            value={authForm.insurance_phone}
-                            onChange={(e) =>
-                              setAuthForm((prev) => ({ ...prev, insurance_phone: e.target.value }))
-                            }
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Authorized Visits</Label>
-                          <Input
-                            type="number"
-                            min="0"
-                            placeholder="e.g., 24"
-                            value={authForm.authorized_visits}
-                            onChange={(e) =>
-                              setAuthForm((prev) => ({ ...prev, authorized_visits: e.target.value }))
-                            }
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-4 overflow-y-auto flex-1 pr-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label>Start Date</Label>
+                            <Label>Patient *</Label>
+                            <Select
+                              value={authForm.patient_id}
+                              onValueChange={(val) =>
+                                setAuthForm((prev) => ({ ...prev, patient_id: val, episode_id: '' }))
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select patient" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {patients.map((p) => (
+                                  <SelectItem key={p.id} value={p.id}>
+                                    {p.last_name}, {p.first_name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Episode *</Label>
+                            <Select
+                              value={authForm.episode_id}
+                              onValueChange={(val) =>
+                                setAuthForm((prev) => ({ ...prev, episode_id: val }))
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select episode" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {filteredAuthEpisodes.map((e) => (
+                                  <SelectItem key={e.id} value={e.id}>
+                                    {e.diagnosis || 'Episode'} ({e.status})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Discipline *</Label>
+                            <Select
+                              value={authForm.discipline}
+                              onValueChange={(val) =>
+                                setAuthForm((prev) => ({ ...prev, discipline: val }))
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="PT">PT</SelectItem>
+                                <SelectItem value="OT">OT</SelectItem>
+                                <SelectItem value="ST">ST</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Auth Type</Label>
+                            <Select
+                              value={authForm.auth_type}
+                              onValueChange={(val) =>
+                                setAuthForm((prev) => ({
+                                  ...prev,
+                                  auth_type: val as 'visits' | 'units',
+                                }))
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="visits">Visits</SelectItem>
+                                <SelectItem value="units">Units</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Auth Number</Label>
                             <Input
-                              type="date"
-                              value={authForm.start_date}
+                              placeholder="Auth #"
+                              value={authForm.auth_number}
                               onChange={(e) =>
-                                setAuthForm((prev) => ({ ...prev, start_date: e.target.value }))
+                                setAuthForm((prev) => ({ ...prev, auth_number: e.target.value }))
                               }
                             />
                           </div>
+
+                          {authForm.auth_type === 'visits' ? (
+                            <div className="space-y-2">
+                              <Label>Authorized Visits *</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                placeholder="e.g., 24"
+                                value={authForm.authorized_visits}
+                                onChange={(e) =>
+                                  setAuthForm((prev) => ({ ...prev, authorized_visits: e.target.value }))
+                                }
+                              />
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <Label>Authorized Units *</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                placeholder="e.g., 96"
+                                value={authForm.units_authorized}
+                                onChange={(e) =>
+                                  setAuthForm((prev) => ({ ...prev, units_authorized: e.target.value }))
+                                }
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label>End Date</Label>
+                            <Label>Insurance Name</Label>
+                            <Input
+                              placeholder="e.g., Blue Cross Blue Shield"
+                              value={authForm.insurance_name}
+                              onChange={(e) =>
+                                setAuthForm((prev) => ({ ...prev, insurance_name: e.target.value }))
+                              }
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Insurance Phone</Label>
+                            <Input
+                              placeholder="e.g., (800) 555-1234"
+                              value={authForm.insurance_phone}
+                              onChange={(e) =>
+                                setAuthForm((prev) => ({ ...prev, insurance_phone: e.target.value }))
+                              }
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Start Date *</Label>
+                            <Input
+                              type="date"
+                              value={authForm.start_date}
+                              onChange={(e) => {
+                                const startDate = e.target.value;
+                                const d180 = new Date(startDate);
+                                d180.setDate(d180.getDate() + 180);
+                                setAuthForm((prev) => ({
+                                  ...prev,
+                                  start_date: startDate,
+                                  day_180_date: d180.toISOString().split('T')[0],
+                                }));
+                              }}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>End Date *</Label>
                             <Input
                               type="date"
                               value={authForm.end_date}
@@ -1999,40 +2130,56 @@ export default function BillingPage() {
                         </div>
 
                         <div className="space-y-2">
-                          <Label>Status</Label>
-                          <Select
-                            value={authForm.status}
-                            onValueChange={(val) =>
-                              setAuthForm((prev) => ({
-                                ...prev,
-                                status: val as AuthorizationStatus,
-                              }))
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="pending">Pending</SelectItem>
-                              <SelectItem value="approved">Approved</SelectItem>
-                              <SelectItem value="denied">Denied</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Notes</Label>
+                          <Label>180-Day Mark</Label>
                           <Input
-                            placeholder="Additional notes..."
-                            value={authForm.notes}
+                            type="date"
+                            value={authForm.day_180_date}
                             onChange={(e) =>
-                              setAuthForm((prev) => ({ ...prev, notes: e.target.value }))
+                              setAuthForm((prev) => ({ ...prev, day_180_date: e.target.value }))
                             }
                           />
+                          <p className="text-xs text-muted-foreground">
+                            Auto-calculated from start date. Override if needed.
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Status</Label>
+                            <Select
+                              value={authForm.status}
+                              onValueChange={(val) =>
+                                setAuthForm((prev) => ({
+                                  ...prev,
+                                  status: val as AuthorizationStatus,
+                                }))
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="pending">Pending</SelectItem>
+                                <SelectItem value="approved">Approved</SelectItem>
+                                <SelectItem value="denied">Denied</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Notes</Label>
+                            <Input
+                              placeholder="Additional notes..."
+                              value={authForm.notes}
+                              onChange={(e) =>
+                                setAuthForm((prev) => ({ ...prev, notes: e.target.value }))
+                              }
+                            />
+                          </div>
                         </div>
                       </div>
 
-                      <DialogFooter>
+                      <DialogFooter className="flex-shrink-0 sticky bottom-0 bg-background pt-4 border-t">
                         <Button variant="outline" onClick={() => setAuthDialogOpen(false)}>
                           Cancel
                         </Button>
@@ -2065,46 +2212,76 @@ export default function BillingPage() {
                     </p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto max-w-full">
                     <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Patient</TableHead>
+                          <TableHead>Discipline</TableHead>
                           <TableHead>Auth #</TableHead>
                           <TableHead>Insurance</TableHead>
                           <TableHead>Authorized</TableHead>
                           <TableHead>Used</TableHead>
                           <TableHead>Remaining</TableHead>
                           <TableHead>Date Range</TableHead>
+                          <TableHead>180-Day</TableHead>
                           <TableHead>Status</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {authorizations.map((auth) => (
-                          <TableRow key={auth.id}>
-                            <TableCell className="font-medium text-sm">
-                              {getPatientName(auth.patient_id)}
-                            </TableCell>
-                            <TableCell className="text-sm font-mono">
-                              {auth.auth_number || '-'}
-                            </TableCell>
-                            <TableCell className="text-sm">
-                              {auth.insurance_name || '-'}
-                            </TableCell>
-                            <TableCell className="text-sm">
-                              {auth.authorized_visits ?? '-'}
-                            </TableCell>
-                            <TableCell className="text-sm">{auth.used_visits}</TableCell>
-                            <TableCell className={`text-sm ${getAuthRemainingColor(auth)}`}>
-                              {auth.remaining_visits ?? '-'}
-                            </TableCell>
-                            <TableCell className="text-sm">
-                              {formatLocalDate(auth.start_date, 'MM/dd/yy')} -{' '}
-                              {formatLocalDate(auth.end_date, 'MM/dd/yy')}
-                            </TableCell>
-                            <TableCell>{getAuthStatusBadge(auth.status)}</TableCell>
-                          </TableRow>
-                        ))}
+                        {authorizations.map((auth) => {
+                          const day180 = auth.day_180_date as string | null;
+                          const days180Left = day180
+                            ? Math.ceil((new Date(day180).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                            : null;
+                          return (
+                            <TableRow
+                              key={auth.id}
+                              className={getDisciplineBorder(auth.discipline)}
+                            >
+                              <TableCell className="font-medium text-sm">
+                                {getPatientName(auth.patient_id)}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {getDisciplineBadge(auth.discipline)}
+                              </TableCell>
+                              <TableCell className="text-sm font-mono">
+                                {auth.auth_number || '-'}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {auth.insurance_name || '-'}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {auth.authorized_visits ?? '-'}
+                              </TableCell>
+                              <TableCell className="text-sm">{auth.used_visits}</TableCell>
+                              <TableCell className={`text-sm ${getAuthRemainingColor(auth)}`}>
+                                {auth.remaining_visits ?? '-'}
+                              </TableCell>
+                              <TableCell className="text-sm whitespace-nowrap">
+                                {formatLocalDate(auth.start_date, 'MM/dd/yy')} -{' '}
+                                {formatLocalDate(auth.end_date, 'MM/dd/yy')}
+                              </TableCell>
+                              <TableCell className="text-sm whitespace-nowrap">
+                                {day180 ? (
+                                  <span className={
+                                    days180Left !== null && days180Left <= 15
+                                      ? 'text-red-600 font-bold'
+                                      : days180Left !== null && days180Left <= 30
+                                        ? 'text-amber-600 font-medium'
+                                        : ''
+                                  }>
+                                    {formatLocalDate(day180, 'MM/dd/yy')}
+                                    {days180Left !== null && days180Left <= 30 && (
+                                      <span className="ml-1">({days180Left}d)</span>
+                                    )}
+                                  </span>
+                                ) : '-'}
+                              </TableCell>
+                              <TableCell>{getAuthStatusBadge(auth.status)}</TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>
