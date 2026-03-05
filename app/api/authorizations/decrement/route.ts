@@ -66,11 +66,11 @@ export async function POST(request: NextRequest) {
 
     // Auto-set status to exhausted if all visits/units used
     if (auth.auth_type === 'units') {
-      if (auth.units_authorized && updateData.units_used as number >= auth.units_authorized) {
+      if (auth.units_authorized && (updateData.units_used as number) >= auth.units_authorized) {
         updateData.status = 'exhausted';
       }
     } else {
-      if (auth.authorized_visits && updateData.used_visits as number >= auth.authorized_visits) {
+      if (auth.authorized_visits && (updateData.used_visits as number) >= auth.authorized_visits) {
         updateData.status = 'exhausted';
       }
     }
