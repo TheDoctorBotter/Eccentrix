@@ -259,9 +259,23 @@ export function AssignCareTeamModal({
 
   const getStaffForDiscipline = (disc: Discipline, type: 'primary' | 'assistant') => {
     const credentialSet = type === 'primary' ? PRIMARY_CREDENTIALS : ASSISTANT_CREDENTIALS;
+    const expectedRole = type === 'primary' ? PRIMARY_ROLES[disc] : ASSISTANT_ROLES[disc];
+
     return clinicStaff.filter((s) => {
-      const cred = s.credentials?.trim().toUpperCase() || '';
-      return CREDENTIAL_TO_DISCIPLINE[cred] === disc && credentialSet.has(cred);
+      // First try matching by credentials (supports multi-credential strings like "PT, DPT")
+      const credStr = s.credentials?.trim().toUpperCase() || '';
+      if (credStr) {
+        const creds = credStr.split(/[,\s/]+/).map((c) => c.trim()).filter(Boolean);
+        const matchesDiscipline = creds.some((c) => CREDENTIAL_TO_DISCIPLINE[c] === disc);
+        const matchesType = creds.some((c) => credentialSet.has(c));
+        if (matchesDiscipline && matchesType) return true;
+      }
+
+      // Fall back to membership role (e.g. role='pt' matches PT primary, role='pta' matches PT assistant)
+      if (s.role === expectedRole) return true;
+
+      // Admin with no credentials won't appear unless they also have a clinical role
+      return false;
     });
   };
 
