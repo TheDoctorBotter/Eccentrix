@@ -67,7 +67,7 @@ export const PT_ONLY_FINALIZATION_TYPES: ClinicalDocType[] = [
 export type DocumentStatus = 'draft' | 'final';
 
 // Clinic roles
-export type ClinicRole = 'pt' | 'pta' | 'ot' | 'ota' | 'slp' | 'slpa' | 'admin' | 'front_office';
+export type ClinicRole = 'pt' | 'pta' | 'ot' | 'ota' | 'slp' | 'slpa' | 'admin' | 'biller' | 'front_office';
 
 export const CLINIC_ROLE_LABELS: Record<ClinicRole, string> = {
   pt: 'Physical Therapist',
@@ -77,6 +77,7 @@ export const CLINIC_ROLE_LABELS: Record<ClinicRole, string> = {
   slp: 'Speech-Language Pathologist',
   slpa: 'Speech-Language Pathology Assistant',
   admin: 'Administrator',
+  biller: 'Biller',
   front_office: 'Front Office',
 };
 
@@ -1037,7 +1038,7 @@ export const EIGHT_MINUTE_RULE_TABLE = [
 // Claims & EDI Types (TMHP / Medicaid)
 // ============================================================================
 
-export type ClaimStatus = 'draft' | 'generated' | 'submitted' | 'accepted' | 'rejected' | 'paid' | 'denied';
+export type ClaimStatus = 'draft' | 'generated' | 'submitted' | 'accepted' | 'rejected' | 'paid' | 'denied' | 'void' | 'ready';
 
 export const CLAIM_STATUS_LABELS: Record<ClaimStatus, string> = {
   draft: 'Draft',
@@ -1047,6 +1048,8 @@ export const CLAIM_STATUS_LABELS: Record<ClaimStatus, string> = {
   rejected: 'Rejected',
   paid: 'Paid',
   denied: 'Denied',
+  void: 'Voided',
+  ready: 'Ready',
 };
 
 export const CLAIM_STATUS_COLORS: Record<ClaimStatus, string> = {
@@ -1057,6 +1060,8 @@ export const CLAIM_STATUS_COLORS: Record<ClaimStatus, string> = {
   rejected: 'bg-red-100 text-red-700 border-red-200',
   paid: 'bg-green-100 text-green-700 border-green-200',
   denied: 'bg-red-100 text-red-700 border-red-200',
+  void: 'bg-gray-100 text-gray-500 border-gray-200',
+  ready: 'bg-indigo-100 text-indigo-700 border-indigo-200',
 };
 
 export interface Claim {
