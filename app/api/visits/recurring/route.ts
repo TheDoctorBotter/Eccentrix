@@ -129,6 +129,7 @@ export async function POST(request: NextRequest) {
       notes,
       recurrence_rule,
       visit_type,
+      discipline,
     } = body;
 
     if (!clinic_id || !start_time || !end_time || !recurrence_rule) {
@@ -174,6 +175,7 @@ export async function POST(request: NextRequest) {
         notes: notes || null,
         status: 'scheduled' as const,
         visit_type: visit_type || null,
+        discipline: discipline || 'PT',
         recurrence_rule: recurrence_rule,
         recurrence_group_id: recurrenceGroupId,
       };

@@ -70,6 +70,7 @@ export async function PATCH(
       'cancelled_at',
       'cancel_reason',
       'visit_type',
+      'discipline',
       'total_treatment_minutes',
       'total_units',
       'recurrence_rule',

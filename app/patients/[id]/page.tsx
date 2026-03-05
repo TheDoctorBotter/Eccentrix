@@ -24,7 +24,7 @@ import {
   FilePlus,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
-import { Patient, Visit, Note, APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_COLORS } from '@/lib/types';
+import { Patient, Visit, Note, APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_COLORS, Discipline, DISCIPLINE_LABELS, DISCIPLINE_COLORS, resolveDiscipline } from '@/lib/types';
 import { format, parseISO } from 'date-fns';
 import { formatLocalDate } from '@/lib/utils';
 
@@ -184,7 +184,7 @@ export default function PatientRecordPage() {
           </CardContent>
         </Card>
 
-        {/* Visit History */}
+        {/* Visit History — grouped by discipline */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Visit History</CardTitle>
@@ -195,8 +195,18 @@ export default function PatientRecordPage() {
                 No visits found
               </p>
             ) : (
-              <div className="space-y-3">
-                {appointments.map((appt) => {
+              <div className="space-y-6">
+                {(['PT', 'OT', 'ST'] as Discipline[]).map((disc) => {
+                  const discAppts = appointments.filter((a) => resolveDiscipline(a.discipline) === disc);
+                  if (discAppts.length === 0) return null;
+                  return (
+                    <div key={disc}>
+                      <h3 className={`text-sm font-semibold mb-2 flex items-center gap-2 ${DISCIPLINE_COLORS[disc].text}`}>
+                        <span className={`inline-block w-2.5 h-2.5 rounded-sm ${DISCIPLINE_COLORS[disc].bg} border ${DISCIPLINE_COLORS[disc].border}`} />
+                        {DISCIPLINE_LABELS[disc]} Visits ({discAppts.length})
+                      </h3>
+                      <div className="space-y-3">
+                {discAppts.map((appt) => {
                   const note = notesByVisit[appt.id];
                   const isCompleted = appt.status === 'completed';
                   const noteStatus = note
@@ -266,6 +276,10 @@ export default function PatientRecordPage() {
                             </Button>
                           </Link>
                         )}
+                      </div>
+                    </div>
+                  );
+                })}
                       </div>
                     </div>
                   );

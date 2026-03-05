@@ -41,12 +41,16 @@ export async function POST(request: NextRequest) {
       inputData,
       template,
       styleSettings,
+      discipline: rawDiscipline,
     }: {
       noteType: string;
       inputData: NoteInputData;
       template: string;
       styleSettings: StyleSettings;
+      discipline?: string;
     } = body;
+
+    const discipline = rawDiscipline === 'OT' ? 'OT' : rawDiscipline === 'ST' ? 'ST' : 'PT';
 
     if (!noteType) {
       console.error('[Generate Note] Validation failed: Missing noteType');
@@ -94,8 +98,8 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Generate Note] Request - Type: ${noteType}, Model: ${model}, API Base: ${apiBase}`);
 
-    const systemPrompt = buildSystemPrompt(styleSettings);
-    const userPrompt = buildUserPrompt(noteType, inputData, template);
+    const systemPrompt = buildSystemPrompt(styleSettings, discipline);
+    const userPrompt = buildUserPrompt(noteType, inputData, template, discipline);
 
     console.log('[Generate Note] Calling OpenAI API...');
 
@@ -212,7 +216,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function buildSystemPrompt(styleSettings: StyleSettings): string {
+function buildSystemPrompt(styleSettings: StyleSettings, discipline: string = 'PT'): string {
   const verbosityInstruction =
     styleSettings.verbosity === 'concise'
       ? 'Write in a concise, clinical style. Keep sentences brief and to the point.'
@@ -221,13 +225,27 @@ function buildSystemPrompt(styleSettings: StyleSettings): string {
   const toneInstruction =
     styleSettings.tone === 'school_based'
       ? 'Use educational/school-based terminology appropriate for IEP documentation. Focus on functional impact in the school environment.'
-      : 'Use standard outpatient physical therapy terminology appropriate for clinic documentation.';
+      : discipline === 'PT'
+        ? 'Use standard outpatient physical therapy terminology appropriate for clinic documentation.'
+        : discipline === 'OT'
+          ? 'Use standard occupational therapy terminology appropriate for clinic documentation.'
+          : 'Use standard speech-language pathology terminology appropriate for clinic documentation.';
 
   const acronymInstruction = styleSettings.avoid_acronyms
     ? 'Avoid using medical acronyms. Spell out all terms.'
-    : 'You may use standard medical and PT acronyms (e.g., ROM, MMT, SBA, etc.).';
+    : discipline === 'PT'
+      ? 'You may use standard medical and PT acronyms (e.g., ROM, MMT, SBA, etc.).'
+      : discipline === 'OT'
+        ? 'You may use standard medical and OT acronyms (e.g., ADL, VMI, SBA, etc.).'
+        : 'You may use standard medical and SLP acronyms (e.g., AAC, MLU, SSD, etc.).';
 
-  return `You are an expert physical therapy documentation assistant. Your role is to generate professional, accurate clinical notes based ONLY on the provided data.
+  const disciplineContext = getDisciplineContext(discipline);
+  const disciplineName = discipline === 'PT' ? 'physical therapy' : discipline === 'OT' ? 'occupational therapy' : 'speech-language pathology';
+  const skilledLabel = discipline === 'PT' ? 'PT' : discipline === 'OT' ? 'OT' : 'SLP';
+
+  return `You are an expert pediatric ${disciplineName} documentation assistant. Your role is to generate professional, accurate clinical notes based ONLY on the provided data.
+
+${disciplineContext}
 
 CRITICAL RULES:
 1. NEVER invent measurements, findings, or clinical data not provided
@@ -237,6 +255,10 @@ CRITICAL RULES:
 5. ALWAYS include "Date of Service: [date]" near the top of the note if provided, otherwise write "Date of Service: Not provided"
 6. Include a brief "Skilled need" statement when generating daily notes (unless specifically excluded)
 7. If red flags are indicated, include appropriate referral language and safety warnings
+8. Reference pediatric developmental expectations appropriate for the child's age
+9. Structure goals in family-friendly language that parents/caregivers can understand
+10. Strengthen skilled care justification by linking deficits to functional impact
+11. Mark all notes as DRAFT requiring clinician review
 
 STYLE PREFERENCES:
 - ${verbosityInstruction}
@@ -252,8 +274,8 @@ Return your response in the following JSON format with EACH SOAP section as a SE
   "objective": "Content for the OBJECTIVE section (body text only, NO header)",
   "assessment": "Content for the ASSESSMENT section (body text only, NO header)",
   "plan": "Content for the PLAN section (body text only, NO header)",
-  "billing_justification": "2-3 sentences justifying skilled PT services (only for evaluations and progress notes, NOT daily notes)",
-  "hep_summary": "1-2 sentences summarizing home exercise program (only for evaluations and progress notes, NOT daily notes)"
+  "billing_justification": "2-3 sentences justifying skilled ${skilledLabel} services (only for evaluations and progress notes, NOT daily notes)",
+  "hep_summary": "1-2 sentences summarizing home program (only for evaluations and progress notes, NOT daily notes)"
 }
 
 CRITICAL: Each section field must contain ONLY the body text. Do NOT repeat the section name/header inside the field value.
@@ -263,12 +285,34 @@ For daily SOAP notes: Do NOT include billing_justification or hep_summary. Set t
 Remember: Clinical accuracy and safety are paramount. Never fabricate clinical data.`;
 }
 
+function getDisciplineContext(discipline: string): string {
+  if (discipline === 'OT') {
+    return `DISCIPLINE FOCUS: Occupational Therapy (OT) — Pediatric
+Clinical areas of focus: fine motor skills (grasp, pinch, manipulation), sensory processing and integration, activities of daily living (dressing, feeding, grooming), visual motor integration, handwriting, self-care skills, play skills, and upper extremity function.
+Typical interventions: sensory integration activities, fine motor activities, ADL training, visual motor tasks, handwriting practice, therapeutic play, self-care training, sensory diet activities.
+Use OT-specific outcome measures and developmental milestones. Reference age-appropriate functional expectations for fine motor, self-care, and sensory processing.`;
+  }
+  if (discipline === 'ST') {
+    return `DISCIPLINE FOCUS: Speech-Language Pathology (ST/SLP) — Pediatric
+Clinical areas of focus: articulation and phonological processes, expressive language, receptive language, fluency (stuttering), voice disorders, pragmatics (social communication), augmentative and alternative communication (AAC), feeding and swallowing.
+Typical interventions: articulation therapy, language intervention, fluency techniques, AAC training and device programming, oral motor exercises, feeding therapy, social skills groups.
+Use SLP-specific outcome measures and language developmental milestones. Reference age-appropriate communication expectations. Note: speech therapy evaluation codes (92521-92610) are NOT timed.`;
+  }
+  // Default: PT
+  return `DISCIPLINE FOCUS: Physical Therapy (PT) — Pediatric
+Clinical areas of focus: functional mobility, gross motor development, strength, range of motion, pain management, gait and locomotion, balance and coordination, transfers, wheelchair mobility.
+Typical interventions: therapeutic exercise, manual therapy, gait training, neuromuscular reeducation, balance training, functional mobility training, modalities.
+Use PT-specific outcome measures and gross motor developmental milestones. Reference age-appropriate functional expectations for mobility, strength, and balance.`;
+}
+
 function buildUserPrompt(
   noteType: string,
   inputData: NoteInputData,
-  template: string
+  template: string,
+  discipline: string = 'PT'
 ): string {
-  let prompt = `Generate a ${noteType.replace('_', ' ')} note using the following template and data:\n\n`;
+  const disciplineName = discipline === 'PT' ? 'Physical Therapy' : discipline === 'OT' ? 'Occupational Therapy' : 'Speech Therapy';
+  let prompt = `Generate a ${disciplineName} ${noteType.replace('_', ' ')} note using the following template and data:\n\n`;
 
   prompt += `TEMPLATE:\n${template}\n\n`;
 
@@ -351,7 +395,8 @@ function buildUserPrompt(
         : inputData.assessment.impairments;
       prompt += `- Impairments: ${impairmentsList}\n`;
       if (!inputData.assessment.skilled_need) {
-        prompt += `- Generate a skilled need statement justifying continued skilled PT services to address these impairments.\n`;
+        const skilledLabel = discipline === 'PT' ? 'PT' : discipline === 'OT' ? 'OT' : 'SLP';
+        prompt += `- Generate a skilled need statement justifying continued skilled ${skilledLabel} services to address these impairments.\n`;
       }
     }
     if (inputData.assessment.skilled_need) {

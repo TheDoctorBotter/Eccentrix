@@ -49,7 +49,7 @@ export async function GET(
     const now = new Date().toISOString();
     const { data: upcomingVisits } = await supabaseAdmin
       .from('visits')
-      .select('id, start_time, end_time, visit_type, status, location, notes')
+      .select('id, start_time, end_time, visit_type, status, location, notes, discipline')
       .eq('patient_id', patientId)
       .in('status', ['scheduled', 'confirmed', 'checked_in'])
       .gte('start_time', now)
@@ -59,7 +59,7 @@ export async function GET(
     // Also check SMS appointments table
     const { data: smsAppointments } = await supabaseAdmin
       .from('appointments')
-      .select('id, scheduled_at, visit_type, status, notes')
+      .select('id, scheduled_at, visit_type, status, notes, discipline')
       .eq('patient_id', patientId)
       .in('status', ['scheduled', 'confirmed'])
       .gte('scheduled_at', now)
@@ -69,7 +69,7 @@ export async function GET(
     // Fetch recent visit history (last 10 completed visits)
     const { data: recentVisits } = await supabaseAdmin
       .from('visits')
-      .select('id, start_time, end_time, visit_type, status, location')
+      .select('id, start_time, end_time, visit_type, status, location, discipline')
       .eq('patient_id', patientId)
       .in('status', ['completed', 'checked_out'])
       .order('start_time', { ascending: false })
@@ -99,6 +99,7 @@ export async function GET(
           visit_type: v.visit_type,
           status: v.status,
           location: v.location,
+          discipline: (v.discipline as string) || 'PT',
         })),
         ...(smsAppointments || []).map(a => ({
           id: a.id,
@@ -108,6 +109,7 @@ export async function GET(
           visit_type: a.visit_type,
           status: a.status,
           location: null,
+          discipline: (a.discipline as string) || 'PT',
         })),
       ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
       recent_visits: (recentVisits || []).map(v => ({
@@ -117,6 +119,7 @@ export async function GET(
         visit_type: v.visit_type,
         status: v.status,
         location: v.location,
+        discipline: (v.discipline as string) || 'PT',
       })),
     });
   } catch (error) {

@@ -31,7 +31,7 @@ export async function GET(
     // Fetch upcoming visits from the visits table
     const { data: visits, error: visitsError } = await supabaseAdmin
       .from('visits')
-      .select('id, start_time, end_time, visit_type, status, location, notes')
+      .select('id, start_time, end_time, visit_type, status, location, notes, discipline')
       .eq('patient_id', patientId)
       .in('status', ['scheduled', 'confirmed', 'checked_in', 'in_progress'])
       .gte('start_time', now)
@@ -44,7 +44,7 @@ export async function GET(
     // Fetch upcoming SMS appointments
     const { data: smsAppts, error: smsError } = await supabaseAdmin
       .from('appointments')
-      .select('id, scheduled_at, visit_type, status, notes')
+      .select('id, scheduled_at, visit_type, status, notes, discipline')
       .eq('patient_id', patientId)
       .in('status', ['scheduled', 'confirmed'])
       .gte('scheduled_at', now)
@@ -64,6 +64,7 @@ export async function GET(
         visit_type: v.visit_type || 'treatment',
         status: v.status,
         location: v.location,
+        discipline: (v.discipline as string) || 'PT',
         can_confirm: v.status === 'scheduled',
         can_cancel: ['scheduled', 'confirmed'].includes(v.status),
       })),
@@ -75,6 +76,7 @@ export async function GET(
         visit_type: a.visit_type || 'treatment',
         status: a.status,
         location: null,
+        discipline: (a.discipline as string) || 'PT',
         can_confirm: a.status === 'scheduled',
         can_cancel: ['scheduled', 'confirmed'].includes(a.status),
       })),

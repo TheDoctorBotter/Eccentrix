@@ -67,6 +67,10 @@ import {
   APPOINTMENT_STATUS_LABELS,
   APPOINTMENT_STATUS_COLORS,
   Patient,
+  Discipline,
+  DISCIPLINE_LABELS,
+  DISCIPLINE_COLORS,
+  resolveDiscipline,
 } from '@/lib/types';
 import { toast } from 'sonner';
 
@@ -96,16 +100,18 @@ const STATUS_ACTIONS: { from: AppointmentStatus[]; to: AppointmentStatus; label:
   { from: ['no_show', 'cancelled'], to: 'scheduled', label: 'Reschedule' },
 ];
 
-// Background color by visit type
-const VISIT_TYPE_COLORS: Record<string, string> = {
-  evaluation: 'bg-blue-100 hover:bg-blue-200',
-  eval: 'bg-blue-100 hover:bg-blue-200',
-  treatment: 'bg-green-100 hover:bg-green-200',
-  treat: 'bg-green-100 hover:bg-green-200',
-  re_evaluation: 'bg-purple-100 hover:bg-purple-200',
-  discharge: 'bg-orange-100 hover:bg-orange-200',
+// Background color by discipline
+const DISCIPLINE_BG: Record<string, string> = {
+  PT: 'bg-blue-50 hover:bg-blue-100',
+  OT: 'bg-amber-50 hover:bg-amber-100',
+  ST: 'bg-rose-50 hover:bg-rose-100',
 };
-const VISIT_TYPE_DEFAULT_BG = 'bg-green-100 hover:bg-green-200';
+const DISCIPLINE_BORDER_COLOR: Record<string, string> = {
+  PT: 'border-blue-300',
+  OT: 'border-amber-300',
+  ST: 'border-rose-300',
+};
+const DEFAULT_DISCIPLINE_BG = 'bg-blue-50 hover:bg-blue-100';
 
 // Left border stripe by status
 const STATUS_BORDER: Record<AppointmentStatus, string> = {
@@ -140,6 +146,7 @@ const STATUS_BADGE: Record<AppointmentStatus, string> = {
 interface TherapistOption {
   user_id: string;
   name: string;
+  primary_discipline?: string;
 }
 
 function timeToMinutesSinceMidnight(dateStr: string): number {
@@ -163,6 +170,7 @@ interface AppointmentFormData {
   start_time: string;
   end_time: string;
   visit_type: string;
+  discipline: string;
   location: string;
   notes: string;
   is_recurring: boolean;
@@ -195,6 +203,7 @@ export default function SchedulePage() {
 
   // Filters
   const [filterTherapist, setFilterTherapist] = useState<string>('all');
+  const [filterDiscipline, setFilterDiscipline] = useState<string>('all');
 
   // Dialogs
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -209,6 +218,7 @@ export default function SchedulePage() {
     start_time: '09:00',
     end_time: '09:45',
     visit_type: 'treatment',
+    discipline: 'PT',
     location: '',
     notes: '',
     is_recurring: false,
@@ -308,11 +318,12 @@ export default function SchedulePage() {
         const data = await res.json();
         const therapistMembers = data
           .filter((m: { role: string; is_active: boolean }) =>
-            ['pt', 'pta'].includes(m.role) && m.is_active
+            ['pt', 'pta', 'ot', 'ota', 'slp', 'slpa'].includes(m.role) && m.is_active
           )
-          .map((m: { user_id: string; display_name?: string; email?: string }) => ({
+          .map((m: { user_id: string; display_name?: string; email?: string; primary_discipline?: string }) => ({
             user_id: m.user_id,
             name: m.display_name || m.email || m.user_id,
+            primary_discipline: m.primary_discipline || 'PT',
           }));
         setTherapists(therapistMembers);
       }
@@ -363,9 +374,15 @@ export default function SchedulePage() {
   // ---------------------------------------------------------------------------
 
   const filteredVisits = useMemo(() => {
-    if (filterTherapist === 'all') return visits;
-    return visits.filter((v: Visit) => v.therapist_user_id === filterTherapist);
-  }, [visits, filterTherapist]);
+    let result = visits;
+    if (filterTherapist !== 'all') {
+      result = result.filter((v: Visit) => v.therapist_user_id === filterTherapist);
+    }
+    if (filterDiscipline !== 'all') {
+      result = result.filter((v: Visit) => resolveDiscipline(v.discipline) === filterDiscipline);
+    }
+    return result;
+  }, [visits, filterTherapist, filterDiscipline]);
 
   // ---------------------------------------------------------------------------
   // Days to render
@@ -528,6 +545,7 @@ export default function SchedulePage() {
             start_time: startISO,
             end_time: endISO,
             visit_type: formData.visit_type,
+            discipline: formData.discipline || 'PT',
             location: formData.location || null,
             notes: formData.notes || null,
             recurrence_rule: rrule,
@@ -552,6 +570,7 @@ export default function SchedulePage() {
             start_time: startISO,
             end_time: endISO,
             visit_type: formData.visit_type,
+            discipline: formData.discipline || 'PT',
             location: formData.location || null,
             notes: formData.notes || null,
             source: 'manual',
@@ -586,6 +605,7 @@ export default function SchedulePage() {
       start_time: '09:00',
       end_time: '09:45',
       visit_type: 'treatment',
+      discipline: 'PT',
       location: '',
       notes: '',
       is_recurring: false,
@@ -730,6 +750,23 @@ export default function SchedulePage() {
               </SelectContent>
             </Select>
 
+            {/* Discipline filter */}
+            <div className="flex items-center border rounded-md overflow-hidden h-9">
+              {(['all', 'PT', 'OT', 'ST'] as const).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setFilterDiscipline(d)}
+                  className={`px-2.5 py-1 text-xs font-medium border-r last:border-r-0 transition-colors ${
+                    filterDiscipline === d
+                      ? 'bg-slate-800 text-white'
+                      : 'bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {d === 'all' ? 'All' : d}
+                </button>
+              ))}
+            </div>
+
             {/* New Appointment */}
             <Button
               onClick={() => {
@@ -760,12 +797,11 @@ export default function SchedulePage() {
         {/* Color legend                                                      */}
         {/* ----------------------------------------------------------------- */}
         <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[11px] text-slate-600">
-          {/* Visit type */}
-          <span className="font-semibold text-slate-500 uppercase tracking-wide">Type:</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-100 border border-blue-300" />Eval</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-100 border border-green-300" />Treat</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-purple-100 border border-purple-300" />Re-Eval</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-orange-100 border border-orange-300" />Discharge</span>
+          {/* Discipline */}
+          <span className="font-semibold text-slate-500 uppercase tracking-wide">Discipline:</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-50 border border-blue-300" />PT</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-amber-50 border border-amber-300" />OT</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-rose-50 border border-rose-300" />ST</span>
 
           <span className="text-slate-300">|</span>
 
@@ -908,12 +944,12 @@ export default function SchedulePage() {
                       const isCancelled = status === 'cancelled';
                       const isNoShow = status === 'no_show';
                       const isInactive = isCancelled || isNoShow;
-                      const visitType = (visit.visit_type || 'treatment').toLowerCase();
+                      const discipline = resolveDiscipline(visit.discipline);
 
-                      // Visit-type background + status left border
+                      // Discipline-based background + status left border
                       const typeBg = isInactive
                         ? 'bg-red-50/60 hover:bg-red-100/60'
-                        : (VISIT_TYPE_COLORS[visitType] || VISIT_TYPE_DEFAULT_BG);
+                        : (DISCIPLINE_BG[discipline] || DEFAULT_DISCIPLINE_BG);
                       const statusBorder = STATUS_BORDER[status] || STATUS_BORDER.scheduled;
 
                       // Source tag
@@ -945,6 +981,10 @@ export default function SchedulePage() {
                             </div>
                           )}
                           <div className="flex items-center gap-1 mt-0.5">
+                            {/* Discipline tag */}
+                            <span className={`text-[8px] font-semibold px-1 py-px rounded ${DISCIPLINE_COLORS[discipline]?.badge || DISCIPLINE_COLORS.PT.badge}`}>
+                              {discipline}
+                            </span>
                             {/* Source tag */}
                             {isSmsAppt && (
                               <span className="text-[8px] font-semibold px-1 py-px rounded bg-slate-200 text-slate-600">
@@ -1070,13 +1110,15 @@ export default function SchedulePage() {
                 </div>
               )}
 
-              {/* Visit type */}
-              {selectedVisit.visit_type && (
-                <div className="text-sm">
-                  <span className="text-slate-500">Type: </span>
-                  <span className="capitalize">{selectedVisit.visit_type.replace('_', ' ')}</span>
-                </div>
-              )}
+              {/* Discipline + Visit type */}
+              <div className="text-sm flex items-center gap-3">
+                <Badge variant="outline" className={DISCIPLINE_COLORS[resolveDiscipline(selectedVisit.discipline)]?.badge || DISCIPLINE_COLORS.PT.badge}>
+                  {DISCIPLINE_LABELS[resolveDiscipline(selectedVisit.discipline)]}
+                </Badge>
+                {selectedVisit.visit_type && (
+                  <span className="capitalize text-slate-600">{selectedVisit.visit_type.replace('_', ' ')}</span>
+                )}
+              </div>
 
               {/* Recurrence info */}
               {selectedVisit.recurrence_group_id && (
@@ -1411,9 +1453,14 @@ export default function SchedulePage() {
               <Label>Therapist</Label>
               <Select
                 value={formData.therapist_user_id}
-                onValueChange={(val: string) =>
-                  setFormData((p: AppointmentFormData) => ({ ...p, therapist_user_id: val }))
-                }
+                onValueChange={(val: string) => {
+                  const selected = therapists.find((t: TherapistOption) => t.user_id === val);
+                  setFormData((p: AppointmentFormData) => ({
+                    ...p,
+                    therapist_user_id: val,
+                    discipline: selected?.primary_discipline || p.discipline,
+                  }));
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select therapist" />
@@ -1480,6 +1527,26 @@ export default function SchedulePage() {
                       {opt.label}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Discipline */}
+            <div className="space-y-2">
+              <Label>Discipline</Label>
+              <Select
+                value={formData.discipline}
+                onValueChange={(val: string) =>
+                  setFormData((p: AppointmentFormData) => ({ ...p, discipline: val }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PT">PT — Physical Therapy</SelectItem>
+                  <SelectItem value="OT">OT — Occupational Therapy</SelectItem>
+                  <SelectItem value="ST">ST — Speech Therapy</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -47,6 +47,7 @@ function summarizeForPatient(note: {
     visit_type: note.note_type === 'daily_soap' ? 'Treatment Visit'
       : note.note_type === 'pt_evaluation' ? 'Evaluation Visit'
       : 'Visit Note',
+    discipline: ((note as Record<string, unknown>).discipline as string) || 'PT',
   };
 
   // Time info
@@ -139,7 +140,7 @@ export async function GET(
     // Check both the notes table (with patient_id) and documents table
     const { data: notes, error: notesError } = await supabaseAdmin
       .from('notes')
-      .select('id, title, date_of_service, note_type, input_data, output_text, created_at, status')
+      .select('id, title, date_of_service, note_type, input_data, output_text, created_at, status, discipline')
       .eq('patient_id', patientId)
       .eq('status', 'final')
       .order('date_of_service', { ascending: false })

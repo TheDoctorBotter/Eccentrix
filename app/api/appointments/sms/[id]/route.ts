@@ -82,6 +82,7 @@ export async function PATCH(
         source: 'sms',
         status: 'completed',
         notes: 'Auto-created from completed SMS appointment',
+        discipline: (updatedAppt.discipline as string) || 'PT',
       };
 
       // Attach clinic_id and therapist if provided
@@ -104,6 +105,7 @@ export async function PATCH(
         // Return a warning instead.
         return NextResponse.json({
           ...updatedAppt,
+          discipline: (updatedAppt.discipline as string) || 'PT',
           _visitCreationWarning: `Appointment marked completed but Visit creation failed: ${visitError.message}`,
         });
       }
@@ -113,6 +115,7 @@ export async function PATCH(
 
     return NextResponse.json({
       ...updatedAppt,
+      discipline: (updatedAppt.discipline as string) || 'PT',
       _createdVisit: createdVisit,
     });
   } catch (error) {
