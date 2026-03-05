@@ -89,7 +89,7 @@ export default function ExercisesPage() {
   const [hepHold, setHepHold] = useState('');
   const [addingToHep, setAddingToHep] = useState(false);
 
-  const canManageExercises = hasRole(['pt', 'admin']);
+  const canManageExercises = hasRole(['pt', 'ot', 'slp', 'admin']);
 
   // Fetch exercises
   useEffect(() => {

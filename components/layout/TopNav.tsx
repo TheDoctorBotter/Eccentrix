@@ -51,7 +51,12 @@ export function TopNav() {
   const { user, currentClinic, memberships, signOut, setCurrentClinic, hasRole } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const canSeeFrontOffice = hasRole(['admin', 'front_office', 'pt']);
+  const canSeeFrontOffice = hasRole(['admin', 'front_office', 'pt', 'ot', 'slp']);
+  const canSeeBilling = hasRole(['admin', 'biller', 'front_office']);
+  const canSeeCosign = hasRole(['admin', 'pt', 'pta', 'ot', 'ota', 'slp', 'slpa']);
+  const canSeeReports = hasRole(['admin', 'pt', 'ot', 'slp']);
+  const canSeeSettings = hasRole(['admin']);
+  const canSeeClinical = hasRole(['admin', 'pt', 'pta', 'ot', 'ota', 'slp', 'slpa']);
 
   const isActive = (path: string) => {
     if (path === '/') return pathname === '/';
@@ -68,11 +73,17 @@ export function TopNav() {
       case 'admin':
         return <Shield className="h-3 w-3" />;
       case 'pt':
+      case 'ot':
+      case 'slp':
         return <Stethoscope className="h-3 w-3" />;
       case 'pta':
+      case 'ota':
+      case 'slpa':
         return <UserCog className="h-3 w-3" />;
       case 'front_office':
         return <Briefcase className="h-3 w-3" />;
+      case 'biller':
+        return <DollarSign className="h-3 w-3" />;
       default:
         return <User className="h-3 w-3" />;
     }
@@ -86,8 +97,18 @@ export function TopNav() {
         return 'PT';
       case 'pta':
         return 'PTA';
+      case 'ot':
+        return 'OT';
+      case 'ota':
+        return 'OTA';
+      case 'slp':
+        return 'SLP';
+      case 'slpa':
+        return 'SLPA';
       case 'front_office':
         return 'Front Office';
+      case 'biller':
+        return 'Biller';
       default:
         return role;
     }
@@ -101,8 +122,18 @@ export function TopNav() {
         return 'bg-emerald-100 text-emerald-700 border-emerald-200';
       case 'pta':
         return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'ot':
+        return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'ota':
+        return 'bg-orange-100 text-orange-700 border-orange-200';
+      case 'slp':
+        return 'bg-rose-100 text-rose-700 border-rose-200';
+      case 'slpa':
+        return 'bg-pink-100 text-pink-700 border-pink-200';
       case 'front_office':
         return 'bg-slate-100 text-slate-700 border-slate-200';
+      case 'biller':
+        return 'bg-cyan-100 text-cyan-700 border-cyan-200';
       default:
         return 'bg-slate-100 text-slate-700 border-slate-200';
     }
@@ -160,6 +191,7 @@ export function TopNav() {
                   Schedule
                 </Button>
               </Link>
+              {canSeeClinical && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -200,6 +232,8 @@ export function TopNav() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              )}
+              {canSeeBilling && (
               <Link href="/billing">
                 <Button
                   variant={isActive('/billing') ? 'secondary' : 'ghost'}
@@ -210,6 +244,8 @@ export function TopNav() {
                   Billing
                 </Button>
               </Link>
+              )}
+              {canSeeCosign && (
               <Link href="/cosign">
                 <Button
                   variant={isActive('/cosign') ? 'secondary' : 'ghost'}
@@ -220,6 +256,7 @@ export function TopNav() {
                   Co-Sign
                 </Button>
               </Link>
+              )}
               <Link href="/messages">
                 <Button
                   variant={isActive('/messages') ? 'secondary' : 'ghost'}
@@ -230,6 +267,7 @@ export function TopNav() {
                   Messages
                 </Button>
               </Link>
+              {canSeeReports && (
               <Link href="/reports">
                 <Button
                   variant={isActive('/reports') ? 'secondary' : 'ghost'}
@@ -240,6 +278,8 @@ export function TopNav() {
                   Reports
                 </Button>
               </Link>
+              )}
+              {canSeeSettings && (
               <Link href="/settings">
                 <Button
                   variant={isActive('/settings') ? 'secondary' : 'ghost'}
@@ -250,6 +290,7 @@ export function TopNav() {
                   Settings
                 </Button>
               </Link>
+              )}
               <Link href="/archived">
                 <Button
                   variant={isActive('/archived') ? 'secondary' : 'ghost'}
@@ -291,6 +332,8 @@ export function TopNav() {
                   Schedule
                 </Link>
 
+                {canSeeClinical && (
+                <>
                 <div className="px-4 pt-3 pb-1">
                   <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Clinical</span>
                 </div>
@@ -310,32 +353,42 @@ export function TopNav() {
                   <Dumbbell className="h-4 w-4" />
                   HEP Programs
                 </Link>
+                </>
+                )}
 
                 <div className="my-1 border-t" />
 
+                {canSeeBilling && (
                 <Link href="/billing" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/billing') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
                   <DollarSign className="h-4 w-4" />
                   Billing
                 </Link>
+                )}
+                {canSeeCosign && (
                 <Link href="/cosign" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/cosign') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
                   <FileSignature className="h-4 w-4" />
                   Co-Sign
                 </Link>
+                )}
                 <Link href="/messages" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/messages') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
                   <MessageSquare className="h-4 w-4" />
                   Messages
                 </Link>
+                {canSeeReports && (
                 <Link href="/reports" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/reports') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
                   <BarChart3 className="h-4 w-4" />
                   Reports
                 </Link>
+                )}
 
                 <div className="my-1 border-t" />
 
+                {canSeeSettings && (
                 <Link href="/settings" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/settings') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
                   <Settings className="h-4 w-4" />
                   Settings
                 </Link>
+                )}
                 <Link href="/archived" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/archived') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
                   <Archive className="h-4 w-4" />
                   Archived

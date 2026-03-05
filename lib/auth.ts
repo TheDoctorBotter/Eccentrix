@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { cache } from 'react';
 
-export type ClinicRole = 'admin' | 'pt' | 'pta' | 'front_office';
+export type ClinicRole = 'admin' | 'pt' | 'pta' | 'ot' | 'ota' | 'slp' | 'slpa' | 'front_office' | 'biller';
 
 export interface User {
   id: string;
@@ -145,13 +145,13 @@ export async function isAdmin(userId: string): Promise<boolean> {
 
 /**
  * Check if user can finalize documents
- * Only PT and Admin can finalize
+ * Only primary clinicians (PT, OT, SLP) and Admin can finalize
  */
 export async function canFinalize(
   userId: string,
   clinicId: string
 ): Promise<boolean> {
-  return hasRole(userId, clinicId, ['pt', 'admin']);
+  return hasRole(userId, clinicId, ['pt', 'ot', 'slp', 'admin']);
 }
 
 /**
@@ -214,7 +214,7 @@ export async function hasEpisodeAccess(
     return true;
   }
 
-  // PT and PTA need to be on the care team
+  // Clinical staff need to be on the care team
   const { data: careTeam, error: careTeamError } = await supabase
     .from('episode_care_team')
     .select('id')

@@ -276,8 +276,13 @@ export default function CosignPage() {
     const labels: Record<string, string> = {
       pt: 'PT',
       pta: 'PTA',
+      ot: 'OT',
+      ota: 'OTA',
+      slp: 'SLP',
+      slpa: 'SLPA',
       admin: 'Admin',
       front_office: 'Front Office',
+      biller: 'Biller',
     };
     return labels[role] || role;
   };
