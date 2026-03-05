@@ -152,8 +152,27 @@ export function AssignCareTeamModal({
     }
   };
 
-  const ptStaff = clinicStaff.filter((s) => s.role === 'pt');
-  const ptaStaff = clinicStaff.filter((s) => s.role === 'pta');
+  const therapistRoles = ['pt', 'pta', 'ot', 'ota', 'slp', 'slpa'];
+  const ptStaff = clinicStaff.filter((s) => therapistRoles.includes(s.role));
+  const ptaStaff = clinicStaff.filter((s) => s.role === 'pta' || s.role === 'ota' || s.role === 'slpa');
+
+  const roleLabels: Record<string, string> = {
+    pt: 'PT',
+    pta: 'PTA',
+    ot: 'OT',
+    ota: 'OTA/COTA',
+    slp: 'SLP',
+    slpa: 'SLPA',
+  };
+
+  const roleBadgeStyles: Record<string, string> = {
+    pt: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    pta: 'bg-blue-100 text-blue-700 border-blue-200',
+    ot: 'bg-purple-100 text-purple-700 border-purple-200',
+    ota: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+    slp: 'bg-amber-100 text-amber-700 border-amber-200',
+    slpa: 'bg-orange-100 text-orange-700 border-orange-200',
+  };
 
   const togglePta = (userId: string) => {
     setSelectedPtas((prev) =>
@@ -182,14 +201,14 @@ export function AssignCareTeamModal({
           </div>
         ) : (
           <div className="space-y-6 py-2">
-            {/* PT Selection (single-select) */}
+            {/* Primary Therapist Selection (single-select) */}
             <div>
               <Label className="text-sm font-medium flex items-center gap-2 mb-3">
                 <Stethoscope className="h-4 w-4 text-emerald-600" />
-                Primary PT
+                Primary Therapist
               </Label>
               {ptStaff.length === 0 ? (
-                <p className="text-sm text-slate-500">No PTs in this clinic</p>
+                <p className="text-sm text-slate-500">No therapists in this clinic</p>
               ) : (
                 <div className="space-y-2">
                   {ptStaff.map((staff) => (
@@ -209,9 +228,9 @@ export function AssignCareTeamModal({
                       </span>
                       <Badge
                         variant="outline"
-                        className="bg-emerald-100 text-emerald-700 border-emerald-200"
+                        className={roleBadgeStyles[staff.role] || 'bg-slate-100 text-slate-700 border-slate-200'}
                       >
-                        PT
+                        {roleLabels[staff.role] || staff.role.toUpperCase()}
                       </Badge>
                     </label>
                   ))}
@@ -219,14 +238,14 @@ export function AssignCareTeamModal({
               )}
             </div>
 
-            {/* PTA Selection (multi-select) */}
+            {/* Assistant Selection (multi-select) */}
             <div>
               <Label className="text-sm font-medium flex items-center gap-2 mb-3">
                 <UserCog className="h-4 w-4 text-blue-600" />
-                PTA(s)
+                Assistant(s)
               </Label>
               {ptaStaff.length === 0 ? (
-                <p className="text-sm text-slate-500">No PTAs in this clinic</p>
+                <p className="text-sm text-slate-500">No assistants in this clinic</p>
               ) : (
                 <div className="space-y-2">
                   {ptaStaff.map((staff) => (
@@ -249,9 +268,9 @@ export function AssignCareTeamModal({
                       </div>
                       <Badge
                         variant="outline"
-                        className="bg-blue-100 text-blue-700 border-blue-200"
+                        className={roleBadgeStyles[staff.role] || 'bg-slate-100 text-slate-700 border-slate-200'}
                       >
-                        PTA
+                        {roleLabels[staff.role] || staff.role.toUpperCase()}
                       </Badge>
                     </label>
                   ))}
