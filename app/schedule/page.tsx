@@ -74,6 +74,7 @@ import {
   resolveDiscipline,
 } from '@/lib/types';
 import { toast } from 'sonner';
+import type { InsuranceRuleResult } from '@/lib/scheduling/insuranceRules';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -148,6 +149,8 @@ interface TherapistOption {
   user_id: string;
   name: string;
   primary_discipline?: string;
+  role?: string;
+  credential?: string | null;
 }
 
 function timeToMinutesSinceMidnight(dateStr: string): number {
@@ -252,6 +255,11 @@ export default function SchedulePage() {
   const [selectedVisitNote, setSelectedVisitNote] = useState<Note | null>(null);
   const [loadingNote, setLoadingNote] = useState(false);
   const [undoConfirmOpen, setUndoConfirmOpen] = useState(false);
+
+  // Insurance-aware scheduling state
+  const [eligibleTherapists, setEligibleTherapists] = useState<TherapistOption[]>([]);
+  const [insuranceRule, setInsuranceRule] = useState<InsuranceRuleResult | null>(null);
+  const [adminOverride, setAdminOverride] = useState(false);
 
   // Drag-and-drop state
   const [draggingVisit, setDraggingVisit] = useState<Visit | null>(null);
@@ -387,6 +395,77 @@ export default function SchedulePage() {
       setPatientAuths([]);
     }
   }, [formData.patient_id, fetchPatientAuths]);
+
+  // Fetch eligible clinicians based on patient insurance and visit type.
+  // This effect fires when patient, visit type, or discipline changes.
+  // For ST discipline: applies insurance-based rules for treatment and
+  // clinical compliance rules for evaluations.
+  // For PT/OT: returns all clinicians with no filtering.
+  useEffect(() => {
+    if (!currentClinic?.clinic_id || !formData.visit_type) {
+      setEligibleTherapists([]);
+      setInsuranceRule(null);
+      setAdminOverride(false);
+      return;
+    }
+
+    // Only fetch insurance-aware clinicians for ST discipline
+    if (formData.discipline !== 'ST') {
+      setInsuranceRule(null);
+      setAdminOverride(false);
+      // Use the full therapist list filtered to the discipline
+      setEligibleTherapists(
+        therapists.filter((t: TherapistOption) => {
+          if (formData.discipline === 'PT') return ['PT'].includes(t.primary_discipline || 'PT');
+          if (formData.discipline === 'OT') return t.primary_discipline === 'OT';
+          return true;
+        })
+      );
+      return;
+    }
+
+    const fetchEligible = async () => {
+      try {
+        const params = new URLSearchParams({
+          clinic_id: currentClinic.clinic_id!,
+          visit_type: formData.visit_type,
+          discipline: formData.discipline,
+        });
+        if (formData.patient_id) {
+          params.set('patient_id', formData.patient_id);
+        }
+
+        const res = await fetch(`/api/eligible-clinicians?${params}`);
+        if (res.ok) {
+          const data = await res.json();
+          setInsuranceRule(data.insuranceRule);
+          setAdminOverride(false);
+
+          // Map eligible clinicians to TherapistOption shape
+          const eligible = (data.eligibleClinicians || []).map(
+            (c: { user_id: string; display_name: string; primary_discipline?: string; role?: string; credential?: string | null }) => ({
+              user_id: c.user_id,
+              name: c.display_name,
+              primary_discipline: c.primary_discipline || 'PT',
+              role: c.role,
+              credential: c.credential,
+            })
+          );
+          setEligibleTherapists(eligible);
+
+          // If the currently selected therapist is not eligible, clear the selection
+          if (formData.therapist_user_id && !eligible.some((t: TherapistOption) => t.user_id === formData.therapist_user_id)) {
+            setFormData((p: AppointmentFormData) => ({ ...p, therapist_user_id: '' }));
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching eligible clinicians:', err);
+      }
+    };
+
+    fetchEligible();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentClinic?.clinic_id, formData.patient_id, formData.visit_type, formData.discipline]);
 
   useEffect(() => {
     fetchVisits();
@@ -861,6 +940,9 @@ export default function SchedulePage() {
     });
     setPatientSearch('');
     setPatientAuths([]);
+    setInsuranceRule(null);
+    setEligibleTherapists([]);
+    setAdminOverride(false);
   };
 
   // ---------------------------------------------------------------------------
@@ -1821,31 +1903,173 @@ export default function SchedulePage() {
               </div>
             )}
 
-            {/* Therapist */}
+            {/* Discipline — must come before visit type and therapist so
+                insurance rules can be determined */}
             <div className="space-y-2">
-              <Label>Therapist</Label>
+              <Label>Discipline</Label>
               <Select
-                value={formData.therapist_user_id}
-                onValueChange={(val: string) => {
-                  const selected = therapists.find((t: TherapistOption) => t.user_id === val);
+                value={formData.discipline}
+                onValueChange={(val: string) =>
                   setFormData((p: AppointmentFormData) => ({
                     ...p,
-                    therapist_user_id: val,
-                    discipline: selected?.primary_discipline || p.discipline,
-                  }));
-                }}
+                    discipline: val,
+                    therapist_user_id: '',
+                  }))
+                }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select therapist" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {therapists.map((t: TherapistOption) => (
-                    <SelectItem key={t.user_id} value={t.user_id}>
-                      {t.name}
+                  <SelectItem value="PT">PT — Physical Therapy</SelectItem>
+                  <SelectItem value="OT">OT — Occupational Therapy</SelectItem>
+                  <SelectItem value="ST">ST — Speech Therapy</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Visit type — must come before therapist dropdown because the
+                visit type (evaluation vs treatment) determines which clinicians
+                are eligible. The therapist dropdown will not populate until
+                both patient and visit type are selected. */}
+            <div className="space-y-2">
+              <Label>Visit Type</Label>
+              <Select
+                value={formData.visit_type}
+                onValueChange={(val: string) =>
+                  setFormData((p: AppointmentFormData) => ({
+                    ...p,
+                    visit_type: val,
+                    therapist_user_id: '',
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {VISIT_TYPE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Insurance scheduling rule banners (ST discipline only) */}
+            {formData.discipline === 'ST' && insuranceRule?.evaluationOverride && (
+              <div className="text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded p-3">
+                <p className="font-medium">Evaluation — Licensed SLP Required</p>
+                <p className="mt-0.5 text-blue-600">
+                  {insuranceRule.evaluationMessage}
+                </p>
+              </div>
+            )}
+
+            {formData.discipline === 'ST' && insuranceRule?.hasRule && !insuranceRule?.evaluationOverride && (
+              <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-3">
+                <p className="font-medium">{insuranceRule.insuranceLabel} — Scheduling Rule</p>
+                <p className="mt-0.5 text-amber-600">
+                  {insuranceRule.warningMessage}
+                </p>
+              </div>
+            )}
+
+            {/* Therapist — gated on visit type selection for ST discipline.
+                For evaluations: only licensed SLPs appear, no admin override.
+                For treatments with insurance rule: filtered list, admin can override.
+                For treatments without rule or non-ST: all clinicians shown. */}
+            <div className="space-y-2">
+              <Label>Therapist</Label>
+              {formData.discipline === 'ST' && !formData.visit_type ? (
+                <p className="text-sm text-slate-500 italic">
+                  Select a visit type first to see eligible therapists.
+                </p>
+              ) : (
+                <>
+                  <Select
+                    value={formData.therapist_user_id}
+                    onValueChange={(val: string) => {
+                      const allTherapistsList = formData.discipline === 'ST' ? eligibleTherapists : therapists;
+                      const useAll = adminOverride && insuranceRule?.hasRule && !insuranceRule?.evaluationOverride;
+                      const sourceList = useAll ? therapists.filter((t: TherapistOption) => ['slp', 'slpa'].includes(t.role || '')) : allTherapistsList;
+                      const selected = sourceList.find((t: TherapistOption) => t.user_id === val) || therapists.find((t: TherapistOption) => t.user_id === val);
+                      setFormData((p: AppointmentFormData) => ({
+                        ...p,
+                        therapist_user_id: val,
+                        discipline: selected?.primary_discipline || p.discipline,
+                      }));
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select therapist" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(() => {
+                        // Determine which therapist list to show
+                        const isSTDiscipline = formData.discipline === 'ST';
+                        const isAdminOverrideActive = adminOverride && insuranceRule?.hasRule && !insuranceRule?.evaluationOverride;
+
+                        let displayList: TherapistOption[];
+                        if (isSTDiscipline && isAdminOverrideActive) {
+                          // Admin override: show all ST clinicians
+                          displayList = therapists.filter((t: TherapistOption) => ['slp', 'slpa'].includes(t.role || ''));
+                        } else if (isSTDiscipline) {
+                          displayList = eligibleTherapists;
+                        } else {
+                          displayList = therapists;
+                        }
+
+                        if (displayList.length === 0) {
+                          return (
+                            <SelectItem value="__none__" disabled>
+                              No eligible clinicians available
+                            </SelectItem>
+                          );
+                        }
+
+                        return displayList.map((t: TherapistOption) => (
+                          <SelectItem key={t.user_id} value={t.user_id}>
+                            {t.name}
+                          </SelectItem>
+                        ));
+                      })()}
+                    </SelectContent>
+                  </Select>
+
+                  {/* No eligible clinicians message */}
+                  {formData.discipline === 'ST' && eligibleTherapists.length === 0 && formData.visit_type && insuranceRule?.hasRule && (
+                    <p className="text-xs text-red-600">
+                      No eligible clinicians available for this patient&apos;s insurance plan. Please contact your administrator.
+                    </p>
+                  )}
+
+                  {/* Admin override for treatment insurance rules only.
+                      Evaluations NEVER get an override — this is a clinical
+                      compliance requirement, not a business preference. */}
+                  {formData.discipline === 'ST' &&
+                    insuranceRule?.hasRule &&
+                    !insuranceRule?.evaluationOverride &&
+                    currentClinic?.role === 'admin' && (
+                    <div className="mt-1">
+                      {!adminOverride ? (
+                        <button
+                          type="button"
+                          onClick={() => setAdminOverride(true)}
+                          className="text-xs text-slate-500 underline hover:text-slate-700"
+                        >
+                          Admin: Override insurance rule
+                        </button>
+                      ) : (
+                        <p className="text-xs text-orange-600 font-medium">
+                          Admin override: scheduling outside insurance rule.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             {/* Date and times */}
@@ -1880,48 +2104,6 @@ export default function SchedulePage() {
                   }
                 />
               </div>
-            </div>
-
-            {/* Visit type */}
-            <div className="space-y-2">
-              <Label>Visit Type</Label>
-              <Select
-                value={formData.visit_type}
-                onValueChange={(val: string) =>
-                  setFormData((p: AppointmentFormData) => ({ ...p, visit_type: val }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {VISIT_TYPE_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Discipline */}
-            <div className="space-y-2">
-              <Label>Discipline</Label>
-              <Select
-                value={formData.discipline}
-                onValueChange={(val: string) =>
-                  setFormData((p: AppointmentFormData) => ({ ...p, discipline: val }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PT">PT — Physical Therapy</SelectItem>
-                  <SelectItem value="OT">OT — Occupational Therapy</SelectItem>
-                  <SelectItem value="ST">ST — Speech Therapy</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
 
             {/* Location */}

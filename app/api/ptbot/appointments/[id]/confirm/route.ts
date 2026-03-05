@@ -4,6 +4,10 @@
  *
  * Allows an authenticated patient to confirm their upcoming appointment.
  * Checks both the visits and appointments (SMS) tables.
+ *
+ * NOTE: Insurance-based scheduling rules and visit-type clinician filtering
+ * do NOT apply to this endpoint. These rules only apply to the UI scheduling
+ * flow. PTBot/Buckeye Scheduler automated actions are not subject to those rules.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
