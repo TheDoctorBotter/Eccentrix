@@ -308,7 +308,7 @@ export default function FrontOfficePage() {
                         <TableRow>
                           <TableHead>Patient</TableHead>
                           <TableHead>Status</TableHead>
-                          <TableHead>Assigned PT</TableHead>
+                          <TableHead>Assigned Therapist</TableHead>
                           <TableHead>Diagnosis</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>

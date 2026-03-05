@@ -234,6 +234,12 @@ export default function SchedulePage() {
   const [loadingNote, setLoadingNote] = useState(false);
   const [undoConfirmOpen, setUndoConfirmOpen] = useState(false);
 
+  // Drag-and-drop state
+  const [draggingVisit, setDraggingVisit] = useState<Visit | null>(null);
+  const [dragOverDay, setDragOverDay] = useState<string | null>(null);
+  const [dragOverMinute, setDragOverMinute] = useState<number | null>(null);
+  const dragGrabOffsetRef = useRef<number>(0); // minutes from start of visit to grab point
+
   // ---------------------------------------------------------------------------
   // Data fetching
   // ---------------------------------------------------------------------------
@@ -597,6 +603,148 @@ export default function SchedulePage() {
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // Drag-and-drop handlers
+  // ---------------------------------------------------------------------------
+
+  const handleDragStart = useCallback(
+    (e: React.DragEvent, visit: Visit) => {
+      // Don't allow dragging completed/cancelled/no-show visits
+      const status = visit.status || 'scheduled';
+      if (['completed', 'cancelled', 'no_show'].includes(status)) {
+        e.preventDefault();
+        return;
+      }
+      // Don't drag SMS appointments (they have separate APIs)
+      if (visit.source === 'sms') {
+        e.preventDefault();
+        return;
+      }
+
+      setDraggingVisit(visit);
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', visit.id);
+
+      // Calculate grab offset: how many minutes from the top of the appointment the user grabbed
+      const rect = (e.target as HTMLElement).getBoundingClientRect();
+      const grabY = e.clientY - rect.top;
+      const grabMinutes = (grabY / HOUR_HEIGHT) * 60;
+      dragGrabOffsetRef.current = grabMinutes;
+
+      // Make the drag image semi-transparent
+      if (e.dataTransfer.setDragImage) {
+        const el = e.target as HTMLElement;
+        e.dataTransfer.setDragImage(el, el.offsetWidth / 2, grabY);
+      }
+    },
+    []
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingVisit(null);
+    setDragOverDay(null);
+    setDragOverMinute(null);
+  }, []);
+
+  const calcDropMinute = useCallback((e: React.DragEvent, columnEl: HTMLElement) => {
+    const rect = columnEl.getBoundingClientRect();
+    const y = e.clientY - rect.top + (scrollRef.current?.scrollTop || 0);
+    const rawMinute = START_HOUR * 60 + (y / HOUR_HEIGHT) * 60 - dragGrabOffsetRef.current;
+    // Snap to 15-minute intervals
+    return Math.round(rawMinute / 15) * 15;
+  }, []);
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent, dayKey: string, columnEl: HTMLElement) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setDragOverDay(dayKey);
+      setDragOverMinute(calcDropMinute(e, columnEl));
+    },
+    [calcDropMinute]
+  );
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    // Only clear if actually leaving the column (not entering a child)
+    const related = e.relatedTarget as HTMLElement | null;
+    if (!related || !(e.currentTarget as HTMLElement).contains(related)) {
+      setDragOverDay(null);
+      setDragOverMinute(null);
+    }
+  }, []);
+
+  const handleDrop = useCallback(
+    async (e: React.DragEvent, targetDay: Date, columnEl: HTMLElement) => {
+      e.preventDefault();
+      if (!draggingVisit) return;
+
+      const dropMinute = calcDropMinute(e, columnEl);
+      const visit = draggingVisit;
+      const durationMin = differenceInMinutes(
+        toLocalDate(visit.end_time),
+        toLocalDate(visit.start_time)
+      );
+
+      // Build new start/end times
+      const endMinute = dropMinute + durationMin;
+
+      // Clamp to valid range
+      if (dropMinute < START_HOUR * 60 || endMinute > END_HOUR * 60) {
+        toast.error('Cannot drop outside schedule hours');
+        handleDragEnd();
+        return;
+      }
+
+      const dateStr = format(targetDay, 'yyyy-MM-dd');
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const newStartHour = Math.floor(dropMinute / 60);
+      const newStartMin = dropMinute % 60;
+      const newEndHour = Math.floor(endMinute / 60);
+      const newEndMin = endMinute % 60;
+      const newStartISO = new Date(
+        `${dateStr}T${pad(newStartHour)}:${pad(newStartMin)}:00`
+      ).toISOString();
+      const newEndISO = new Date(
+        `${dateStr}T${pad(newEndHour)}:${pad(newEndMin)}:00`
+      ).toISOString();
+
+      // Optimistic update
+      setVisits((prev: Visit[]) =>
+        prev.map((v: Visit) =>
+          v.id === visit.id
+            ? { ...v, start_time: newStartISO, end_time: newEndISO }
+            : v
+        )
+      );
+      handleDragEnd();
+
+      try {
+        const res = await fetch(`/api/visits/${visit.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            start_time: newStartISO,
+            end_time: newEndISO,
+          }),
+        });
+        if (!res.ok) throw new Error('Failed to reschedule');
+        toast.success('Appointment rescheduled');
+      } catch (err) {
+        console.error(err);
+        toast.error('Failed to reschedule appointment');
+        // Revert optimistic update
+        setVisits((prev: Visit[]) =>
+          prev.map((v: Visit) =>
+            v.id === visit.id
+              ? { ...v, start_time: visit.start_time, end_time: visit.end_time }
+              : v
+          )
+        );
+      }
+    },
+    [draggingVisit, calcDropMinute, handleDragEnd]
+  );
+
   const resetForm = () => {
     setFormData({
       patient_id: '',
@@ -890,12 +1038,21 @@ export default function SchedulePage() {
               {/* Day columns */}
               {daysToRender.map((day: Date) => {
                 const dayVisits = visitsForDay(day);
+                const dayKey = day.toISOString();
+                const isDropTarget = dragOverDay === dayKey;
                 return (
                   <div
-                    key={day.toISOString()}
+                    key={dayKey}
                     className={`relative border-r last:border-r-0 ${
                       isToday(day) ? 'bg-blue-50/30' : ''
-                    }`}
+                    } ${isDropTarget ? 'bg-blue-50/50' : ''}`}
+                    onDragOver={(e) =>
+                      handleDragOver(e, dayKey, e.currentTarget as HTMLElement)
+                    }
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) =>
+                      handleDrop(e, day, e.currentTarget as HTMLElement)
+                    }
                   >
                     {/* Hour lines */}
                     {Array.from({ length: TOTAL_HOURS }, (_, i) => (
@@ -934,6 +1091,25 @@ export default function SchedulePage() {
                       return null;
                     })()}
 
+                    {/* Drop indicator line */}
+                    {isDropTarget && dragOverMinute != null && draggingVisit && (() => {
+                      const indicatorTop = minutesToTop(dragOverMinute);
+                      const durationMin = differenceInMinutes(
+                        toLocalDate(draggingVisit.end_time),
+                        toLocalDate(draggingVisit.start_time)
+                      );
+                      const indicatorHeight = (durationMin / 60) * HOUR_HEIGHT;
+                      return (
+                        <div
+                          className="absolute left-1 right-1 z-30 pointer-events-none rounded-md border-2 border-dashed border-blue-400 bg-blue-100/30"
+                          style={{
+                            top: `${Math.max(indicatorTop, 0)}px`,
+                            height: `${Math.max(indicatorHeight, 20)}px`,
+                          }}
+                        />
+                      );
+                    })()}
+
                     {/* Appointment blocks */}
                     {dayVisits.map((visit: Visit) => {
                       const startMin = timeToMinutesSinceMidnight(visit.start_time);
@@ -956,11 +1132,17 @@ export default function SchedulePage() {
                       const isSmsAppt = visit.source === 'sms';
                       const isPtbot = (visit.source as string) === 'ptbot';
 
+                      const isDraggable = !isInactive && visit.source !== 'sms';
+                      const isBeingDragged = draggingVisit?.id === visit.id;
+
                       return (
                         <button
                           key={visit.id}
+                          draggable={isDraggable}
+                          onDragStart={(e) => handleDragStart(e, visit)}
+                          onDragEnd={handleDragEnd}
                           onClick={() => handleVisitClick(visit)}
-                          className={`absolute left-1 right-1 rounded-md border-l-4 px-2 py-1 text-left transition-colors cursor-pointer z-10 overflow-hidden ${statusBorder} ${typeBg}`}
+                          className={`absolute left-1 right-1 rounded-md border-l-4 px-2 py-1 text-left transition-colors cursor-pointer z-10 overflow-hidden ${statusBorder} ${typeBg} ${isDraggable ? 'cursor-grab active:cursor-grabbing' : ''} ${isBeingDragged ? 'opacity-40' : ''}`}
                           style={{
                             top: `${Math.max(top, 0)}px`,
                             height: `${Math.max(height, 20)}px`,
