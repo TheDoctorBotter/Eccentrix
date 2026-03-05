@@ -1027,6 +1027,17 @@ export default function SchedulePage() {
               <Plus className="h-4 w-4" />
               New Appointment
             </Button>
+
+            {/* Pop Out */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1"
+              onClick={() => window.open('/schedule/fullscreen', '_blank')}
+            >
+              <ExternalLink className="h-4 w-4" />
+              Pop Out
+            </Button>
           </div>
         </div>
 
