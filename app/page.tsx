@@ -34,6 +34,7 @@ import { format } from 'date-fns';
 import { formatLocalDate } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
 import { PTBotFolder } from '@/components/PTBotFolder';
+import { DashboardAuthSection } from '@/components/dashboard/DashboardAuthSection';
 import { toast } from 'sonner';
 
 interface TelehealthDraft {
@@ -373,6 +374,11 @@ export default function HomePage() {
                   </div>
                 </CardContent>
               </Card>
+            )}
+
+            {/* Authorizations (collapsed, lazy-loaded) */}
+            {currentClinic?.clinic_id && (
+              <DashboardAuthSection clinicId={currentClinic.clinic_id} />
             )}
 
             {/* Telehealth Drafts */}

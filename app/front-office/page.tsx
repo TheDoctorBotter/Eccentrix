@@ -51,6 +51,7 @@ export default function FrontOfficePage() {
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [selectedEpisode, setSelectedEpisode] = useState<{
     id: string;
+    patientId: string;
     patientName: string;
   } | null>(null);
 
@@ -141,6 +142,7 @@ export default function FrontOfficePage() {
   const openAssignModal = (episode: Episode) => {
     setSelectedEpisode({
       id: episode.id,
+      patientId: episode.patient_id,
       patientName: `${episode.first_name} ${episode.last_name}`,
     });
     setAssignModalOpen(true);
@@ -434,6 +436,7 @@ export default function FrontOfficePage() {
           open={assignModalOpen}
           onOpenChange={setAssignModalOpen}
           episodeId={selectedEpisode.id}
+          patientId={selectedEpisode.patientId}
           patientName={selectedEpisode.patientName}
           clinicId={currentClinic.clinic_id}
           onSaved={() => {

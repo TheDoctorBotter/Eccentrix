@@ -75,6 +75,21 @@ export async function GET(
       .order('start_time', { ascending: false })
       .limit(10);
 
+    // Fetch active authorizations (optional, non-breaking)
+    const { data: authData } = await supabaseAdmin
+      .from('prior_authorizations')
+      .select('id, discipline, auth_type, authorized_visits, used_visits, remaining_visits, units_authorized, units_used, start_date, end_date, status')
+      .eq('patient_id', patientId)
+      .eq('status', 'approved')
+      .order('end_date', { ascending: true });
+
+    // Fetch episode-of-care disciplines (optional, non-breaking)
+    const { data: eocData } = await supabaseAdmin
+      .from('patient_episode_of_care')
+      .select('discipline, frequency, status')
+      .eq('patient_id', patientId)
+      .eq('status', 'active');
+
     // Build safe patient profile (exclude internal fields)
     const profile = {
       id: auth.patient.id,
@@ -120,6 +135,22 @@ export async function GET(
         status: v.status,
         location: v.location,
         discipline: (v.discipline as string) || 'PT',
+      })),
+      // Optional: authorization summary (non-breaking addition)
+      auth_summary: (authData || []).map(a => ({
+        discipline: a.discipline,
+        auth_type: a.auth_type,
+        remaining: a.auth_type === 'units'
+          ? (a.units_authorized ?? 0) - (a.units_used ?? 0)
+          : a.remaining_visits ?? ((a.authorized_visits ?? 0) - a.used_visits),
+        end_date: a.end_date,
+        status: a.status,
+      })),
+      // Optional: active disciplines and frequencies (non-breaking addition)
+      episode_of_care_summary: (eocData || []).map(e => ({
+        discipline: e.discipline,
+        frequency: e.frequency,
+        status: e.status,
       })),
     });
   } catch (error) {
