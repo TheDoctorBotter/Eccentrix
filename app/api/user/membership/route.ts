@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
       // Fetch provider profiles for these users to get display names
       const userIds = (staffMembers || []).map((m: Record<string, unknown>) => m.user_id as string);
       let providerMap = new Map<string, { first_name: string; last_name: string; credentials: string | null }>();
+      let emailMap = new Map<string, string>();
 
       if (userIds.length > 0) {
         const { data: providers } = await client
@@ -52,19 +53,33 @@ export async function GET(request: NextRequest) {
             ])
           );
         }
+
+        // Fetch emails from auth.users for users without provider profiles
+        const usersWithoutProfile = userIds.filter((id) => !providerMap.has(id));
+        if (usersWithoutProfile.length > 0 && serviceRoleKey) {
+          const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
+          if (authUsers?.users) {
+            for (const u of authUsers.users) {
+              if (usersWithoutProfile.includes(u.id)) {
+                emailMap.set(u.id, u.email || '');
+              }
+            }
+          }
+        }
       }
 
       return NextResponse.json(
         (staffMembers || []).map((m: Record<string, unknown>) => {
           const userId = m.user_id as string;
           const provider = providerMap.get(userId);
+          const email = emailMap.get(userId);
           const displayName = provider
             ? `${provider.first_name} ${provider.last_name}${provider.credentials ? `, ${provider.credentials}` : ''}`
-            : userId.slice(0, 8) + '...';
+            : email || userId.slice(0, 8) + '...';
 
           return {
             user_id: userId,
-            email: displayName,
+            email: email || displayName,
             display_name: displayName,
             first_name: provider?.first_name || null,
             last_name: provider?.last_name || null,
