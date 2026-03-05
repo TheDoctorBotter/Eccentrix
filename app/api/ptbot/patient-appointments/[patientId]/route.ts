@@ -54,6 +54,48 @@ export async function GET(
       console.error('Error fetching SMS appointments:', smsError);
     }
 
+    // Derive billing_status for visits (claim status > invoice status > 'unbilled')
+    const visitIds = (visits || []).map(v => v.id);
+    const billingStatusMap: Record<string, string> = {};
+
+    if (visitIds.length > 0) {
+      // Find charges for these visits that link to claim_lines -> claims
+      const { data: chargesWithClaims } = await supabaseAdmin
+        .from('visit_charges')
+        .select('visit_id, claim_lines(claim_id, claims:claim_id(status))')
+        .in('visit_id', visitIds)
+        .eq('is_confirmed', true);
+
+      for (const vc of (chargesWithClaims || [])) {
+        if (!vc.visit_id) continue;
+        for (const cl of (vc.claim_lines || [])) {
+          const claim = (cl as unknown as { claims: { status: string } | null }).claims;
+          if (claim && claim.status !== 'void') {
+            billingStatusMap[vc.visit_id] = claim.status;
+          }
+        }
+      }
+
+      // Check invoices for visits not yet mapped
+      const unmappedIds = visitIds.filter(id => !billingStatusMap[id]);
+      if (unmappedIds.length > 0) {
+        const { data: invoices } = await supabaseAdmin
+          .from('invoices')
+          .select('visit_id, status')
+          .in('visit_id', unmappedIds)
+          .neq('status', 'void');
+
+        for (const inv of (invoices || [])) {
+          if (inv.visit_id) billingStatusMap[inv.visit_id] = inv.status;
+        }
+      }
+
+      // Default remaining to 'unbilled'
+      for (const vid of visitIds) {
+        if (!billingStatusMap[vid]) billingStatusMap[vid] = 'unbilled';
+      }
+    }
+
     // Combine and normalize into a unified format
     const appointments = [
       ...(visits || []).map(v => ({
@@ -67,6 +109,7 @@ export async function GET(
         discipline: (v.discipline as string) || 'PT',
         can_confirm: v.status === 'scheduled',
         can_cancel: ['scheduled', 'confirmed'].includes(v.status),
+        billing_status: billingStatusMap[v.id] || 'unbilled',
       })),
       ...(smsAppts || []).map(a => ({
         id: a.id,
@@ -79,6 +122,7 @@ export async function GET(
         discipline: (a.discipline as string) || 'PT',
         can_confirm: a.status === 'scheduled',
         can_cancel: ['scheduled', 'confirmed'].includes(a.status),
+        billing_status: 'unbilled',
       })),
     ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 

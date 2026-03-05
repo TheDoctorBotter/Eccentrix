@@ -15,6 +15,7 @@ import {
   PT_ONLY_FINALIZATION_TYPES,
   ClinicRole,
 } from '@/lib/types';
+import { upsertChargeDraft } from '@/lib/billing/actions';
 
 interface FinalizeRequestBody {
   user_id: string;
@@ -43,7 +44,7 @@ export async function POST(
     // Fetch the note to check its current status and doc_type
     const { data: note, error: fetchError } = await client
       .from('notes')
-      .select('id, status, doc_type, clinic_name')
+      .select('id, status, doc_type, clinic_name, visit_id, clinic_id, content, rich_content')
       .eq('id', noteId)
       .single();
 
@@ -128,6 +129,19 @@ export async function POST(
         .eq('legacy_note_id', noteId);
     } catch (docErr) {
       console.error('Error syncing document finalization:', docErr);
+    }
+
+    // Trigger charge draft upsert for billing (fire-and-forget, non-blocking)
+    if (note.visit_id && note.clinic_id) {
+      const soapContent = note.rich_content || note.content || {};
+      upsertChargeDraft({
+        visit_id: note.visit_id,
+        clinic_id: note.clinic_id,
+        actor_user_id: user_id,
+        soap_content: typeof soapContent === 'object' ? soapContent : { raw: soapContent },
+      }).catch((err) => {
+        console.error('[finalize] Charge draft upsert failed (non-blocking):', err);
+      });
     }
 
     return NextResponse.json({

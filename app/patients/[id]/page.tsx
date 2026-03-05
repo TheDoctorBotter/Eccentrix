@@ -24,6 +24,8 @@ import {
   FilePlus,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
+import { PatientInsuranceSection } from '@/components/billing/PatientInsuranceSection';
+import { PriorAuthSection } from '@/components/billing/PriorAuthSection';
 import { Patient, Visit, Note, APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_COLORS, Discipline, DISCIPLINE_LABELS, DISCIPLINE_COLORS, resolveDiscipline } from '@/lib/types';
 import { format, parseISO } from 'date-fns';
 import { formatLocalDate } from '@/lib/utils';
@@ -183,6 +185,14 @@ export default function PatientRecordPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Insurance & Prior Auth */}
+        {patient.clinic_id && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <PatientInsuranceSection patientId={patientId} clinicId={patient.clinic_id} />
+            <PriorAuthSection patientId={patientId} clinicId={patient.clinic_id} />
+          </div>
+        )}
 
         {/* Visit History — grouped by discipline */}
         <Card>
