@@ -7,6 +7,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { supabaseAdmin } from '@/lib/supabase-server';
+import { ClinicRole } from '@/lib/types';
+
+function deriveRoleFromCredentials(credentials: string | null | undefined): ClinicRole {
+  if (!credentials) return 'pt';
+  const c = credentials.toUpperCase();
+  if (/\bSLPA\b/.test(c)) return 'slpa';
+  if (/\bSLP\b|CCC-SLP|CF-SLP/.test(c)) return 'slp';
+  if (/\bOTA\b|COTA\b/.test(c)) return 'ota';
+  if (/\bOT\b|\bOTR\b|OTD\b|OTR\/L\b/.test(c)) return 'ot';
+  if (/\bPTA\b/.test(c)) return 'pta';
+  return 'pt';
+}
 
 export async function GET(
   request: NextRequest,
@@ -72,7 +84,7 @@ export async function PATCH(
           .single();
 
         if (clinic?.name) {
-          const role = data.credentials && /\bPTA\b/i.test(data.credentials) ? 'pta' : 'pt';
+          const role = deriveRoleFromCredentials(data.credentials);
           await client
             .from('clinic_memberships')
             .upsert(
