@@ -84,13 +84,13 @@ export default function FrontOfficePage() {
         const data = await episodesRes.json();
         setEpisodes(data);
 
-        // Fetch provider names for assigned PTs
-        const ptIds = Array.from(new Set(
+        // Fetch provider names for assigned therapists (PT, OT, SLP)
+        const allPrimaryIds = Array.from(new Set(
           (data as Episode[])
-            .map((e: Episode) => e.primary_pt_id)
+            .flatMap((e: Episode) => [e.primary_pt_id, e.primary_ot_id, e.primary_slp_id])
             .filter(Boolean) as string[]
         ));
-        if (ptIds.length > 0) {
+        if (allPrimaryIds.length > 0) {
           try {
             const staffRes = await fetch(`/api/user/membership?clinic_id=${clinicId}`);
             if (staffRes.ok) {
@@ -136,7 +136,7 @@ export default function FrontOfficePage() {
   };
 
   const unassignedCount = episodes.filter(
-    (e) => !e.primary_pt_id && (!e.care_team_ids || e.care_team_ids.length === 0)
+    (e) => !e.primary_pt_id && !e.primary_ot_id && !e.primary_slp_id
   ).length;
 
   const openAssignModal = (episode: Episode) => {
@@ -310,7 +310,7 @@ export default function FrontOfficePage() {
                         <TableRow>
                           <TableHead>Patient</TableHead>
                           <TableHead>Status</TableHead>
-                          <TableHead>Assigned Therapist</TableHead>
+                          <TableHead>Assigned Therapists</TableHead>
                           <TableHead>Diagnosis</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -331,23 +331,36 @@ export default function FrontOfficePage() {
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              {episode.primary_pt_id ? (
-                                <div className="flex items-center gap-2">
+                              {(() => {
+                                const primaries: { label: string; name: string; style: string }[] = [];
+                                if (episode.primary_pt_id)
+                                  primaries.push({ label: 'PT', name: providerNames.get(episode.primary_pt_id) || '', style: 'bg-emerald-50 text-emerald-700 border-emerald-200' });
+                                if (episode.primary_ot_id)
+                                  primaries.push({ label: 'OT', name: providerNames.get(episode.primary_ot_id) || '', style: 'bg-amber-50 text-amber-700 border-amber-200' });
+                                if (episode.primary_slp_id)
+                                  primaries.push({ label: 'SLP', name: providerNames.get(episode.primary_slp_id) || '', style: 'bg-rose-50 text-rose-700 border-rose-200' });
+
+                                return primaries.length > 0 ? (
+                                  <div className="flex flex-wrap items-center gap-1">
+                                    {primaries.map((p) => (
+                                      <Badge
+                                        key={p.label}
+                                        variant="outline"
+                                        className={p.style}
+                                      >
+                                        {p.label}{p.name ? `: ${p.name}` : ''}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                ) : (
                                   <Badge
                                     variant="outline"
-                                    className="bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    className="bg-red-50 text-red-600 border-red-200"
                                   >
-                                    {providerNames.get(episode.primary_pt_id) || 'Assigned'}
+                                    Unassigned
                                   </Badge>
-                                </div>
-                              ) : (
-                                <Badge
-                                  variant="outline"
-                                  className="bg-red-50 text-red-600 border-red-200"
-                                >
-                                  Unassigned
-                                </Badge>
-                              )}
+                                );
+                              })()}
                             </TableCell>
                             <TableCell className="max-w-[200px] truncate text-sm text-slate-600">
                               {episode.diagnosis ||

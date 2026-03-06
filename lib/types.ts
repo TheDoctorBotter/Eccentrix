@@ -450,6 +450,8 @@ export interface Episode {
   frequency?: string | null;
   duration?: string | null;
   primary_pt_id?: string | null;
+  primary_ot_id?: string | null;
+  primary_slp_id?: string | null;
   care_team_ids?: string[] | null;
   discharged_at?: string | null;
   discharged_by?: string | null;
