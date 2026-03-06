@@ -77,12 +77,16 @@ export async function POST(request: NextRequest) {
     if (allMembers) {
       const careTeamIds = allMembers.map((m: { user_id: string }) => m.user_id);
       const primaryPt = allMembers.find((m: { role: string }) => m.role === 'pt');
+      const primaryOt = allMembers.find((m: { role: string }) => m.role === 'ot');
+      const primarySlp = allMembers.find((m: { role: string }) => m.role === 'slp');
 
       await client
         .from('episodes')
         .update({
           care_team_ids: careTeamIds,
-          ...(primaryPt ? { primary_pt_id: primaryPt.user_id } : {}),
+          primary_pt_id: primaryPt ? primaryPt.user_id : null,
+          primary_ot_id: primaryOt ? primaryOt.user_id : null,
+          primary_slp_id: primarySlp ? primarySlp.user_id : null,
         })
         .eq('id', episode_id);
     }
@@ -126,14 +130,19 @@ export async function DELETE(request: NextRequest) {
       .select('user_id, role')
       .eq('episode_id', episode_id);
 
-    const careTeamIds = (allMembers || []).map((m: { user_id: string }) => m.user_id);
-    const primaryPt = (allMembers || []).find((m: { role: string }) => m.role === 'pt');
+    const members = allMembers || [];
+    const careTeamIds = members.map((m: { user_id: string }) => m.user_id);
+    const primaryPt = members.find((m: { role: string }) => m.role === 'pt');
+    const primaryOt = members.find((m: { role: string }) => m.role === 'ot');
+    const primarySlp = members.find((m: { role: string }) => m.role === 'slp');
 
     await client
       .from('episodes')
       .update({
         care_team_ids: careTeamIds,
         primary_pt_id: primaryPt ? primaryPt.user_id : null,
+        primary_ot_id: primaryOt ? primaryOt.user_id : null,
+        primary_slp_id: primarySlp ? primarySlp.user_id : null,
       })
       .eq('id', episode_id);
 

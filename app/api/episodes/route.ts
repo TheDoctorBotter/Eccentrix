@@ -48,6 +48,8 @@ export async function GET(request: NextRequest) {
         diagnosis: row.diagnosis,
         frequency: row.frequency,
         primary_pt_id: row.primary_pt_id,
+        primary_ot_id: row.primary_ot_id,
+        primary_slp_id: row.primary_slp_id,
         care_team_ids: row.care_team_ids,
         status: 'active',
         // Joined patient fields

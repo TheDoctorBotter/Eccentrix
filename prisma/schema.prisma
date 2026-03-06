@@ -229,6 +229,8 @@ model episodes {
   frequency   String?
   duration    String?
   primary_pt_id   String? @db.Uuid
+  primary_ot_id   String? @db.Uuid
+  primary_slp_id  String? @db.Uuid
   care_team_ids   String[] @db.Uuid
   discharged_at   DateTime? @db.Timestamptz(6)
   discharged_by   String?   @db.Uuid
