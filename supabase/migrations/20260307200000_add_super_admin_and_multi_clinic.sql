@@ -1,29 +1,13 @@
 -- =============================================================================
--- MULTI-CLINIC SUPER ADMIN MIGRATION
+-- MULTI-CLINIC SUPER ADMIN MIGRATION (RESILIENT / IDEMPOTENT)
 -- =============================================================================
--- This migration adds super admin support to the existing multi-clinic
--- architecture. The app already has:
---   - clinics table with basic fields
---   - clinic_memberships for user-to-clinic role mapping
---   - clinic_id on most data tables
---   - RLS policies scoped to clinic membership
---
--- What this migration adds:
---   1. Missing columns on clinics (slug, fax, npi, tax_id, etc.)
---   2. is_super_admin flag on clinic_memberships
---   3. clinic_admin role in the enum
---   4. Super admin bypass in RLS helper functions
---   5. Updated RLS policies with super admin bypass
+-- Safe to run multiple times. Handles partial prior application gracefully.
 -- =============================================================================
 
 -- =============================================================================
--- A) ADD MISSING COLUMNS TO CLINICS TABLE
--- The clinics table already exists but lacks some fields needed for full
--- multi-clinic SaaS (slug for URL routing, NPI/tax_id for billing identity,
--- separated address fields, branding colors).
+-- BLOCK 1: ADD COLUMNS TO CLINICS (without UNIQUE on slug)
 -- =============================================================================
-
-ALTER TABLE clinics ADD COLUMN IF NOT EXISTS slug TEXT UNIQUE;
+ALTER TABLE clinics ADD COLUMN IF NOT EXISTS slug TEXT;
 ALTER TABLE clinics ADD COLUMN IF NOT EXISTS address_street TEXT;
 ALTER TABLE clinics ADD COLUMN IF NOT EXISTS address_city TEXT;
 ALTER TABLE clinics ADD COLUMN IF NOT EXISTS address_state TEXT;
@@ -36,33 +20,39 @@ ALTER TABLE clinics ADD COLUMN IF NOT EXISTS letterhead_storage_path TEXT;
 ALTER TABLE clinics ADD COLUMN IF NOT EXISTS primary_color TEXT DEFAULT '#1e40af';
 ALTER TABLE clinics ADD COLUMN IF NOT EXISTS secondary_color TEXT DEFAULT '#64748b';
 
-CREATE INDEX IF NOT EXISTS clinics_slug_idx ON clinics(slug);
-CREATE INDEX IF NOT EXISTS clinics_active_idx ON clinics(is_active);
-
--- Generate slugs for existing clinics that don't have one
+-- =============================================================================
+-- BLOCK 2: POPULATE SLUGS (before adding unique constraint)
+-- =============================================================================
 UPDATE clinics
 SET slug = LOWER(REGEXP_REPLACE(REGEXP_REPLACE(name, '[^a-zA-Z0-9\s-]', '', 'g'), '\s+', '-', 'g'))
+           || '-' || LEFT(id::text, 8)
 WHERE slug IS NULL;
 
 -- =============================================================================
--- B) ADD is_super_admin TO clinic_memberships
--- Super admin is a global flag orthogonal to the per-clinic role. A user can be
--- is_super_admin=true AND role='admin' for their home clinic, but the super admin
--- flag grants cross-clinic visibility and management access.
--- We add it to clinic_memberships rather than a separate table because all user
--- identity checks already go through clinic_memberships.
+-- BLOCK 3: ADD UNIQUE CONSTRAINT AND INDEXES ON SLUG
+-- Now safe because all rows have non-null, unique slugs
 -- =============================================================================
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'clinics_slug_key' AND conrelid = 'clinics'::regclass
+  ) THEN
+    ALTER TABLE clinics ADD CONSTRAINT clinics_slug_key UNIQUE (slug);
+  END IF;
+END $$;
 
+CREATE INDEX IF NOT EXISTS clinics_slug_idx ON clinics(slug);
+CREATE INDEX IF NOT EXISTS clinics_active_idx ON clinics(is_active);
+
+-- =============================================================================
+-- BLOCK 4: ADD is_super_admin TO clinic_memberships
+-- =============================================================================
 ALTER TABLE clinic_memberships
   ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN DEFAULT FALSE;
 
 -- =============================================================================
--- C) ADD clinic_admin TO THE clinic_role ENUM
--- clinic_admin has the same powers as admin but is semantically "owner of this
--- clinic" vs "global admin". RLS treats both the same within their clinic scope.
+-- BLOCK 5: ADD clinic_admin TO clinic_role ENUM
 -- =============================================================================
-
--- Safely add 'clinic_admin' to the enum if it doesn't exist
 DO $$ BEGIN
   ALTER TYPE clinic_role ADD VALUE IF NOT EXISTS 'clinic_admin';
 EXCEPTION
@@ -70,9 +60,7 @@ EXCEPTION
 END $$;
 
 -- =============================================================================
--- D) CREATE SUPER ADMIN CHECK FUNCTION
--- Used by RLS policies to grant cross-clinic access. Queries clinic_memberships
--- directly with is_super_admin flag to avoid creating a separate table.
+-- BLOCK 6: CREATE/UPDATE FUNCTIONS
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION is_super_admin(p_user_id UUID)
@@ -88,20 +76,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 
--- =============================================================================
--- E) UPDATE HELPER FUNCTIONS WITH SUPER ADMIN BYPASS
--- The existing get_user_clinic_role, is_clinic_admin, is_clinic_pt, and
--- has_episode_access functions need to recognize super admin.
--- =============================================================================
-
--- Update is_clinic_admin to also return true for clinic_admin role and super admin
 CREATE OR REPLACE FUNCTION is_clinic_admin(
   p_user_id UUID,
   p_clinic_id UUID
 )
 RETURNS BOOLEAN AS $$
 BEGIN
-  -- Super admin has admin access everywhere
   IF is_super_admin(p_user_id) THEN
     RETURN TRUE;
   END IF;
@@ -117,7 +97,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 
--- Update is_clinic_pt to recognize super admin and multi-discipline roles
 CREATE OR REPLACE FUNCTION is_clinic_pt(
   p_user_id UUID,
   p_clinic_id UUID
@@ -139,7 +118,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 
--- Update has_episode_access to grant super admin full access
 CREATE OR REPLACE FUNCTION has_episode_access(
   p_user_id UUID,
   p_episode_id UUID
@@ -149,12 +127,10 @@ DECLARE
   v_clinic_id UUID;
   v_role clinic_role;
 BEGIN
-  -- Super admin can access all episodes
   IF is_super_admin(p_user_id) THEN
     RETURN TRUE;
   END IF;
 
-  -- Get episode's clinic
   SELECT clinic_id INTO v_clinic_id
   FROM episodes
   WHERE id = p_episode_id;
@@ -163,7 +139,6 @@ BEGIN
     RETURN FALSE;
   END IF;
 
-  -- Get user's role in that clinic
   SELECT role INTO v_role
   FROM clinic_memberships
   WHERE user_id = p_user_id
@@ -171,12 +146,10 @@ BEGIN
     AND is_active = true
   LIMIT 1;
 
-  -- Admin, clinic_admin, front_office, and biller can see all episodes in their clinic
   IF v_role IN ('admin', 'clinic_admin', 'front_office', 'biller') THEN
     RETURN TRUE;
   END IF;
 
-  -- Clinical staff need to be on the care team
   IF v_role IN ('pt', 'pta', 'ot', 'ota', 'slp', 'slpa') THEN
     RETURN EXISTS (
       SELECT 1
@@ -191,12 +164,11 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public';
 
 -- =============================================================================
--- F) UPDATE RLS POLICIES WITH SUPER ADMIN BYPASS
--- Super admins can see and modify data across all clinics.
--- We update the key tables' SELECT policies to include the super admin check.
+-- BLOCK 7: UPDATE RLS POLICIES
+-- All use DROP IF EXISTS + CREATE so they're safe to re-run.
 -- =============================================================================
 
--- CLINICS: super admin can see all clinics
+-- CLINICS
 DROP POLICY IF EXISTS "clinics_select" ON clinics;
 CREATE POLICY "clinics_select"
 ON clinics FOR SELECT
@@ -212,7 +184,6 @@ USING (
   )
 );
 
--- CLINICS: super admin can insert clinics
 DROP POLICY IF EXISTS "clinics_insert" ON clinics;
 CREATE POLICY "clinics_insert"
 ON clinics FOR INSERT
@@ -227,7 +198,6 @@ WITH CHECK (
   )
 );
 
--- CLINICS: super admin can update all clinics; clinic_admin can update their own
 DROP POLICY IF EXISTS "clinics_update" ON clinics;
 CREATE POLICY "clinics_update"
 ON clinics FOR UPDATE
@@ -244,7 +214,6 @@ USING (
   )
 );
 
--- CLINICS: super admin can deactivate; clinic_admin can manage their own
 DROP POLICY IF EXISTS "clinics_delete" ON clinics;
 CREATE POLICY "clinics_delete"
 ON clinics FOR DELETE
@@ -261,7 +230,7 @@ USING (
   )
 );
 
--- PATIENTS: super admin can see all patients
+-- PATIENTS
 DROP POLICY IF EXISTS "patients_select" ON patients;
 CREATE POLICY "patients_select"
 ON patients FOR SELECT
@@ -277,7 +246,6 @@ USING (
   )
 );
 
--- PATIENTS: super admin can write all patients
 DROP POLICY IF EXISTS "patients_insert" ON patients;
 CREATE POLICY "patients_insert"
 ON patients FOR INSERT
@@ -324,10 +292,7 @@ USING (
   )
 );
 
--- EPISODES: super admin handled via updated has_episode_access function
--- (already updated above — no policy changes needed for episodes/documents)
-
--- VISITS: add super admin bypass
+-- VISITS (conditional - table may not exist)
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'visits') THEN
     EXECUTE 'DROP POLICY IF EXISTS "visits_select" ON visits';
@@ -348,7 +313,7 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- NOTES: add super admin bypass
+-- NOTES (conditional - table may not exist)
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'notes') THEN
     EXECUTE 'DROP POLICY IF EXISTS "notes_select" ON notes';
@@ -373,16 +338,13 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- CLINIC_MEMBERSHIPS: super admin can see all memberships (for user management)
+-- CLINIC_MEMBERSHIPS
 DROP POLICY IF EXISTS "clinic_memberships_select" ON clinic_memberships;
 CREATE POLICY "clinic_memberships_select"
 ON clinic_memberships FOR SELECT
 USING (
   user_id = auth.uid()
   OR
-  -- Super admin can see all memberships for management purposes.
-  -- Direct column check avoids recursion since we check the requesting user's
-  -- own row for is_super_admin, not a subquery into clinic_memberships.
   EXISTS (
     SELECT 1 FROM clinic_memberships sa
     WHERE sa.user_id = auth.uid()
@@ -392,7 +354,7 @@ USING (
 );
 
 -- =============================================================================
--- G) UPDATE FINALIZATION TRIGGER TO RECOGNIZE clinic_admin
+-- BLOCK 8: UPDATE FINALIZATION TRIGGER
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION enforce_finalization_rules()
