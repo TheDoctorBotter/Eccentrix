@@ -6,8 +6,7 @@
 -- =============================================================================
 
 -- Add clinic_admin to the clinic_role enum
-DO $$ BEGIN
-  ALTER TYPE clinic_role ADD VALUE IF NOT EXISTS 'clinic_admin';
-EXCEPTION
-  WHEN duplicate_object THEN NULL;
-END $$;
+-- Must be a bare statement (no DO block / EXCEPTION handler) because
+-- ALTER TYPE ... ADD VALUE cannot run inside a subtransaction.
+-- IF NOT EXISTS handles idempotency natively.
+ALTER TYPE clinic_role ADD VALUE IF NOT EXISTS 'clinic_admin';
