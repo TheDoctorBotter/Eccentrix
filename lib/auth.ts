@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { cache } from 'react';
 
-export type ClinicRole = 'admin' | 'pt' | 'pta' | 'ot' | 'ota' | 'slp' | 'slpa' | 'front_office' | 'biller';
+export type ClinicRole = 'admin' | 'clinic_admin' | 'pt' | 'pta' | 'ot' | 'ota' | 'slp' | 'slpa' | 'front_office' | 'biller';
 
 export interface User {
   id: string;
@@ -18,6 +18,7 @@ export interface ClinicMembership {
   clinic_name: string;
   role: ClinicRole;
   is_active: boolean;
+  is_super_admin?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -117,10 +118,14 @@ export async function hasRole(
   clinicId: string,
   roles: ClinicRole[]
 ): Promise<boolean> {
+  // Check if user is super admin (cross-clinic access)
+  const isSuperAdminUser = await checkIsSuperAdmin(userId);
+  if (isSuperAdminUser) return true;
+
   const userRole = await getUserClinicRole(userId, clinicId);
   if (!userRole) return false;
-  // Admin always has full access to all features
-  if (userRole === 'admin') return true;
+  // Admin and clinic_admin have full access within their clinic
+  if (userRole === 'admin' || userRole === 'clinic_admin') return true;
   return roles.includes(userRole);
 }
 
@@ -229,6 +234,47 @@ export async function hasEpisodeAccess(
   }
 
   return true;
+}
+
+/**
+ * Check if user has the super admin flag on any of their memberships.
+ * Super admins can see and manage all clinics.
+ */
+export async function checkIsSuperAdmin(userId: string): Promise<boolean> {
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from('clinic_memberships')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('is_super_admin', true)
+    .eq('is_active', true)
+    .limit(1);
+
+  if (error || !data || data.length === 0) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Get the clinic_id for the current user from their first active membership.
+ * Used by server actions to scope all writes to the correct clinic.
+ * Throws if the user is not authenticated or has no clinic assignment.
+ */
+export async function getClinicId(): Promise<string> {
+  const user = await requireAuth();
+  const memberships = await getUserMemberships(user.id);
+
+  if (memberships.length === 0) {
+    throw new Error('No clinic assigned to this user');
+  }
+
+  const clinicId = memberships[0].clinic_id || memberships[0].clinic_id_ref;
+  if (!clinicId) {
+    throw new Error('No clinic_id found on membership');
+  }
+  return clinicId;
 }
 
 /**

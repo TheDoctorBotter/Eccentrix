@@ -2051,7 +2051,7 @@ export default function SchedulePage() {
                   {formData.discipline === 'ST' &&
                     insuranceRule?.hasRule &&
                     !insuranceRule?.evaluationOverride &&
-                    currentClinic?.role === 'admin' && (
+                    (currentClinic?.role === 'admin' || currentClinic?.role === 'clinic_admin') && (
                     <div className="mt-1">
                       {!adminOverride ? (
                         <button

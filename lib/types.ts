@@ -67,7 +67,7 @@ export const PT_ONLY_FINALIZATION_TYPES: ClinicalDocType[] = [
 export type DocumentStatus = 'draft' | 'final';
 
 // Clinic roles
-export type ClinicRole = 'pt' | 'pta' | 'ot' | 'ota' | 'slp' | 'slpa' | 'admin' | 'biller' | 'front_office';
+export type ClinicRole = 'pt' | 'pta' | 'ot' | 'ota' | 'slp' | 'slpa' | 'admin' | 'clinic_admin' | 'biller' | 'front_office';
 
 export const CLINIC_ROLE_LABELS: Record<ClinicRole, string> = {
   pt: 'Physical Therapist',
@@ -77,6 +77,7 @@ export const CLINIC_ROLE_LABELS: Record<ClinicRole, string> = {
   slp: 'Speech-Language Pathologist',
   slpa: 'Speech-Language Pathology Assistant',
   admin: 'Administrator',
+  clinic_admin: 'Clinic Administrator',
   biller: 'Biller',
   front_office: 'Front Office',
 };
@@ -86,17 +87,19 @@ export interface ClinicMembership {
   id: string;
   user_id: string;
   clinic_id?: string | null;
+  clinic_id_ref?: string | null;
   clinic_name: string;
   role: ClinicRole;
   is_active: boolean;
+  is_super_admin?: boolean;
   created_at: string;
   updated_at: string;
 }
 
 // Helper to check if user can finalize a doc type
 export function canUserFinalize(role: ClinicRole, docType: ClinicalDocType): boolean {
-  // Admin and PT can finalize all document types
-  if (role === 'admin' || role === 'pt') return true;
+  // Admin, clinic_admin, and PT can finalize all document types
+  if (role === 'admin' || role === 'clinic_admin' || role === 'pt') return true;
   if (PT_ONLY_FINALIZATION_TYPES.includes(docType)) return false;
   // OT/SLP can finalize their own discipline docs
   if (role === 'ot' || role === 'slp') return true;

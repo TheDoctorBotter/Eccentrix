@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
         primaryRole = 'pt';
       } else if (memberships.some(m => m.role === 'pta')) {
         primaryRole = 'pta';
-      } else if (memberships.some(m => m.role === 'admin')) {
+      } else if (memberships.some(m => m.role === 'admin' || m.role === 'clinic_admin')) {
         primaryRole = 'admin';
       }
     }

@@ -212,7 +212,7 @@ export async function DELETE(
       .eq('is_active', true)
       .single();
 
-    const isPTOrAdmin = membership?.role === 'pt' || membership?.role === 'admin';
+    const isPTOrAdmin = membership?.role === 'pt' || membership?.role === 'admin' || membership?.role === 'clinic_admin';
     const isOriginalFinalizer = note.finalized_by === user_id;
 
     if (!isPTOrAdmin && !isOriginalFinalizer) {
