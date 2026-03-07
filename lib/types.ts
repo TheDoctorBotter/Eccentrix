@@ -379,18 +379,26 @@ export const INTERVENTION_CATEGORIES = [
 
 export interface BrandingSettings {
   id?: string;
+  clinic_id?: string;
   clinic_name: string;
   address: string;
   phone: string;
+  fax: string;
   email: string;
   website: string;
+  npi: string;
+  tax_id: string;
   logo_url: string | null;
+  logo_storage_path: string | null;
   letterhead_url: string | null;
+  letterhead_storage_path: string | null;
   show_in_notes: boolean;
   provider_name: string;
   provider_credentials: string;
   provider_license: string;
   signature_enabled: boolean;
+  primary_color: string;
+  secondary_color: string;
   created_at?: string;
   updated_at?: string;
 }

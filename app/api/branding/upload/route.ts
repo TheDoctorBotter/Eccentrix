@@ -76,6 +76,8 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const type = formData.get('type') as string;
+    // FIX: Accept old_path so we can clean up the previous file when replacing
+    const oldPath = formData.get('old_path') as string | null;
 
     console.log('[Branding Upload] File info:', {
       hasFile: !!file,
@@ -179,6 +181,19 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('[Branding Upload] Upload successful:', uploadData.path);
+
+    // FIX: Clean up old file if a previous storage path was provided.
+    // This prevents orphaned files accumulating in storage when logos/letterheads are replaced.
+    if (oldPath) {
+      console.log('[Branding Upload] Removing old file:', oldPath);
+      const { error: removeError } = await supabaseAdmin.storage
+        .from(BUCKET_NAME)
+        .remove([oldPath]);
+      if (removeError) {
+        // Non-fatal: log but don't fail the upload
+        console.warn('[Branding Upload] Failed to remove old file:', removeError.message);
+      }
+    }
 
     console.log('[Branding Upload] Creating signed URL...');
     const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin.storage
