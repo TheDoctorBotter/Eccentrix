@@ -4,6 +4,7 @@ import { Inter } from 'next/font/google';
 import { AlertTriangle } from 'lucide-react';
 import { AuthProvider } from '@/lib/auth-context';
 import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistration';
+import { SuperAdminBanner } from '@/components/SuperAdminBanner';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -45,6 +46,7 @@ export default function RootLayout({
             <span>DRAFT DOCUMENTATION – Clinician must review all generated content. Do not enter PHI or protected health information.</span>
             <AlertTriangle className="h-4 w-4" />
           </div>
+          <SuperAdminBanner />
           {children}
         </AuthProvider>
       </body>

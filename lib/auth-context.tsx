@@ -15,6 +15,8 @@ interface AuthContextType {
   documentationMode: DocumentationMode;
   isEmrMode: boolean;
   isPaperMode: boolean;
+  // Multi-clinic super admin support
+  isSuperAdmin: boolean;
   signOut: () => Promise<void>;
   setCurrentClinic: (membership: ClinicMembership) => void;
   hasRole: (roles: ClinicRole[]) => boolean;
@@ -53,6 +55,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentClinic, setCurrentClinicState] = useState<ClinicMembership | null>(null);
   const [loading, setLoading] = useState(true);
   const [documentationMode, setDocumentationMode] = useState<DocumentationMode>('emr');
+  // Super admin flag — derived from any of the user's memberships having is_super_admin=true
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   // Fetch the clinic's documentation mode
   const fetchDocumentationMode = async (clinicId: string) => {
@@ -90,6 +94,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }));
 
       setMemberships(normalized);
+
+      // Check if user has super admin flag on any membership
+      const hasSuperAdmin = normalized.some((m: any) => m.is_super_admin === true);
+      setIsSuperAdmin(hasSuperAdmin);
 
       // Try to restore previously selected clinic from cookie
       const savedClinicId = getCookie(ACTIVE_CLINIC_COOKIE);
@@ -181,9 +189,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const hasRole = (roles: ClinicRole[]): boolean => {
+    // Super admin has full access regardless of current clinic
+    if (isSuperAdmin) return true;
     if (!currentClinic) return false;
-    // Admin always has full access to all features
-    if (currentClinic.role === 'admin') return true;
+    // Admin and clinic_admin have full access within their clinic
+    if (currentClinic.role === 'admin' || currentClinic.role === 'clinic_admin') return true;
     return roles.includes(currentClinic.role);
   };
 
@@ -199,6 +209,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     documentationMode,
     isEmrMode: documentationMode === 'emr',
     isPaperMode: documentationMode === 'paper',
+    isSuperAdmin,
     signOut,
     setCurrentClinic,
     hasRole,
