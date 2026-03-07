@@ -21,6 +21,7 @@ export default function ClinicSettingsPage() {
   const { user, currentClinic, memberships, setCurrentClinic, refreshDocumentationMode } = useAuth();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [migrationNeeded, setMigrationNeeded] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -34,8 +35,14 @@ export default function ClinicSettingsPage() {
 
   useEffect(() => {
     if (currentClinic) {
-      // Fetch clinic details
       fetchClinicDetails();
+      // Check if documentation_mode migration is needed
+      fetch('/api/migrate/documentation-mode')
+        .then(res => res.json())
+        .then(data => {
+          if (!data.migrated) setMigrationNeeded(true);
+        })
+        .catch(() => {});
     }
   }, [currentClinic]);
 
@@ -79,13 +86,25 @@ export default function ClinicSettingsPage() {
       });
 
       if (res.ok) {
-        setMessage({ type: 'success', text: 'Clinic settings saved successfully' });
+        const result = await res.json();
+        if (result._migration_needed) {
+          setMigrationNeeded(true);
+          setMessage({ type: 'error', text: 'Documentation mode requires a database migration. See instructions below.' });
+        } else {
+          setMigrationNeeded(false);
+          setMessage({ type: 'success', text: 'Clinic settings saved successfully' });
+        }
         // Refresh clinic details and documentation mode in auth context
         fetchClinicDetails();
         refreshDocumentationMode();
       } else {
         const error = await res.json();
-        setMessage({ type: 'error', text: error.error || 'Failed to save clinic settings' });
+        if (error.error?.includes('documentation_mode')) {
+          setMigrationNeeded(true);
+          setMessage({ type: 'error', text: 'Documentation mode requires a database migration. See instructions below.' });
+        } else {
+          setMessage({ type: 'error', text: error.error || 'Failed to save clinic settings' });
+        }
       }
     } catch (error) {
       console.error('Error saving clinic:', error);
@@ -258,6 +277,37 @@ export default function ClinicSettingsPage() {
                   <p className="text-sm text-slate-500">
                     Choose how your clinic handles clinical documentation. Paper mode hides EMR note-writing features and is ideal for clinics that use printed forms.
                   </p>
+                  {migrationNeeded && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 space-y-2">
+                      <p className="font-medium">Database migration needed</p>
+                      <p>The documentation_mode column needs to be added to your database. Run this SQL in the Supabase SQL Editor:</p>
+                      <code className="block p-2 bg-red-100 rounded text-xs font-mono break-all">
+                        ALTER TABLE clinics ADD COLUMN IF NOT EXISTS documentation_mode TEXT NOT NULL DEFAULT &apos;emr&apos;;
+                      </code>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch('/api/migrate/documentation-mode', { method: 'POST' });
+                            const data = await res.json();
+                            if (data.success) {
+                              setMigrationNeeded(false);
+                              setMessage({ type: 'success', text: 'Migration applied! Documentation mode is now available.' });
+                              fetchClinicDetails();
+                            } else {
+                              setMessage({ type: 'error', text: data.message || 'Auto-migration failed. Please run the SQL manually.' });
+                            }
+                          } catch {
+                            setMessage({ type: 'error', text: 'Auto-migration failed. Please run the SQL manually.' });
+                          }
+                        }}
+                      >
+                        Try Auto-Migrate
+                      </Button>
+                    </div>
+                  )}
                   <div className="flex items-center gap-4 p-4 border rounded-lg">
                     <div className="flex items-center gap-2 text-sm">
                       <FileText className={`h-4 w-4 ${formData.documentation_mode === 'paper' ? 'text-amber-600' : 'text-slate-400'}`} />

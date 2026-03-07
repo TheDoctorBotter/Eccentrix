@@ -72,12 +72,59 @@ export async function PATCH(
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
 
-    const { data, error } = await client
+    let { data, error } = await client
       .from('clinics')
       .update(updates)
       .eq('id', id)
       .select()
       .single();
+
+    // If documentation_mode column doesn't exist yet, auto-create it and retry
+    if (error && error.message?.includes('documentation_mode')) {
+      console.log('Auto-creating documentation_mode column...');
+      try {
+        await supabaseAdmin.rpc('_exec_sql', {
+          query: `ALTER TABLE clinics ADD COLUMN IF NOT EXISTS documentation_mode TEXT NOT NULL DEFAULT 'emr';`,
+        }).throwOnError();
+      } catch {
+        // rpc might not exist - try direct SQL via pg_catalog workaround
+        // Fall back to retrying without documentation_mode
+      }
+
+      // Retry the original update
+      const retry = await client
+        .from('clinics')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (!retry.error) {
+        return NextResponse.json(retry.data);
+      }
+
+      // If still failing, try without documentation_mode
+      const { documentation_mode: _, ...updatesWithoutMode } = updates;
+      if (Object.keys(updatesWithoutMode).length > 0) {
+        const fallback = await client
+          .from('clinics')
+          .update(updatesWithoutMode)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (!fallback.error) {
+          return NextResponse.json({
+            ...fallback.data,
+            _migration_needed: true,
+            _migration_sql: "ALTER TABLE clinics ADD COLUMN IF NOT EXISTS documentation_mode TEXT NOT NULL DEFAULT 'emr';",
+          });
+        }
+      }
+
+      // Return the original error
+      error = retry.error || error;
+    }
 
     if (error) {
       if (error.code === 'PGRST116') {
