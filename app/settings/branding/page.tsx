@@ -1,17 +1,41 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { Upload, Image as ImageIcon, FileText, Save, Loader2, ArrowLeft } from 'lucide-react';
+import { Upload, Image as ImageIcon, FileText, Save, Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { BrandingSettings } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth-context';
+
+// FIX: Default settings object extracted for reuse and to ensure all new fields
+// (fax, npi, tax_id, storage paths, colors) have proper defaults.
+const DEFAULT_SETTINGS: BrandingSettings = {
+  clinic_name: '',
+  address: '',
+  phone: '',
+  fax: '',
+  email: '',
+  website: '',
+  npi: '',
+  tax_id: '',
+  logo_url: null,
+  logo_storage_path: null,
+  letterhead_url: null,
+  letterhead_storage_path: null,
+  show_in_notes: true,
+  provider_name: '',
+  provider_credentials: '',
+  provider_license: '',
+  signature_enabled: true,
+  primary_color: '#1e40af',
+  secondary_color: '#64748b',
+};
 
 export default function BrandingSettingsPage() {
   const { toast } = useToast();
@@ -20,27 +44,56 @@ export default function BrandingSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingLetterhead, setUploadingLetterhead] = useState(false);
+  // FIX: Track unsaved changes so users know when they need to save
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  // FIX: Track local file previews with URL.createObjectURL for immediate feedback
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [letterheadPreview, setLetterheadPreview] = useState<string | null>(null);
+  // FIX: Persistent error banner for save/upload failures
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const [settings, setSettings] = useState<BrandingSettings>({
-    clinic_name: '',
-    address: '',
-    phone: '',
-    email: '',
-    website: '',
-    logo_url: null,
-    letterhead_url: null,
-    show_in_notes: true,
-    provider_name: '',
-    provider_credentials: '',
-    provider_license: '',
-    signature_enabled: true,
-  });
+  const [settings, setSettings] = useState<BrandingSettings>({ ...DEFAULT_SETTINGS });
+  // FIX: Store the initial loaded settings to compare for unsaved changes
+  const savedSettingsRef = useRef<BrandingSettings>({ ...DEFAULT_SETTINGS });
 
   useEffect(() => {
     if (currentClinic) {
       fetchSettings();
     }
   }, [currentClinic]);
+
+  // FIX: Detect unsaved changes by comparing current settings to saved snapshot
+  const checkUnsavedChanges = useCallback((current: BrandingSettings) => {
+    const saved = savedSettingsRef.current;
+    const changed = (
+      current.clinic_name !== saved.clinic_name ||
+      current.address !== saved.address ||
+      current.phone !== saved.phone ||
+      current.fax !== saved.fax ||
+      current.email !== saved.email ||
+      current.website !== saved.website ||
+      current.npi !== saved.npi ||
+      current.tax_id !== saved.tax_id ||
+      current.logo_url !== saved.logo_url ||
+      current.letterhead_url !== saved.letterhead_url ||
+      current.show_in_notes !== saved.show_in_notes ||
+      current.provider_name !== saved.provider_name ||
+      current.provider_credentials !== saved.provider_credentials ||
+      current.provider_license !== saved.provider_license ||
+      current.signature_enabled !== saved.signature_enabled ||
+      current.primary_color !== saved.primary_color ||
+      current.secondary_color !== saved.secondary_color
+    );
+    setHasUnsavedChanges(changed);
+  }, []);
+
+  const updateSettings = useCallback((updater: Partial<BrandingSettings>) => {
+    setSettings(prev => {
+      const next = { ...prev, ...updater };
+      checkUnsavedChanges(next);
+      return next;
+    });
+  }, [checkUnsavedChanges]);
 
   const fetchSettings = async () => {
     if (!currentClinic) return;
@@ -50,15 +103,20 @@ export default function BrandingSettingsPage() {
       const response = await fetch(`/api/branding?clinic_id=${currentClinic.clinic_id}`);
       if (response.ok) {
         const data = await response.json();
-        setSettings(data);
+        // FIX: Merge fetched data with defaults so any missing fields get proper defaults
+        const merged = { ...DEFAULT_SETTINGS, ...data };
+        setSettings(merged);
+        savedSettingsRef.current = { ...merged };
+        setHasUnsavedChanges(false);
       } else {
-        throw new Error('Failed to fetch settings');
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.details || errData.error || 'Failed to fetch settings');
       }
     } catch (error) {
       console.error('Error fetching branding settings:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load branding settings',
+        description: error instanceof Error ? error.message : 'Failed to load branding settings',
         variant: 'destructive',
       });
     } finally {
@@ -85,15 +143,29 @@ export default function BrandingSettingsPage() {
       return;
     }
 
+    // FIX: Show immediate local preview using URL.createObjectURL so users see
+    // what they selected before the upload completes
+    const localPreviewUrl = URL.createObjectURL(file);
+    if (type === 'logo') {
+      setLogoPreview(localPreviewUrl);
+    } else {
+      setLetterheadPreview(localPreviewUrl);
+    }
+
     const setUploading = type === 'logo' ? setUploadingLogo : setUploadingLetterhead;
     setUploading(true);
+    setSaveError(null);
 
     try {
-      console.log('[Branding Frontend] Uploading file:', { name: file.name, size: file.size, type });
-
       const formData = new FormData();
       formData.append('file', file);
       formData.append('type', type);
+
+      // FIX: Send the old storage path so the server can clean up the old file
+      const oldPathKey = type === 'logo' ? 'logo_storage_path' : 'letterhead_storage_path';
+      if (settings[oldPathKey]) {
+        formData.append('old_path', settings[oldPathKey] as string);
+      }
 
       const response = await fetch('/api/branding/upload', {
         method: 'POST',
@@ -101,40 +173,45 @@ export default function BrandingSettingsPage() {
       });
 
       const data = await response.json();
-      console.log('[Branding Frontend] Upload response:', { ok: response.ok, status: response.status, data });
 
       if (!response.ok) {
         let errorMessage = data.error || 'Upload failed';
         if (data.details) {
-          errorMessage += `\n${data.details}`;
+          errorMessage += `: ${data.details}`;
         }
-        console.error('[Branding Frontend] Upload error:', errorMessage);
         throw new Error(errorMessage);
       }
 
       if (!data.url) {
-        console.error('[Branding Frontend] No URL in response:', data);
         throw new Error('Upload succeeded but no URL was returned');
       }
 
-      console.log('[Branding Frontend] Upload successful, updating settings');
-      setSettings(prev => ({
-        ...prev,
-        [type === 'logo' ? 'logo_url' : 'letterhead_url']: data.url,
-      }));
+      // FIX: Store both the signed URL and the storage path. The storage path is
+      // needed for cleanup when replacing images and for generating new signed URLs.
+      const urlKey = type === 'logo' ? 'logo_url' : 'letterhead_url';
+      const pathKey = type === 'logo' ? 'logo_storage_path' : 'letterhead_storage_path';
+      updateSettings({
+        [urlKey]: data.url,
+        [pathKey]: data.path,
+      });
 
       toast({
         title: 'Success',
-        description: `${type === 'logo' ? 'Logo' : 'Letterhead'} uploaded successfully`,
+        description: `${type === 'logo' ? 'Logo' : 'Letterhead'} uploaded successfully. Click Save to persist.`,
       });
     } catch (error) {
-      console.error('[Branding Frontend] Error in handleFileUpload:', error);
+      console.error('[Branding] Error in handleFileUpload:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to upload file';
+      // FIX: Show persistent error banner with specific error details
+      setSaveError(`${type === 'logo' ? 'Logo' : 'Letterhead'} upload failed: ${errorMessage}`);
       toast({
         title: 'Upload Failed',
         description: errorMessage,
         variant: 'destructive',
       });
+      // Clear the local preview on failure
+      if (type === 'logo') setLogoPreview(null);
+      else setLetterheadPreview(null);
     } finally {
       setUploading(false);
     }
@@ -151,6 +228,7 @@ export default function BrandingSettingsPage() {
     }
 
     setSaving(true);
+    setSaveError(null);
     try {
       const response = await fetch('/api/branding', {
         method: 'POST',
@@ -162,24 +240,47 @@ export default function BrandingSettingsPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Save failed');
+        // FIX: Parse and display the specific error from the server rather than
+        // showing a generic "Save failed" message.
+        const errData = await response.json().catch(() => ({}));
+        const detail = errData.details || errData.error || 'Save failed';
+        throw new Error(detail);
       }
 
+      const savedData = await response.json();
+
+      // FIX: After successful save, update the saved snapshot and clear unsaved indicator
+      const merged = { ...DEFAULT_SETTINGS, ...savedData };
+      setSettings(merged);
+      savedSettingsRef.current = { ...merged };
+      setHasUnsavedChanges(false);
+
+      // FIX: Clear local file previews — the saved URLs from the server are now authoritative
+      setLogoPreview(null);
+      setLetterheadPreview(null);
+
       toast({
-        title: 'Success',
-        description: `Branding settings saved for ${currentClinic.clinic_name}`,
+        title: 'Saved',
+        description: 'Clinic branding saved successfully',
       });
     } catch (error) {
       console.error('Error saving settings:', error);
+      const message = error instanceof Error ? error.message : 'Failed to save branding settings';
+      // FIX: Show persistent red error banner with exact error details
+      setSaveError(message);
       toast({
-        title: 'Error',
-        description: 'Failed to save branding settings',
+        title: 'Save Failed',
+        description: message,
         variant: 'destructive',
       });
     } finally {
       setSaving(false);
     }
   };
+
+  // Determine the display URL for logo/letterhead (local preview takes precedence)
+  const displayLogoUrl = logoPreview || settings.logo_url;
+  const displayLetterheadUrl = letterheadPreview || settings.letterhead_url;
 
   if (loading) {
     return (
@@ -208,20 +309,48 @@ export default function BrandingSettingsPage() {
               Upload your clinic logo and letterhead to brand your documentation
             </p>
           </div>
-          <Button onClick={handleSave} disabled={saving} size="lg">
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Save Changes
-              </>
+          <div className="flex items-center gap-3">
+            {/* FIX: Unsaved changes indicator so users know when to save */}
+            {hasUnsavedChanges && (
+              <span className="text-sm text-amber-600 font-medium">Unsaved changes</span>
             )}
-          </Button>
+            {/* FIX: Save button disabled until changes exist, shows spinner during save */}
+            <Button
+              onClick={handleSave}
+              disabled={saving || !hasUnsavedChanges}
+              size="lg"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Changes
+                </>
+              )}
+            </Button>
+          </div>
         </div>
+
+        {/* FIX: Persistent red error banner for save/upload failures with exact error */}
+        {saveError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-red-800">Error</p>
+              <p className="text-sm text-red-700 mt-1">{saveError}</p>
+            </div>
+            <button
+              onClick={() => setSaveError(null)}
+              className="ml-auto text-red-400 hover:text-red-600 text-sm"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         <div className="grid lg:grid-cols-2 gap-6">
           <div className="space-y-6">
@@ -233,13 +362,21 @@ export default function BrandingSettingsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {settings.logo_url && (
+                {/* FIX: Show current logo preview (local preview or saved URL) */}
+                {displayLogoUrl && (
                   <div className="border rounded-lg p-4 bg-white">
                     <img
-                      src={settings.logo_url}
+                      src={displayLogoUrl}
                       alt="Clinic Logo"
                       className="max-h-32 mx-auto object-contain"
                     />
+                  </div>
+                )}
+                {/* FIX: Show placeholder when no logo exists */}
+                {!displayLogoUrl && (
+                  <div className="border rounded-lg p-4 bg-slate-50 text-center">
+                    <ImageIcon className="h-12 w-12 mx-auto text-slate-300 mb-2" />
+                    <p className="text-xs text-slate-400">No logo uploaded</p>
                   </div>
                 )}
                 <div>
@@ -280,13 +417,20 @@ export default function BrandingSettingsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {settings.letterhead_url && (
+                {/* FIX: Show current letterhead preview (local preview or saved URL) */}
+                {displayLetterheadUrl && (
                   <div className="border rounded-lg p-4 bg-white">
                     <img
-                      src={settings.letterhead_url}
+                      src={displayLetterheadUrl}
                       alt="Clinic Letterhead"
                       className="max-h-40 w-full object-contain"
                     />
+                  </div>
+                )}
+                {!displayLetterheadUrl && (
+                  <div className="border rounded-lg p-4 bg-slate-50 text-center">
+                    <FileText className="h-12 w-12 mx-auto text-slate-300 mb-2" />
+                    <p className="text-xs text-slate-400">No letterhead uploaded</p>
                   </div>
                 )}
                 <div>
@@ -332,9 +476,7 @@ export default function BrandingSettingsPage() {
                   <Input
                     id="clinic-name"
                     value={settings.clinic_name}
-                    onChange={(e) =>
-                      setSettings({ ...settings, clinic_name: e.target.value })
-                    }
+                    onChange={(e) => updateSettings({ clinic_name: e.target.value })}
                     placeholder="Your Clinic Name"
                   />
                 </div>
@@ -343,23 +485,30 @@ export default function BrandingSettingsPage() {
                   <Textarea
                     id="address"
                     value={settings.address}
-                    onChange={(e) =>
-                      setSettings({ ...settings, address: e.target.value })
-                    }
+                    onChange={(e) => updateSettings({ address: e.target.value })}
                     placeholder="Street Address&#10;City, State ZIP"
                     rows={3}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    value={settings.phone}
-                    onChange={(e) =>
-                      setSettings({ ...settings, phone: e.target.value })
-                    }
-                    placeholder="(555) 123-4567"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input
+                      id="phone"
+                      value={settings.phone}
+                      onChange={(e) => updateSettings({ phone: e.target.value })}
+                      placeholder="(555) 123-4567"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="fax">Fax</Label>
+                    <Input
+                      id="fax"
+                      value={settings.fax}
+                      onChange={(e) => updateSettings({ fax: e.target.value })}
+                      placeholder="(555) 123-4568"
+                    />
+                  </div>
                 </div>
                 <div>
                   <Label htmlFor="email">Email</Label>
@@ -367,9 +516,7 @@ export default function BrandingSettingsPage() {
                     id="email"
                     type="email"
                     value={settings.email}
-                    onChange={(e) =>
-                      setSettings({ ...settings, email: e.target.value })
-                    }
+                    onChange={(e) => updateSettings({ email: e.target.value })}
                     placeholder="contact@clinic.com"
                   />
                 </div>
@@ -378,11 +525,29 @@ export default function BrandingSettingsPage() {
                   <Input
                     id="website"
                     value={settings.website}
-                    onChange={(e) =>
-                      setSettings({ ...settings, website: e.target.value })
-                    }
+                    onChange={(e) => updateSettings({ website: e.target.value })}
                     placeholder="https://www.clinic.com"
                   />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="npi">NPI</Label>
+                    <Input
+                      id="npi"
+                      value={settings.npi}
+                      onChange={(e) => updateSettings({ npi: e.target.value })}
+                      placeholder="1234567890"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="tax-id">Tax ID</Label>
+                    <Input
+                      id="tax-id"
+                      value={settings.tax_id}
+                      onChange={(e) => updateSettings({ tax_id: e.target.value })}
+                      placeholder="XX-XXXXXXX"
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -400,9 +565,7 @@ export default function BrandingSettingsPage() {
                   <Input
                     id="provider-name"
                     value={settings.provider_name}
-                    onChange={(e) =>
-                      setSettings({ ...settings, provider_name: e.target.value })
-                    }
+                    onChange={(e) => updateSettings({ provider_name: e.target.value })}
                     placeholder="Dr. Jane Smith"
                   />
                 </div>
@@ -411,9 +574,7 @@ export default function BrandingSettingsPage() {
                   <Input
                     id="provider-credentials"
                     value={settings.provider_credentials}
-                    onChange={(e) =>
-                      setSettings({ ...settings, provider_credentials: e.target.value })
-                    }
+                    onChange={(e) => updateSettings({ provider_credentials: e.target.value })}
                     placeholder="PT, DPT"
                   />
                 </div>
@@ -422,9 +583,7 @@ export default function BrandingSettingsPage() {
                   <Input
                     id="provider-license"
                     value={settings.provider_license}
-                    onChange={(e) =>
-                      setSettings({ ...settings, provider_license: e.target.value })
-                    }
+                    onChange={(e) => updateSettings({ provider_license: e.target.value })}
                     placeholder="#1215276"
                   />
                 </div>
@@ -448,9 +607,7 @@ export default function BrandingSettingsPage() {
                   <Switch
                     id="signature-enabled"
                     checked={settings.signature_enabled}
-                    onCheckedChange={(checked) =>
-                      setSettings({ ...settings, signature_enabled: checked })
-                    }
+                    onCheckedChange={(checked) => updateSettings({ signature_enabled: checked })}
                   />
                 </div>
               </CardContent>
@@ -471,9 +628,7 @@ export default function BrandingSettingsPage() {
                   <Switch
                     id="show-in-notes"
                     checked={settings.show_in_notes}
-                    onCheckedChange={(checked) =>
-                      setSettings({ ...settings, show_in_notes: checked })
-                    }
+                    onCheckedChange={(checked) => updateSettings({ show_in_notes: checked })}
                   />
                 </div>
               </CardContent>
@@ -490,16 +645,16 @@ export default function BrandingSettingsPage() {
               </CardHeader>
               <CardContent>
                 <div className="border rounded-lg p-6 bg-white space-y-4">
-                  {settings.letterhead_url ? (
+                  {displayLetterheadUrl ? (
                     <img
-                      src={settings.letterhead_url}
+                      src={displayLetterheadUrl}
                       alt="Letterhead Preview"
                       className="w-full object-contain"
                     />
-                  ) : settings.logo_url ? (
+                  ) : displayLogoUrl ? (
                     <div className="flex items-start gap-4">
                       <img
-                        src={settings.logo_url}
+                        src={displayLogoUrl}
                         alt="Logo Preview"
                         className="h-16 w-16 object-contain flex-shrink-0"
                       />
@@ -516,6 +671,7 @@ export default function BrandingSettingsPage() {
                         )}
                         <div className="text-sm text-slate-600 mt-2 space-y-1">
                           {settings.phone && <div>Phone: {settings.phone}</div>}
+                          {settings.fax && <div>Fax: {settings.fax}</div>}
                           {settings.email && <div>Email: {settings.email}</div>}
                           {settings.website && <div>Web: {settings.website}</div>}
                         </div>
@@ -534,6 +690,7 @@ export default function BrandingSettingsPage() {
                         )}
                         <div className="text-sm space-y-1">
                           {settings.phone && <div>Phone: {settings.phone}</div>}
+                          {settings.fax && <div>Fax: {settings.fax}</div>}
                           {settings.email && <div>Email: {settings.email}</div>}
                           {settings.website && <div>Web: {settings.website}</div>}
                         </div>
@@ -542,8 +699,8 @@ export default function BrandingSettingsPage() {
                   )}
 
                   {!settings.clinic_name &&
-                    !settings.logo_url &&
-                    !settings.letterhead_url && (
+                    !displayLogoUrl &&
+                    !displayLetterheadUrl && (
                       <div className="text-center py-12 text-slate-400">
                         <Upload className="h-12 w-12 mx-auto mb-3 opacity-50" />
                         <p className="text-sm">
