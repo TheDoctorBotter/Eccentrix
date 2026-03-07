@@ -39,9 +39,12 @@ ALTER TABLE clinics ADD COLUMN IF NOT EXISTS secondary_color TEXT DEFAULT '#6474
 CREATE INDEX IF NOT EXISTS clinics_slug_idx ON clinics(slug);
 CREATE INDEX IF NOT EXISTS clinics_active_idx ON clinics(is_active);
 
--- Generate slugs for existing clinics that don't have one
+-- Generate slugs for existing clinics that don't have one.
+-- Appends the first 8 chars of the id to avoid duplicate slugs when
+-- multiple clinics share the same name.
 UPDATE clinics
 SET slug = LOWER(REGEXP_REPLACE(REGEXP_REPLACE(name, '[^a-zA-Z0-9\s-]', '', 'g'), '\s+', '-', 'g'))
+         || '-' || LEFT(id::text, 8)
 WHERE slug IS NULL;
 
 -- =============================================================================
