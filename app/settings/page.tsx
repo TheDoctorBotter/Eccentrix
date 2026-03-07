@@ -25,8 +25,10 @@ import {
   Users,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
+import { useAuth } from '@/lib/auth-context';
 
 export default function SettingsPage() {
+  const { isEmrMode } = useAuth();
 
   const settingsCards = [
     {
@@ -45,6 +47,7 @@ export default function SettingsPage() {
       iconColor: 'text-blue-600',
       bgColor: 'bg-blue-100',
     },
+    ...(isEmrMode ? [
     {
       title: 'Provider Signature',
       description: 'Configure therapist name, credentials, and license for document signing',
@@ -61,6 +64,7 @@ export default function SettingsPage() {
       iconColor: 'text-amber-600',
       bgColor: 'bg-amber-100',
     },
+    ] : []),
     {
       title: 'Manage Team',
       description: 'Add, remove, and change roles for clinic staff members',
@@ -69,14 +73,14 @@ export default function SettingsPage() {
       iconColor: 'text-indigo-600',
       bgColor: 'bg-indigo-100',
     },
-    {
+    ...(isEmrMode ? [{
       title: 'Provider Profiles',
       description: 'Manage provider NPI, license, credentials, and scheduling preferences',
       icon: Stethoscope,
       href: '/settings/providers',
       iconColor: 'text-cyan-600',
       bgColor: 'bg-cyan-100',
-    },
+    }] : []),
     {
       title: 'Audit Log',
       description: 'View HIPAA-compliant access and change audit trail',

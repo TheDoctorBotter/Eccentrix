@@ -12,12 +12,13 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Building2, Loader2, Plus, Trash2 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { ArrowLeft, Building2, Loader2, Plus, Trash2, FileText, Monitor } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
 
 export default function ClinicSettingsPage() {
-  const { user, currentClinic, memberships, setCurrentClinic } = useAuth();
+  const { user, currentClinic, memberships, setCurrentClinic, refreshDocumentationMode } = useAuth();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -28,6 +29,7 @@ export default function ClinicSettingsPage() {
     phone: '',
     email: '',
     website: '',
+    documentation_mode: 'emr' as 'emr' | 'paper',
   });
 
   useEffect(() => {
@@ -50,6 +52,7 @@ export default function ClinicSettingsPage() {
           phone: clinic.phone || '',
           email: clinic.email || '',
           website: clinic.website || '',
+          documentation_mode: clinic.documentation_mode || 'emr',
         });
       }
     } catch (error) {
@@ -77,8 +80,9 @@ export default function ClinicSettingsPage() {
 
       if (res.ok) {
         setMessage({ type: 'success', text: 'Clinic settings saved successfully' });
-        // Refresh clinic details
+        // Refresh clinic details and documentation mode in auth context
         fetchClinicDetails();
+        refreshDocumentationMode();
       } else {
         const error = await res.json();
         setMessage({ type: 'error', text: error.error || 'Failed to save clinic settings' });
@@ -246,6 +250,38 @@ export default function ClinicSettingsPage() {
                     onChange={handleInputChange}
                     placeholder="https://buckeyept.com"
                   />
+                </div>
+
+                {/* Documentation Mode */}
+                <div className="space-y-3 pt-2 border-t">
+                  <Label className="text-base font-medium">Documentation Mode</Label>
+                  <p className="text-sm text-slate-500">
+                    Choose how your clinic handles clinical documentation. Paper mode hides EMR note-writing features and is ideal for clinics that use printed forms.
+                  </p>
+                  <div className="flex items-center gap-4 p-4 border rounded-lg">
+                    <div className="flex items-center gap-2 text-sm">
+                      <FileText className={`h-4 w-4 ${formData.documentation_mode === 'paper' ? 'text-amber-600' : 'text-slate-400'}`} />
+                      <span className={formData.documentation_mode === 'paper' ? 'font-medium text-amber-700' : 'text-slate-500'}>Paper</span>
+                    </div>
+                    <Switch
+                      checked={formData.documentation_mode === 'emr'}
+                      onCheckedChange={(checked) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          documentation_mode: checked ? 'emr' : 'paper',
+                        }))
+                      }
+                    />
+                    <div className="flex items-center gap-2 text-sm">
+                      <Monitor className={`h-4 w-4 ${formData.documentation_mode === 'emr' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                      <span className={formData.documentation_mode === 'emr' ? 'font-medium text-emerald-700' : 'text-slate-500'}>EMR</span>
+                    </div>
+                  </div>
+                  {formData.documentation_mode === 'paper' && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+                      Paper mode is active. EMR features like note writing, document templates, and clinical documentation will be hidden from the navigation.
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-3 pt-4">
