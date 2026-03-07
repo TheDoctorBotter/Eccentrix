@@ -20,7 +20,14 @@ import PlanForm from '@/components/note-wizard/PlanForm';
 
 export default function PtEvaluationNotePage() {
   const router = useRouter();
-  const { currentClinic } = useAuth();
+  const { currentClinic, isPaperMode } = useAuth();
+
+  // Paper mode clinics cannot create EMR documents
+  useEffect(() => {
+    if (isPaperMode) {
+      router.replace('/');
+    }
+  }, [isPaperMode, router]);
   const [inputData, setInputData] = useState<NoteInputData>({});
   const [template, setTemplate] = useState<Template | null>(null);
   const [interventions, setInterventions] = useState<Intervention[]>([]);
