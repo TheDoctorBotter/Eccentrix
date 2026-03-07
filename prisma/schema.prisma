@@ -101,8 +101,9 @@ model clinics {
   email          String?
   website        String?
   logo_url       String?
-  letterhead_url String?
-  is_active      Boolean? @default(true)
+  letterhead_url     String?
+  documentation_mode String   @default("emr")
+  is_active          Boolean? @default(true)
   created_at     DateTime? @default(now()) @db.Timestamptz(6)
   updated_at     DateTime? @default(now()) @db.Timestamptz(6)
 

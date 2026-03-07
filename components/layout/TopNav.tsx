@@ -48,7 +48,7 @@ import { useAuth } from '@/lib/auth-context';
 export function TopNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, currentClinic, memberships, signOut, setCurrentClinic, hasRole } = useAuth();
+  const { user, currentClinic, memberships, signOut, setCurrentClinic, hasRole, isEmrMode } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const canSeeFrontOffice = hasRole(['admin', 'front_office', 'pt', 'ot', 'slp']);
@@ -191,7 +191,7 @@ export function TopNav() {
                   Schedule
                 </Button>
               </Link>
-              {canSeeClinical && (
+              {canSeeClinical && isEmrMode && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -245,7 +245,7 @@ export function TopNav() {
                 </Button>
               </Link>
               )}
-              {canSeeCosign && (
+              {canSeeCosign && isEmrMode && (
               <Link href="/cosign">
                 <Button
                   variant={isActive('/cosign') ? 'secondary' : 'ghost'}
@@ -332,7 +332,7 @@ export function TopNav() {
                   Schedule
                 </Link>
 
-                {canSeeClinical && (
+                {canSeeClinical && isEmrMode && (
                 <>
                 <div className="px-4 pt-3 pb-1">
                   <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Clinical</span>
@@ -364,7 +364,7 @@ export function TopNav() {
                   Billing
                 </Link>
                 )}
-                {canSeeCosign && (
+                {canSeeCosign && isEmrMode && (
                 <Link href="/cosign" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/cosign') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
                   <FileSignature className="h-4 w-4" />
                   Co-Sign

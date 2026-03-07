@@ -57,6 +57,7 @@ export async function PATCH(
       'website',
       'logo_url',
       'letterhead_url',
+      'documentation_mode',
       'is_active',
     ];
 

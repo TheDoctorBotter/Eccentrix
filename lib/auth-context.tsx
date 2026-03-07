@@ -5,15 +5,21 @@ import { User } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { ClinicMembership, ClinicRole } from './auth';
 
+type DocumentationMode = 'emr' | 'paper';
+
 interface AuthContextType {
   user: User | null;
   memberships: ClinicMembership[];
   currentClinic: ClinicMembership | null;
   loading: boolean;
+  documentationMode: DocumentationMode;
+  isEmrMode: boolean;
+  isPaperMode: boolean;
   signOut: () => Promise<void>;
   setCurrentClinic: (membership: ClinicMembership) => void;
   hasRole: (roles: ClinicRole[]) => boolean;
   canFinalize: () => boolean;
+  refreshDocumentationMode: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,6 +52,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [memberships, setMemberships] = useState<ClinicMembership[]>([]);
   const [currentClinic, setCurrentClinicState] = useState<ClinicMembership | null>(null);
   const [loading, setLoading] = useState(true);
+  const [documentationMode, setDocumentationMode] = useState<DocumentationMode>('emr');
+
+  // Fetch the clinic's documentation mode
+  const fetchDocumentationMode = async (clinicId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('clinics')
+        .select('documentation_mode')
+        .eq('id', clinicId)
+        .single();
+
+      if (!error && data) {
+        setDocumentationMode(data.documentation_mode || 'emr');
+      }
+    } catch (error) {
+      console.error('Error fetching documentation mode:', error);
+    }
+  };
 
   // Fetch user's memberships
   const fetchMemberships = async (userId: string) => {
@@ -87,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const idForCookie = clinicToSet.clinic_id || clinicToSet.clinic_id_ref;
         if (idForCookie) {
           setCookie(ACTIVE_CLINIC_COOKIE, idForCookie);
+          fetchDocumentationMode(idForCookie);
         }
       }
     } catch (error) {
@@ -144,6 +169,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Persist to cookie
     if (membership.clinic_id) {
       setCookie(ACTIVE_CLINIC_COOKIE, membership.clinic_id);
+      fetchDocumentationMode(membership.clinic_id);
+    }
+  };
+
+  const refreshDocumentationMode = async () => {
+    const clinicId = currentClinic?.clinic_id || currentClinic?.clinic_id_ref;
+    if (clinicId) {
+      await fetchDocumentationMode(clinicId);
     }
   };
 
@@ -163,10 +196,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     memberships,
     currentClinic,
     loading,
+    documentationMode,
+    isEmrMode: documentationMode === 'emr',
+    isPaperMode: documentationMode === 'paper',
     signOut,
     setCurrentClinic,
     hasRole,
     canFinalize,
+    refreshDocumentationMode,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
