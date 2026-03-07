@@ -13,13 +13,19 @@ interface PageProps {
 export default function NewDocumentPage({ params }: PageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { currentClinic } = useAuth();
+  const { currentClinic, isPaperMode } = useAuth();
   const [error, setError] = useState<string | null>(null);
 
   const episodeId = params.episode_id;
   const docType = (searchParams.get('type') || 'daily_note') as ClinicalDocType;
 
   useEffect(() => {
+    // Paper mode clinics cannot create EMR documents
+    if (isPaperMode) {
+      router.replace(`/charts/${episodeId}`);
+      return;
+    }
+
     // For daily notes, redirect to the SOAP form with auto-load
     if (docType === 'daily_note') {
       router.replace(`/daily/new?episode_id=${episodeId}`);

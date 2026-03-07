@@ -21,7 +21,14 @@ import PlanForm from '@/components/note-wizard/PlanForm';
 function DailySoapNoteContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { currentClinic } = useAuth();
+  const { currentClinic, isPaperMode } = useAuth();
+
+  // Paper mode clinics cannot create EMR documents
+  useEffect(() => {
+    if (isPaperMode) {
+      router.replace('/');
+    }
+  }, [isPaperMode, router]);
 
   const episodeId = searchParams.get('episode_id');
   const visitId = searchParams.get('visit_id');

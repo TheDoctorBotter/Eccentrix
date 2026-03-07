@@ -59,7 +59,7 @@ interface AuthAlert {
 }
 
 export default function HomePage() {
-  const { currentClinic, loading: authLoading } = useAuth();
+  const { currentClinic, loading: authLoading, isEmrMode } = useAuth();
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [alerts, setAlerts] = useState<DocumentationAlert[]>([]);
   const [telehealthDrafts, setTelehealthDrafts] = useState<TelehealthDraft[]>([]);
@@ -381,8 +381,8 @@ export default function HomePage() {
               <DashboardAuthSection clinicId={currentClinic.clinic_id} />
             )}
 
-            {/* Telehealth Drafts */}
-            {telehealthDrafts.length > 0 && (
+            {/* Telehealth Drafts (EMR mode only) */}
+            {isEmrMode && telehealthDrafts.length > 0 && (
               <Card>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">

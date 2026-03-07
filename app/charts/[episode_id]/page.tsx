@@ -53,7 +53,7 @@ interface PageProps {
 
 export default function PatientChartPage({ params }: PageProps) {
   const episodeId = params.episode_id;
-  const { currentClinic } = useAuth();
+  const { currentClinic, isEmrMode } = useAuth();
 
   const [episode, setEpisode] = useState<Episode | null>(null);
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -426,12 +426,14 @@ export default function PatientChartPage({ params }: PageProps) {
                     <FileText className="h-5 w-5 text-emerald-600" />
                     <CardTitle className="text-lg">Documents</CardTitle>
                   </div>
+                  {isEmrMode && (
                   <Link href={`/charts/${episodeId}/documents/new`}>
                     <Button size="sm" className="gap-1">
                       <Plus className="h-4 w-4" />
                       Add Document
                     </Button>
                   </Link>
+                  )}
                 </div>
                 <CardDescription>
                   Clinical documentation timeline
@@ -442,9 +444,11 @@ export default function PatientChartPage({ params }: PageProps) {
                   <div className="text-center py-8 text-slate-500">
                     <FileText className="h-10 w-10 mx-auto mb-3 text-slate-300" />
                     <p className="mb-4">No documents yet</p>
+                    {isEmrMode && (
                     <Link href={`/daily/new?episode_id=${episodeId}`}>
                       <Button variant="outline">Create First Document</Button>
                     </Link>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -490,7 +494,8 @@ export default function PatientChartPage({ params }: PageProps) {
               </CardContent>
             </Card>
 
-            {/* Quick Actions */}
+            {/* Quick Actions (EMR mode only) */}
+            {isEmrMode && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg">Quick Actions</CardTitle>
@@ -518,6 +523,7 @@ export default function PatientChartPage({ params }: PageProps) {
                 </div>
               </CardContent>
             </Card>
+            )}
           </div>
         )}
       </main>
