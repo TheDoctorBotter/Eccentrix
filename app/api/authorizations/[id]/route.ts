@@ -1,6 +1,7 @@
 /**
  * Prior Authorization by ID API
- * PATCH: Update authorization (status, used_visits, etc.)
+ * PATCH:  Update authorization (status, used_visits, etc.)
+ * DELETE: Remove an authorization
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -69,6 +70,33 @@ export async function PATCH(
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error in PATCH /api/authorizations/[id]:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const client = serviceRoleKey ? supabaseAdmin : supabase;
+
+    const { id } = params;
+
+    const { error } = await client
+      .from('prior_authorizations')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting authorization:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error in DELETE /api/authorizations/[id]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
