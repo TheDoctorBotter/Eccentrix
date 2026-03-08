@@ -204,7 +204,7 @@ interface PatientAuth {
 
 export default function SchedulePage() {
   const router = useRouter();
-  const { currentClinic, loading: authLoading } = useAuth();
+  const { currentClinic, loading: authLoading, isEmrMode } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // View state
@@ -669,7 +669,8 @@ export default function SchedulePage() {
         const noteVisitId = completedVisitId;
 
         // Only redirect for real visit IDs (not sms- prefixed without a created visit)
-        if (noteVisitId && !noteVisitId.startsWith('sms-')) {
+        // Skip redirect in paper mode — notes are written on paper, not in EMR
+        if (noteVisitId && !noteVisitId.startsWith('sms-') && isEmrMode) {
           toast.success('Redirecting to SOAP note...');
           router.push(`/daily/new?visit_id=${noteVisitId}`);
           return;
@@ -1632,7 +1633,7 @@ export default function SchedulePage() {
                         Open Note
                       </Button>
                     </>
-                  ) : (
+                  ) : isEmrMode ? (
                     <>
                       <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200">
                         <FileText className="h-3 w-3 mr-1" />
@@ -1648,7 +1649,7 @@ export default function SchedulePage() {
                         Create Note
                       </Button>
                     </>
-                  )}
+                  ) : null}
                 </div>
               )}
             </div>

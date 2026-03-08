@@ -198,7 +198,7 @@ interface PatientAuth {
 
 export default function FullscreenSchedulePage() {
   const router = useRouter();
-  const { currentClinic, loading: authLoading } = useAuth();
+  const { currentClinic, loading: authLoading, isEmrMode } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Live clock
@@ -538,7 +538,8 @@ export default function FullscreenSchedulePage() {
         }
 
         const noteVisitId = completedVisitId;
-        if (noteVisitId && !noteVisitId.startsWith('sms-')) {
+        // Skip redirect in paper mode — notes are written on paper, not in EMR
+        if (noteVisitId && !noteVisitId.startsWith('sms-') && isEmrMode) {
           toast.success('Redirecting to SOAP note...');
           router.push(`/daily/new?visit_id=${noteVisitId}`);
           return;
@@ -1243,14 +1244,14 @@ export default function FullscreenSchedulePage() {
                         <FileText className="h-3 w-3" /> Open Note
                       </Button>
                     </>
-                  ) : (
+                  ) : isEmrMode ? (
                     <>
                       <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200"><FileText className="h-3 w-3 mr-1" /> Missing</Badge>
                       <Button size="sm" variant="outline" className="gap-1" onClick={() => router.push(`/daily/new?visit_id=${selectedVisit.id}`)}>
                         <FileText className="h-3 w-3" /> Create Note
                       </Button>
                     </>
-                  )}
+                  ) : null}
                 </div>
               )}
             </div>
