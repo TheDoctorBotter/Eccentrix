@@ -12,6 +12,7 @@ import * as XLSX from 'xlsx';
 interface ImportRow {
   patient_first_name: string;
   patient_last_name: string;
+  patient_name?: string;
   auth_number?: string;
   insurance_name?: string;
   insurance_phone?: string;
@@ -29,9 +30,20 @@ interface ImportResult {
   row: number;
   patient_name: string;
   auth_number: string;
-  status: 'success' | 'error' | 'skipped';
+  status: 'success' | 'error' | 'skipped' | 'needs_review';
   error?: string;
   auth_id?: string;
+  matched_name?: string;
+  candidates?: { id: string; name: string }[];
+  row_data?: Partial<ImportRow>;
+}
+
+interface PatientRecord {
+  id: string;
+  first_name: string;
+  last_name: string;
+  deleted_at: string | null;
+  clinic_id: string;
 }
 
 const COLUMN_ALIASES: Record<string, string> = {
@@ -45,6 +57,11 @@ const COLUMN_ALIASES: Record<string, string> = {
   'last name': 'patient_last_name',
   'lastname': 'patient_last_name',
   'last': 'patient_last_name',
+  'patient name': 'patient_name',
+  'patient': 'patient_name',
+  'name': 'patient_name',
+  'member name': 'patient_name',
+  'member': 'patient_name',
   'auth number': 'auth_number',
   'auth #': 'auth_number',
   'authorization number': 'auth_number',
@@ -146,6 +163,118 @@ function normalizeStatus(value: unknown): string {
   if (['approved', 'active'].includes(str)) return 'approved';
   if (['denied', 'rejected'].includes(str)) return 'denied';
   return 'pending';
+}
+
+/** Strip punctuation, collapse whitespace, lowercase for name comparison */
+function normalizeName(s: string): string {
+  return s.toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+/** Parse a combined name field — handle "Last, First" and "First Last" formats */
+function parseFullName(raw: string): { first: string; last: string } | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.includes(',')) {
+    // "Garcia, Justin" or "GARCIA, JUSTIN M."
+    const [lastPart, ...rest] = trimmed.split(',');
+    const firstPart = rest.join(',').trim().split(/\s+/)[0]; // first word after comma
+    if (firstPart && lastPart.trim()) {
+      return { first: firstPart, last: lastPart.trim() };
+    }
+  }
+
+  // "Justin Garcia" — assume first last (take first word and last word)
+  const parts = trimmed.split(/\s+/);
+  if (parts.length >= 2) {
+    return { first: parts[0], last: parts[parts.length - 1] };
+  }
+
+  return null;
+}
+
+type MatchResult =
+  | { type: 'exact'; patient: PatientRecord }
+  | { type: 'normalized'; patient: PatientRecord }
+  | { type: 'partial'; patient: PatientRecord; note: string }
+  | { type: 'last_only'; patients: PatientRecord[] }
+  | { type: 'ambiguous'; patients: PatientRecord[] }
+  | { type: 'deleted'; patient: PatientRecord }
+  | { type: 'other_clinic'; patient: PatientRecord }
+  | { type: 'none' };
+
+function findPatientMatch(
+  firstName: string,
+  lastName: string,
+  activePatients: PatientRecord[],
+  deletedPatients: PatientRecord[],
+  otherClinicPatients: PatientRecord[],
+): MatchResult {
+  const normFirst = normalizeName(firstName);
+  const normLast = normalizeName(lastName);
+
+  // 1) Exact case-insensitive match
+  const exact = activePatients.find(
+    (p) => p.first_name.toLowerCase() === firstName.toLowerCase() &&
+           p.last_name.toLowerCase() === lastName.toLowerCase()
+  );
+  if (exact) return { type: 'exact', patient: exact };
+
+  // 2) Normalized match (strips punctuation, extra spaces, etc.)
+  const normalized = activePatients.find(
+    (p) => normalizeName(p.first_name) === normFirst &&
+           normalizeName(p.last_name) === normLast
+  );
+  if (normalized) return { type: 'normalized', patient: normalized };
+
+  // 3) Partial first name match with exact last name
+  //    Handles "John" matching "John Michael" or "Johnny" matching "John"
+  const partialFirst = activePatients.filter((p) => {
+    const pFirst = normalizeName(p.first_name);
+    const pLast = normalizeName(p.last_name);
+    return pLast === normLast && (
+      pFirst.startsWith(normFirst) || normFirst.startsWith(pFirst) ||
+      pFirst.includes(normFirst) || normFirst.includes(pFirst)
+    );
+  });
+  if (partialFirst.length === 1) {
+    return {
+      type: 'partial',
+      patient: partialFirst[0],
+      note: `Matched "${partialFirst[0].first_name} ${partialFirst[0].last_name}" (spreadsheet: "${firstName} ${lastName}")`,
+    };
+  }
+  if (partialFirst.length > 1) {
+    return { type: 'ambiguous', patients: partialFirst };
+  }
+
+  // 4) Last name only match — flag for review
+  const lastOnly = activePatients.filter(
+    (p) => normalizeName(p.last_name) === normLast
+  );
+  if (lastOnly.length > 0) {
+    return { type: 'last_only', patients: lastOnly };
+  }
+
+  // 5) Check deleted patients
+  const deleted = deletedPatients.find(
+    (p) => normalizeName(p.first_name) === normFirst &&
+           normalizeName(p.last_name) === normLast
+  ) || deletedPatients.find(
+    (p) => normalizeName(p.last_name) === normLast
+  );
+  if (deleted) return { type: 'deleted', patient: deleted };
+
+  // 6) Check other clinics
+  const other = otherClinicPatients.find(
+    (p) => normalizeName(p.first_name) === normFirst &&
+           normalizeName(p.last_name) === normLast
+  ) || otherClinicPatients.find(
+    (p) => normalizeName(p.last_name) === normLast
+  );
+  if (other) return { type: 'other_clinic', patient: other };
+
+  return { type: 'none' };
 }
 
 // GET: Export authorizations for a clinic
@@ -257,19 +386,97 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Parse manual_matches from formData (JSON string mapping row numbers to patient IDs)
+    let manualMatches: Record<string, string> = {};
+    const manualMatchesRaw = formData.get('manual_matches') as string | null;
+    if (manualMatchesRaw) {
+      try { manualMatches = JSON.parse(manualMatchesRaw); } catch { /* ignore */ }
+    }
+
+    // Pre-fetch ALL patients for this clinic (and also cross-clinic for diagnostics)
+    const { data: clinicPatients } = await supabaseAdmin
+      .from('patients')
+      .select('id, first_name, last_name, deleted_at, clinic_id')
+      .eq('clinic_id', clinicId);
+
+    const activePatients = (clinicPatients || []).filter(p => !p.deleted_at) as PatientRecord[];
+    const deletedPatients = (clinicPatients || []).filter(p => p.deleted_at) as PatientRecord[];
+
+    // Fetch patients from other clinics for diagnostic messages
+    const { data: allOtherPatients } = await supabaseAdmin
+      .from('patients')
+      .select('id, first_name, last_name, deleted_at, clinic_id')
+      .neq('clinic_id', clinicId)
+      .is('deleted_at', null)
+      .limit(500);
+    const otherClinicPatients = (allOtherPatients || []) as PatientRecord[];
+
+    // Pre-fetch episodes for all active patients
+    const { data: allEpisodes } = await supabaseAdmin
+      .from('episodes')
+      .select('id, patient_id')
+      .eq('clinic_id', clinicId)
+      .eq('status', 'active');
+    const episodeMap = new Map<string, string>();
+    for (const ep of allEpisodes || []) {
+      if (!episodeMap.has(ep.patient_id)) {
+        episodeMap.set(ep.patient_id, ep.id);
+      }
+    }
+
+    // Pre-fetch existing auth numbers for duplicate detection
+    const { data: existingAuths } = await supabaseAdmin
+      .from('prior_authorizations')
+      .select('patient_id, auth_number')
+      .eq('clinic_id', clinicId);
+    const existingAuthSet = new Set(
+      (existingAuths || [])
+        .filter(a => a.auth_number)
+        .map(a => `${a.patient_id}::${a.auth_number}`)
+    );
+
     // Import mode
     const results: ImportResult[] = [];
     let successCount = 0;
     let errorCount = 0;
     let skippedCount = 0;
+    let reviewCount = 0;
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const rawRow = rawRows[i];
-      const rowNum = i + 2;
+      const rowNum = i + 2; // Excel row (header = row 1)
 
-      const firstName = String(row.patient_first_name || '').trim();
-      const lastName = String(row.patient_last_name || '').trim();
+      // --- Resolve first/last name ---
+      let firstName = String(row.patient_first_name || '').trim();
+      let lastName = String(row.patient_last_name || '').trim();
+
+      // If we have a combined "patient_name" column and no separate first/last, parse it
+      if ((!firstName || !lastName) && row.patient_name) {
+        const parsed = parseFullName(String(row.patient_name));
+        if (parsed) {
+          if (!firstName) firstName = parsed.first;
+          if (!lastName) lastName = parsed.last;
+        }
+      }
+
+      // Handle comma in first_name field (e.g. someone put "Garcia, Justin" in first name)
+      if (firstName.includes(',') && !lastName) {
+        const parsed = parseFullName(firstName);
+        if (parsed) {
+          firstName = parsed.first;
+          lastName = parsed.last;
+        }
+      }
+
+      // Handle comma in last_name field (e.g. "Garcia, Justin" put in last name)
+      if (lastName.includes(',') && !firstName) {
+        const parsed = parseFullName(lastName);
+        if (parsed) {
+          firstName = parsed.first;
+          lastName = parsed.last;
+        }
+      }
 
       if (!firstName || !lastName) {
         results.push({
@@ -283,141 +490,150 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Look up patient — try exact match first, then partial/fuzzy match
-      let patientId: string | null = null;
+      const displayName = `${lastName}, ${firstName}`;
+
+      // --- Check for manual match override ---
+      let patientId: string | null = manualMatches[String(rowNum)] || null;
       let matchNote = '';
 
-      // 1) Exact case-insensitive match
-      const { data: exactMatch } = await supabaseAdmin
-        .from('patients')
-        .select('id, first_name, last_name')
-        .eq('clinic_id', clinicId)
-        .ilike('first_name', firstName)
-        .ilike('last_name', lastName)
-        .is('deleted_at', null)
-        .limit(1);
-
-      if (exactMatch && exactMatch.length > 0) {
-        patientId = exactMatch[0].id;
-      } else {
-        // 2) Partial match: first_name starts with / contains the search term, or vice versa
-        const { data: partialMatch } = await supabaseAdmin
-          .from('patients')
-          .select('id, first_name, last_name')
-          .eq('clinic_id', clinicId)
-          .or(`first_name.ilike.%${firstName}%,first_name.ilike.${firstName}%`)
-          .ilike('last_name', lastName)
-          .is('deleted_at', null)
-          .limit(5);
-
-        if (partialMatch && partialMatch.length === 1) {
-          patientId = partialMatch[0].id;
-          matchNote = ` (fuzzy matched "${partialMatch[0].first_name} ${partialMatch[0].last_name}")`;
-        } else if (partialMatch && partialMatch.length > 1) {
-          // Multiple partial matches on first name — try last name partial too
-          const names = partialMatch.map(p => `${p.first_name} ${p.last_name}`).join(', ');
-          results.push({
-            row: rowNum,
-            patient_name: `${lastName}, ${firstName}`,
-            auth_number: String(row.auth_number || ''),
-            status: 'error',
-            error: `Multiple partial matches found: ${names}. Please use the exact name from the system.`,
-          });
-          errorCount++;
-          continue;
+      if (patientId) {
+        // Validate the manual match exists
+        const manualPat = activePatients.find(p => p.id === patientId);
+        if (manualPat) {
+          matchNote = ` (manually matched to "${manualPat.first_name} ${manualPat.last_name}")`;
         } else {
-          // 3) Try last name partial match as well (both names fuzzy)
-          const { data: broadMatch } = await supabaseAdmin
-            .from('patients')
-            .select('id, first_name, last_name')
-            .eq('clinic_id', clinicId)
-            .or(`first_name.ilike.%${firstName}%,first_name.ilike.${firstName}%`)
-            .or(`last_name.ilike.%${lastName}%,last_name.ilike.${lastName}%`)
-            .is('deleted_at', null)
-            .limit(5);
+          patientId = null; // Invalid manual match, fall through to auto-match
+        }
+      }
 
-          if (broadMatch && broadMatch.length === 1) {
-            patientId = broadMatch[0].id;
-            matchNote = ` (fuzzy matched "${broadMatch[0].first_name} ${broadMatch[0].last_name}")`;
-          } else if (broadMatch && broadMatch.length > 1) {
-            const names = broadMatch.map(p => `${p.first_name} ${p.last_name}`).join(', ');
+      // --- Auto-match if no manual match ---
+      if (!patientId) {
+        const match = findPatientMatch(firstName, lastName, activePatients, deletedPatients, otherClinicPatients);
+
+        switch (match.type) {
+          case 'exact':
+            patientId = match.patient.id;
+            break;
+
+          case 'normalized':
+            patientId = match.patient.id;
+            matchNote = ` (matched "${match.patient.first_name} ${match.patient.last_name}")`;
+            break;
+
+          case 'partial':
+            patientId = match.patient.id;
+            matchNote = ` (${match.note})`;
+            break;
+
+          case 'last_only': {
+            // Single last-name match → flag for review, not auto-import
+            const candidates = match.patients.map(p => ({
+              id: p.id,
+              name: `${p.first_name} ${p.last_name}`,
+            }));
+            if (match.patients.length === 1) {
+              results.push({
+                row: rowNum,
+                patient_name: displayName,
+                auth_number: String(row.auth_number || ''),
+                status: 'needs_review',
+                error: `Last name matched "${match.patients[0].first_name} ${match.patients[0].last_name}" but first name didn't match. Please confirm.`,
+                candidates,
+                row_data: row,
+              });
+            } else {
+              results.push({
+                row: rowNum,
+                patient_name: displayName,
+                auth_number: String(row.auth_number || ''),
+                status: 'needs_review',
+                error: `Multiple patients with last name "${lastName}" found. Please select the correct one.`,
+                candidates,
+                row_data: row,
+              });
+            }
+            reviewCount++;
+            continue;
+          }
+
+          case 'ambiguous': {
+            const candidates = match.patients.map(p => ({
+              id: p.id,
+              name: `${p.first_name} ${p.last_name}`,
+            }));
             results.push({
               row: rowNum,
-              patient_name: `${lastName}, ${firstName}`,
+              patient_name: displayName,
+              auth_number: String(row.auth_number || ''),
+              status: 'needs_review',
+              error: `Multiple matches found. Please select the correct patient.`,
+              candidates,
+              row_data: row,
+            });
+            reviewCount++;
+            continue;
+          }
+
+          case 'deleted':
+            results.push({
+              row: rowNum,
+              patient_name: displayName,
               auth_number: String(row.auth_number || ''),
               status: 'error',
-              error: `Multiple partial matches found: ${names}. Please use the exact name from the system.`,
+              error: `Patient "${match.patient.first_name} ${match.patient.last_name}" was found but has been deleted. Restore the patient first.`,
             });
             errorCount++;
+            continue;
+
+          case 'other_clinic':
+            results.push({
+              row: rowNum,
+              patient_name: displayName,
+              auth_number: String(row.auth_number || ''),
+              status: 'error',
+              error: `Patient "${match.patient.first_name} ${match.patient.last_name}" exists but belongs to a different clinic.`,
+            });
+            errorCount++;
+            continue;
+
+          case 'none': {
+            // No match at all — show closest last-name matches as suggestions
+            const normLast = normalizeName(lastName);
+            const suggestions = activePatients
+              .filter(p => {
+                const pLast = normalizeName(p.last_name);
+                return pLast.startsWith(normLast.slice(0, 3)) || normLast.startsWith(pLast.slice(0, 3));
+              })
+              .slice(0, 5)
+              .map(p => ({ id: p.id, name: `${p.first_name} ${p.last_name}` }));
+
+            results.push({
+              row: rowNum,
+              patient_name: displayName,
+              auth_number: String(row.auth_number || ''),
+              status: suggestions.length > 0 ? 'needs_review' : 'error',
+              error: suggestions.length > 0
+                ? `No exact match for "${firstName} ${lastName}". Did you mean one of these?`
+                : `Patient "${firstName} ${lastName}" not found in this clinic or anywhere in the system.`,
+              candidates: suggestions.length > 0 ? suggestions : undefined,
+              row_data: suggestions.length > 0 ? row : undefined,
+            });
+            if (suggestions.length > 0) {
+              reviewCount++;
+            } else {
+              errorCount++;
+            }
             continue;
           }
         }
       }
 
-      if (!patientId) {
-        // Check if patient exists but is soft-deleted
-        const { data: deletedMatch } = await supabaseAdmin
-          .from('patients')
-          .select('id, first_name, last_name, deleted_at')
-          .eq('clinic_id', clinicId)
-          .ilike('first_name', `%${firstName}%`)
-          .ilike('last_name', `%${lastName}%`)
-          .not('deleted_at', 'is', null)
-          .limit(1);
-
-        if (deletedMatch && deletedMatch.length > 0) {
-          results.push({
-            row: rowNum,
-            patient_name: `${lastName}, ${firstName}`,
-            auth_number: String(row.auth_number || ''),
-            status: 'error',
-            error: `Patient "${deletedMatch[0].first_name} ${deletedMatch[0].last_name}" was found but has been deleted. Restore the patient first.`,
-          });
-        } else {
-          // Check if patient exists under a different clinic
-          const { data: otherClinic } = await supabaseAdmin
-            .from('patients')
-            .select('id, first_name, last_name, clinic_id')
-            .ilike('first_name', `%${firstName}%`)
-            .ilike('last_name', `%${lastName}%`)
-            .is('deleted_at', null)
-            .limit(1);
-
-          if (otherClinic && otherClinic.length > 0) {
-            results.push({
-              row: rowNum,
-              patient_name: `${lastName}, ${firstName}`,
-              auth_number: String(row.auth_number || ''),
-              status: 'error',
-              error: `Patient "${otherClinic[0].first_name} ${otherClinic[0].last_name}" exists but belongs to a different clinic.`,
-            });
-          } else {
-            results.push({
-              row: rowNum,
-              patient_name: `${lastName}, ${firstName}`,
-              auth_number: String(row.auth_number || ''),
-              status: 'error',
-              error: 'Patient not found anywhere in the system. Please add the patient first.',
-            });
-          }
-        }
-        errorCount++;
-        continue;
-      }
-
-      // Look up active episode
-      const { data: episodes } = await supabaseAdmin
-        .from('episodes')
-        .select('id')
-        .eq('patient_id', patientId)
-        .eq('clinic_id', clinicId)
-        .eq('status', 'active')
-        .limit(1);
-
-      if (!episodes || episodes.length === 0) {
+      // --- Look up active episode ---
+      const episodeId = episodeMap.get(patientId!);
+      if (!episodeId) {
         results.push({
           row: rowNum,
-          patient_name: `${lastName}, ${firstName}`,
+          patient_name: displayName,
           auth_number: String(row.auth_number || ''),
           status: 'error',
           error: 'No active episode found for patient. Please create an episode first.',
@@ -426,9 +642,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const episodeId = episodes[0].id;
-
-      // Parse dates
+      // --- Parse dates ---
       const startDateRaw = row.start_date || rawRow['Start Date'] || rawRow['start'];
       const endDateRaw = row.end_date || rawRow['End Date'] || rawRow['end'];
       const startDate = parseDate(startDateRaw);
@@ -437,7 +651,7 @@ export async function POST(request: NextRequest) {
       if (!startDate || !endDate) {
         results.push({
           row: rowNum,
-          patient_name: `${lastName}, ${firstName}`,
+          patient_name: displayName,
           auth_number: String(row.auth_number || ''),
           status: 'error',
           error: `Invalid or missing dates (start: ${startDateRaw || 'empty'}, end: ${endDateRaw || 'empty'})`,
@@ -450,31 +664,21 @@ export async function POST(request: NextRequest) {
       const authType = normalizeAuthType(row.auth_type);
       const status = normalizeStatus(row.status);
 
-      // Check for duplicate auth_number for same patient
+      // --- Check for duplicate auth_number ---
       const authNumber = String(row.auth_number || '').trim();
-      if (authNumber) {
-        const { data: existing } = await supabaseAdmin
-          .from('prior_authorizations')
-          .select('id')
-          .eq('patient_id', patientId)
-          .eq('clinic_id', clinicId)
-          .eq('auth_number', authNumber)
-          .limit(1);
-
-        if (existing && existing.length > 0) {
-          results.push({
-            row: rowNum,
-            patient_name: `${lastName}, ${firstName}`,
-            auth_number: authNumber,
-            status: 'skipped',
-            error: `Auth #${authNumber} already exists for this patient`,
-          });
-          skippedCount++;
-          continue;
-        }
+      if (authNumber && existingAuthSet.has(`${patientId}::${authNumber}`)) {
+        results.push({
+          row: rowNum,
+          patient_name: displayName,
+          auth_number: authNumber,
+          status: 'skipped',
+          error: `Auth #${authNumber} already exists for this patient`,
+        });
+        skippedCount++;
+        continue;
       }
 
-      // Build insert data
+      // --- Build insert data ---
       const insertData: Record<string, unknown> = {
         episode_id: episodeId,
         patient_id: patientId,
@@ -515,7 +719,7 @@ export async function POST(request: NextRequest) {
       if (createError || !created) {
         results.push({
           row: rowNum,
-          patient_name: `${lastName}, ${firstName}`,
+          patient_name: displayName,
           auth_number: authNumber,
           status: 'error',
           error: createError?.message || 'Failed to create authorization',
@@ -524,9 +728,14 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
+      // Track the new auth for duplicate detection within this import
+      if (authNumber) {
+        existingAuthSet.add(`${patientId}::${authNumber}`);
+      }
+
       results.push({
         row: rowNum,
-        patient_name: `${lastName}, ${firstName}${matchNote}`,
+        patient_name: `${displayName}${matchNote}`,
         auth_number: authNumber,
         status: 'success',
         auth_id: created.id,
@@ -539,6 +748,7 @@ export async function POST(request: NextRequest) {
       success: successCount,
       errors: errorCount,
       skipped: skippedCount,
+      needs_review: reviewCount,
       results,
     });
   } catch (error) {
