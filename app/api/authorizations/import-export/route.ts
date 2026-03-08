@@ -283,29 +283,127 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Look up patient
-      const { data: patients } = await supabaseAdmin
+      // Look up patient — try exact match first, then partial/fuzzy match
+      let patientId: string | null = null;
+      let matchNote = '';
+
+      // 1) Exact case-insensitive match
+      const { data: exactMatch } = await supabaseAdmin
         .from('patients')
-        .select('id')
+        .select('id, first_name, last_name')
         .eq('clinic_id', clinicId)
         .ilike('first_name', firstName)
         .ilike('last_name', lastName)
         .is('deleted_at', null)
         .limit(1);
 
-      if (!patients || patients.length === 0) {
-        results.push({
-          row: rowNum,
-          patient_name: `${lastName}, ${firstName}`,
-          auth_number: String(row.auth_number || ''),
-          status: 'error',
-          error: 'Patient not found in clinic. Please add the patient first.',
-        });
+      if (exactMatch && exactMatch.length > 0) {
+        patientId = exactMatch[0].id;
+      } else {
+        // 2) Partial match: first_name starts with / contains the search term, or vice versa
+        const { data: partialMatch } = await supabaseAdmin
+          .from('patients')
+          .select('id, first_name, last_name')
+          .eq('clinic_id', clinicId)
+          .or(`first_name.ilike.%${firstName}%,first_name.ilike.${firstName}%`)
+          .ilike('last_name', lastName)
+          .is('deleted_at', null)
+          .limit(5);
+
+        if (partialMatch && partialMatch.length === 1) {
+          patientId = partialMatch[0].id;
+          matchNote = ` (fuzzy matched "${partialMatch[0].first_name} ${partialMatch[0].last_name}")`;
+        } else if (partialMatch && partialMatch.length > 1) {
+          // Multiple partial matches on first name — try last name partial too
+          const names = partialMatch.map(p => `${p.first_name} ${p.last_name}`).join(', ');
+          results.push({
+            row: rowNum,
+            patient_name: `${lastName}, ${firstName}`,
+            auth_number: String(row.auth_number || ''),
+            status: 'error',
+            error: `Multiple partial matches found: ${names}. Please use the exact name from the system.`,
+          });
+          errorCount++;
+          continue;
+        } else {
+          // 3) Try last name partial match as well (both names fuzzy)
+          const { data: broadMatch } = await supabaseAdmin
+            .from('patients')
+            .select('id, first_name, last_name')
+            .eq('clinic_id', clinicId)
+            .or(`first_name.ilike.%${firstName}%,first_name.ilike.${firstName}%`)
+            .or(`last_name.ilike.%${lastName}%,last_name.ilike.${lastName}%`)
+            .is('deleted_at', null)
+            .limit(5);
+
+          if (broadMatch && broadMatch.length === 1) {
+            patientId = broadMatch[0].id;
+            matchNote = ` (fuzzy matched "${broadMatch[0].first_name} ${broadMatch[0].last_name}")`;
+          } else if (broadMatch && broadMatch.length > 1) {
+            const names = broadMatch.map(p => `${p.first_name} ${p.last_name}`).join(', ');
+            results.push({
+              row: rowNum,
+              patient_name: `${lastName}, ${firstName}`,
+              auth_number: String(row.auth_number || ''),
+              status: 'error',
+              error: `Multiple partial matches found: ${names}. Please use the exact name from the system.`,
+            });
+            errorCount++;
+            continue;
+          }
+        }
+      }
+
+      if (!patientId) {
+        // Check if patient exists but is soft-deleted
+        const { data: deletedMatch } = await supabaseAdmin
+          .from('patients')
+          .select('id, first_name, last_name, deleted_at')
+          .eq('clinic_id', clinicId)
+          .ilike('first_name', `%${firstName}%`)
+          .ilike('last_name', `%${lastName}%`)
+          .not('deleted_at', 'is', null)
+          .limit(1);
+
+        if (deletedMatch && deletedMatch.length > 0) {
+          results.push({
+            row: rowNum,
+            patient_name: `${lastName}, ${firstName}`,
+            auth_number: String(row.auth_number || ''),
+            status: 'error',
+            error: `Patient "${deletedMatch[0].first_name} ${deletedMatch[0].last_name}" was found but has been deleted. Restore the patient first.`,
+          });
+        } else {
+          // Check if patient exists under a different clinic
+          const { data: otherClinic } = await supabaseAdmin
+            .from('patients')
+            .select('id, first_name, last_name, clinic_id')
+            .ilike('first_name', `%${firstName}%`)
+            .ilike('last_name', `%${lastName}%`)
+            .is('deleted_at', null)
+            .limit(1);
+
+          if (otherClinic && otherClinic.length > 0) {
+            results.push({
+              row: rowNum,
+              patient_name: `${lastName}, ${firstName}`,
+              auth_number: String(row.auth_number || ''),
+              status: 'error',
+              error: `Patient "${otherClinic[0].first_name} ${otherClinic[0].last_name}" exists but belongs to a different clinic.`,
+            });
+          } else {
+            results.push({
+              row: rowNum,
+              patient_name: `${lastName}, ${firstName}`,
+              auth_number: String(row.auth_number || ''),
+              status: 'error',
+              error: 'Patient not found anywhere in the system. Please add the patient first.',
+            });
+          }
+        }
         errorCount++;
         continue;
       }
-
-      const patientId = patients[0].id;
 
       // Look up active episode
       const { data: episodes } = await supabaseAdmin
@@ -428,7 +526,7 @@ export async function POST(request: NextRequest) {
 
       results.push({
         row: rowNum,
-        patient_name: `${lastName}, ${firstName}`,
+        patient_name: `${lastName}, ${firstName}${matchNote}`,
         auth_number: authNumber,
         status: 'success',
         auth_id: created.id,
