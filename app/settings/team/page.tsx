@@ -37,7 +37,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Loader2, Pencil, Trash2, UserPlus, Users } from 'lucide-react';
+import { ArrowLeft, Loader2, Pencil, Trash2, UserPlus, UserPlus2, Users } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
 import { toast } from 'sonner';
@@ -75,6 +75,14 @@ export default function ManageTeamPage() {
   const [addEmail, setAddEmail] = useState('');
   const [addRole, setAddRole] = useState('');
   const [adding, setAdding] = useState(false);
+
+  // Create user dialog
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createEmail, setCreateEmail] = useState('');
+  const [createPassword, setCreatePassword] = useState('');
+  const [createName, setCreateName] = useState('');
+  const [createRole, setCreateRole] = useState('');
+  const [creating, setCreating] = useState(false);
 
   // Edit role dialog
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -154,6 +162,55 @@ export default function ManageTeamPage() {
       toast.error('Failed to add member');
     } finally {
       setAdding(false);
+    }
+  };
+
+  const handleCreateUser = async () => {
+    if (!createEmail || !createPassword || !createRole || !currentClinic) {
+      toast.error('All fields are required');
+      return;
+    }
+
+    try {
+      setCreating(true);
+
+      const res = await fetch('/api/user/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: createEmail,
+          password: createPassword,
+          full_name: createName,
+          role: createRole,
+          clinic_id: currentClinic.clinic_id,
+          clinic_name: currentClinic.clinic_name,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to create user');
+        return;
+      }
+
+      if (data.warning) {
+        toast.warning(data.warning);
+      } else {
+        toast.success(`Created ${createEmail} as ${createRole}`);
+      }
+
+      setCreateDialogOpen(false);
+      setCreateEmail('');
+      setCreatePassword('');
+      setCreateName('');
+      setCreateRole('');
+      fetchMembers();
+    } catch (error) {
+      console.error('Error creating user:', error);
+      toast.error('Failed to create user');
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -293,10 +350,16 @@ export default function ManageTeamPage() {
                   </CardDescription>
                 </div>
               </div>
-              <Button className="gap-2" onClick={() => setAddDialogOpen(true)}>
-                <UserPlus className="h-4 w-4" />
-                Add Member
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" className="gap-2" onClick={() => setCreateDialogOpen(true)}>
+                  <UserPlus2 className="h-4 w-4" />
+                  Create User
+                </Button>
+                <Button className="gap-2" onClick={() => setAddDialogOpen(true)}>
+                  <UserPlus className="h-4 w-4" />
+                  Add Existing
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -423,6 +486,79 @@ export default function ManageTeamPage() {
               <Button onClick={handleAddMember} disabled={adding}>
                 {adding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Add Member
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Create User Dialog */}
+        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New User</DialogTitle>
+              <DialogDescription>
+                Create a new account and assign them to {currentClinic?.clinic_name}.
+                They can sign in immediately with these credentials.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="create-name">Full Name</Label>
+                <Input
+                  id="create-name"
+                  type="text"
+                  placeholder="Dr. Jane Smith"
+                  value={createName}
+                  onChange={(e) => setCreateName(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="create-email">Email Address</Label>
+                <Input
+                  id="create-email"
+                  type="email"
+                  placeholder="user@example.com"
+                  value={createEmail}
+                  onChange={(e) => setCreateEmail(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="create-password">Temporary Password</Label>
+                <Input
+                  id="create-password"
+                  type="text"
+                  placeholder="Min 6 characters"
+                  value={createPassword}
+                  onChange={(e) => setCreatePassword(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Role</Label>
+                <Select value={createRole} onValueChange={setCreateRole}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a role..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ALL_ROLES.map((role) => (
+                      <SelectItem key={role.value} value={role.value}>
+                        {role.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setCreateDialogOpen(false)}
+                disabled={creating}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleCreateUser} disabled={creating}>
+                {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Create User
               </Button>
             </DialogFooter>
           </DialogContent>

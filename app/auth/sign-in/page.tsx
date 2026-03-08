@@ -191,8 +191,14 @@ export default function SignInPage() {
         {/* Footer */}
         <div className="text-center mt-6 text-sm text-slate-600">
           <p>
-            Need access?{' '}
-            <span className="text-slate-700">Contact your clinic administrator</span>
+            Need an account?{' '}
+            <Link
+              href="/auth/sign-up"
+              className="text-emerald-600 hover:text-emerald-700 hover:underline font-medium"
+            >
+              Sign up
+            </Link>
+            {' '}or contact your clinic administrator
           </p>
           <p className="text-[10px] text-slate-400 mt-3">Powered by PTBot</p>
         </div>
