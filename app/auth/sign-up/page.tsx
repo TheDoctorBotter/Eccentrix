@@ -214,7 +214,7 @@ export default function SignUpPage() {
         </Card>
 
         <div className="text-center mt-6">
-          <p className="text-[10px] text-slate-400">Powered by PTBot</p>
+          <p className="text-[10px] text-slate-400">Powered by Eccentrix EMR</p>
         </div>
       </div>
     </div>

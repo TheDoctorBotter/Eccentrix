@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
@@ -66,6 +66,8 @@ export default function HomePage() {
   const [telehealthDrafts, setTelehealthDrafts] = useState<TelehealthDraft[]>([]);
   const [authAlerts, setAuthAlerts] = useState<AuthAlert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [clinicLogoUrl, setClinicLogoUrl] = useState<string | null>(null);
+  const prevClinicId = useRef<string | null>(null);
 
   const fetchAuthAlerts = useCallback(async (clinicId: string) => {
     try {
@@ -148,6 +150,15 @@ export default function HomePage() {
       fetchAlerts(currentClinic.clinic_id);
       fetchTelehealthDrafts(currentClinic.clinic_id);
       fetchAuthAlerts(currentClinic.clinic_id);
+
+      // Fetch clinic branding logo
+      if (prevClinicId.current !== currentClinic.clinic_id) {
+        prevClinicId.current = currentClinic.clinic_id;
+        fetch(`/api/branding?clinic_id=${currentClinic.clinic_id}`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => { if (data) setClinicLogoUrl(data.logo_url || null); })
+          .catch(() => setClinicLogoUrl(null));
+      }
     }
   }, [currentClinic, fetchAuthAlerts]);
 
@@ -238,14 +249,28 @@ export default function HomePage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">Eccentrix EMR</h1>
-          <p className="text-slate-600 mt-1">
-            Secure clinical documentation and patient chart management
-          </p>
-          <p className="text-sm text-emerald-600 mt-2 font-medium">
-            {currentClinic.clinic_name}
-          </p>
+        <div className="mb-8 flex items-center gap-5">
+          {clinicLogoUrl ? (
+            <img
+              src={clinicLogoUrl}
+              alt={currentClinic.clinic_name}
+              className="h-20 w-auto max-w-[200px] object-contain shrink-0"
+            />
+          ) : (
+            <img
+              src="/logo.png"
+              alt="Eccentrix EMR"
+              className="h-20 w-auto max-w-[200px] object-contain shrink-0"
+            />
+          )}
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900">
+              {currentClinic.clinic_name || 'Eccentrix EMR'}
+            </h1>
+            <p className="text-slate-600 mt-1">
+              Secure clinical documentation and patient chart management
+            </p>
+          </div>
         </div>
 
         {loading ? (

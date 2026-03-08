@@ -200,7 +200,7 @@ export default function SignInPage() {
             </Link>
             {' '}or contact your clinic administrator
           </p>
-          <p className="text-[10px] text-slate-400 mt-3">Powered by PTBot</p>
+          <p className="text-[10px] text-slate-400 mt-3">Powered by Eccentrix EMR</p>
         </div>
       </div>
     </div>

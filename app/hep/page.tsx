@@ -311,7 +311,7 @@ export default function HepPage() {
           </table>
           ${program.instructions ? `<div class="instructions"><strong>Additional Instructions:</strong><br/>${program.instructions}</div>` : ''}
           <div style="margin-top: 24px; padding-top: 12px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #94a3b8; text-align: center;">
-            Exercise videos powered by PTBot
+            Exercise videos powered by Eccentrix EMR
           </div>
         </body>
       </html>
@@ -385,7 +385,7 @@ export default function HepPage() {
             </h1>
             <p className="text-slate-500 mt-1">
               Create and manage home exercise programs for patients
-              <span className="ml-2 text-xs text-blue-600 font-medium">Powered by PTBot</span>
+              <span className="ml-2 text-xs text-blue-600 font-medium">Powered by Eccentrix EMR</span>
             </p>
           </div>
           <Button className="gap-2" onClick={handleOpenCreateDialog}>
