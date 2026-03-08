@@ -150,51 +150,11 @@ export default function ImportCaseloadPage() {
   };
 
   const handleDownloadTemplate = () => {
-    const headers = [
-      'First Name',
-      'Last Name',
-      'Date of Birth',
-      'Gender',
-      'Phone',
-      'Email',
-      'Address',
-      'Primary Diagnosis',
-      'Referring Physician',
-      'Allergies',
-      'Precautions',
-      'Insurance',
-      'Insurance ID',
-      'Medicaid ID',
-      'Discipline',
-      'Frequency',
-    ];
-    const example = [
-      'John',
-      'Smith',
-      '03/15/1985',
-      'Male',
-      '555-123-4567',
-      'john@example.com',
-      '123 Main St, Phoenix, AZ 85001',
-      'Low back pain',
-      'Dr. Jane Doe',
-      'Latex',
-      'Fall risk',
-      'Aetna',
-      'ABC123456',
-      '',
-      'PT',
-      '2x/week',
-    ];
-
-    const csvContent = [headers.join(','), example.join(',')].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
+    // Download the pre-built Excel template with sample data
     const a = document.createElement('a');
-    a.href = url;
-    a.download = 'caseload_import_template.csv';
+    a.href = '/caseload_import_template.xlsx';
+    a.download = 'caseload_import_template.xlsx';
     a.click();
-    URL.revokeObjectURL(url);
   };
 
   return (
