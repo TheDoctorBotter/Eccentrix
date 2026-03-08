@@ -265,16 +265,23 @@ export function PriorAuthSection({ patientId, clinicId, episodeId }: Props) {
       if (data.skipped > 0) {
         toast.info(`${data.skipped} skipped (duplicates)`);
       }
+      if (data.needs_review > 0) {
+        toast.warning(`${data.needs_review} row${data.needs_review !== 1 ? 's' : ''} need manual review`);
+      }
       if (data.errors > 0) {
         toast.error(`${data.errors} row${data.errors !== 1 ? 's' : ''} had errors`);
-        // Show individual errors
-        data.results
-          .filter((r: { status: string }) => r.status === 'error')
-          .slice(0, 3)
-          .forEach((r: { row: number; error?: string }) => {
-            toast.error(`Row ${r.row}: ${r.error}`);
-          });
       }
+      // Show per-row details for errors and review items
+      data.results
+        .filter((r: { status: string }) => r.status === 'error' || r.status === 'needs_review')
+        .slice(0, 5)
+        .forEach((r: { row: number; status: string; error?: string }) => {
+          if (r.status === 'error') {
+            toast.error(`Row ${r.row}: ${r.error}`);
+          } else {
+            toast.warning(`Row ${r.row}: ${r.error}`);
+          }
+        });
 
       fetchAuths();
     } catch {
