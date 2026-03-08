@@ -1,0 +1,29 @@
+-- Filter out soft-deleted patients from active_episodes_view
+-- Patients with deleted_at set should not appear in the caseload
+
+DROP VIEW IF EXISTS active_episodes_view;
+CREATE VIEW active_episodes_view
+WITH (security_invoker = true)
+AS
+SELECT
+  e.id as episode_id,
+  e.patient_id,
+  e.clinic_id,
+  e.start_date,
+  e.diagnosis,
+  e.frequency,
+  e.primary_pt_id,
+  e.primary_ot_id,
+  e.primary_slp_id,
+  e.care_team_ids,
+  p.first_name,
+  p.last_name,
+  p.date_of_birth,
+  p.primary_diagnosis,
+  p.referring_physician
+FROM episodes e
+JOIN patients p ON e.patient_id = p.id
+WHERE e.status = 'active'
+  AND p.deleted_at IS NULL;
+
+COMMENT ON VIEW active_episodes_view IS 'Active episodes with patient demographics, excluding deleted patients (SECURITY INVOKER — respects RLS)';

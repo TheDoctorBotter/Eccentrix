@@ -59,6 +59,14 @@ export default function PatientChartPage({ params }: PageProps) {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Top card (episode-level) editing
+  const [editingTopCard, setEditingTopCard] = useState(false);
+  const [savingTopCard, setSavingTopCard] = useState(false);
+  const [topCardDetails, setTopCardDetails] = useState({
+    diagnosis: '',
+    frequency: '',
+  });
+
   // Patient detail editing
   const [editingDetails, setEditingDetails] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
@@ -85,6 +93,10 @@ export default function PatientChartPage({ params }: PageProps) {
       if (res.ok) {
         const data = await res.json();
         setEpisode(data);
+        setTopCardDetails({
+          diagnosis: data.diagnosis || data.primary_diagnosis || '',
+          frequency: data.frequency || '',
+        });
         setPatientDetails({
           gender: data.gender || '',
           insurance_id: data.insurance_id || '',
@@ -124,6 +136,26 @@ export default function PatientChartPage({ params }: PageProps) {
       age--;
     }
     return `${age} years old`;
+  };
+
+  const handleSaveTopCard = async () => {
+    if (!episodeId) return;
+    setSavingTopCard(true);
+    try {
+      const res = await fetch(`/api/episodes/${episodeId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(topCardDetails),
+      });
+      if (res.ok) {
+        await fetchEpisodeDetails();
+        setEditingTopCard(false);
+      }
+    } catch (error) {
+      console.error('Error saving episode details:', error);
+    } finally {
+      setSavingTopCard(false);
+    }
   };
 
   const handleSavePatientDetails = async () => {
@@ -262,26 +294,89 @@ export default function PatientChartPage({ params }: PageProps) {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-3 bg-slate-50 rounded-lg">
-                    <p className="text-sm text-slate-500">Diagnosis</p>
-                    <p className="font-medium text-slate-900">
-                      {episode.diagnosis || episode.primary_diagnosis || 'Not specified'}
-                    </p>
-                  </div>
-                  <div className="p-3 bg-slate-50 rounded-lg">
-                    <p className="text-sm text-slate-500">Start Date</p>
-                    <p className="font-medium text-slate-900">
-                      {formatLocalDate(episode.start_date, 'MM/dd/yyyy')}
-                    </p>
-                  </div>
-                  <div className="p-3 bg-slate-50 rounded-lg">
-                    <p className="text-sm text-slate-500">Frequency</p>
-                    <p className="font-medium text-slate-900">
-                      {episode.frequency || 'Not specified'}
-                    </p>
-                  </div>
+                <div className="flex justify-end mb-2">
+                  {!editingTopCard ? (
+                    <Button variant="outline" size="sm" className="gap-1" onClick={() => setEditingTopCard(true)}>
+                      <Pencil className="h-3 w-3" />
+                      Edit
+                    </Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => {
+                        setEditingTopCard(false);
+                        setTopCardDetails({
+                          diagnosis: episode.diagnosis || episode.primary_diagnosis || '',
+                          frequency: episode.frequency || '',
+                        });
+                      }}>
+                        Cancel
+                      </Button>
+                      <Button size="sm" className="gap-1" onClick={handleSaveTopCard} disabled={savingTopCard}>
+                        {savingTopCard ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                        Save
+                      </Button>
+                    </div>
+                  )}
                 </div>
+                {editingTopCard ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="diagnosis">Diagnosis</Label>
+                      <Input
+                        id="diagnosis"
+                        value={topCardDetails.diagnosis}
+                        onChange={(e) => setTopCardDetails(prev => ({ ...prev, diagnosis: e.target.value }))}
+                        placeholder="e.g., Low back pain with radiculopathy"
+                      />
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                      <p className="text-sm text-slate-500">Start Date</p>
+                      <p className="font-medium text-slate-900">
+                        {formatLocalDate(episode.start_date, 'MM/dd/yyyy')}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="frequency">Frequency</Label>
+                      <Select
+                        value={topCardDetails.frequency}
+                        onValueChange={(value) => setTopCardDetails(prev => ({ ...prev, frequency: value }))}
+                      >
+                        <SelectTrigger id="frequency">
+                          <SelectValue placeholder="Select frequency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1x/week">1x/week</SelectItem>
+                          <SelectItem value="2x/week">2x/week</SelectItem>
+                          <SelectItem value="3x/week">3x/week</SelectItem>
+                          <SelectItem value="4x/week">4x/week</SelectItem>
+                          <SelectItem value="5x/week">5x/week</SelectItem>
+                          <SelectItem value="PRN">PRN</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                      <p className="text-sm text-slate-500">Diagnosis</p>
+                      <p className="font-medium text-slate-900">
+                        {episode.diagnosis || episode.primary_diagnosis || 'Not specified'}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                      <p className="text-sm text-slate-500">Start Date</p>
+                      <p className="font-medium text-slate-900">
+                        {formatLocalDate(episode.start_date, 'MM/dd/yyyy')}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                      <p className="text-sm text-slate-500">Frequency</p>
+                      <p className="font-medium text-slate-900">
+                        {episode.frequency || 'Not specified'}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

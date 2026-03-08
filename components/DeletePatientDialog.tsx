@@ -14,7 +14,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Trash2, Loader2, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -28,6 +27,7 @@ export function DeletePatientDialog({ patientId, patientName }: DeletePatientDia
   const router = useRouter();
   const { hasRole, user } = useAuth();
   const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [reason, setReason] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -39,8 +39,13 @@ export function DeletePatientDialog({ patientId, patientName }: DeletePatientDia
   }
 
   const handleDelete = async () => {
-    if (!password || !reason) {
-      setError('Password and reason are required');
+    const adminEmail = email || user?.email;
+    if (!adminEmail) {
+      setError('Email is required. Please enter your admin email address.');
+      return;
+    }
+    if (!password) {
+      setError('Please enter your admin password.');
       return;
     }
 
@@ -51,16 +56,22 @@ export function DeletePatientDialog({ patientId, patientName }: DeletePatientDia
       const response = await fetch(`/api/patients/${patientId}/delete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user?.email, password, reason }),
+        body: JSON.stringify({
+          email: adminEmail,
+          password,
+          reason: reason || 'Patient removed by admin',
+        }),
       });
 
+      const responseData = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete patient');
+        throw new Error(responseData.error || 'Failed to delete patient');
       }
 
-      // Success - redirect to home
+      // Success - redirect to home with refresh
       router.push('/');
+      router.refresh();
     } catch (err) {
       console.error('Error deleting patient:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete patient');
@@ -71,8 +82,11 @@ export function DeletePatientDialog({ patientId, patientName }: DeletePatientDia
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
+    if (newOpen) {
+      // Pre-fill email from auth context
+      setEmail(user?.email || '');
+    }
     if (!newOpen) {
-      // Reset form when dialog closes
       setPassword('');
       setReason('');
       setError(null);
@@ -94,8 +108,7 @@ export function DeletePatientDialog({ patientId, patientName }: DeletePatientDia
             Delete Patient
           </DialogTitle>
           <DialogDescription>
-            This action will permanently delete <strong>{patientName}</strong> and all associated records.
-            This cannot be undone.
+            This will remove <strong>{patientName}</strong> from your caseload and discharge all active episodes.
           </DialogDescription>
         </DialogHeader>
 
@@ -103,36 +116,53 @@ export function DeletePatientDialog({ patientId, patientName }: DeletePatientDia
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              Admin password verification required to proceed with deletion.
+              Enter your admin credentials to confirm deletion.
             </AlertDescription>
           </Alert>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Your Password *</Label>
+            <Label htmlFor="delete-email">Admin Email *</Label>
             <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your admin password"
+              id="delete-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="your@email.com"
               disabled={deleting}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="reason">Reason for Deletion *</Label>
-            <Textarea
-              id="reason"
+            <Label htmlFor="delete-password">Admin Password *</Label>
+            <Input
+              id="delete-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
+              disabled={deleting}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && password) {
+                  handleDelete();
+                }
+              }}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="delete-reason">Reason (optional)</Label>
+            <Input
+              id="delete-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Explain why this patient is being deleted..."
-              rows={4}
+              placeholder="e.g., Test patient, duplicate record"
               disabled={deleting}
             />
           </div>
 
           {error && (
             <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
@@ -149,7 +179,7 @@ export function DeletePatientDialog({ patientId, patientName }: DeletePatientDia
           <Button
             variant="destructive"
             onClick={handleDelete}
-            disabled={deleting || !password || !reason}
+            disabled={deleting}
             className="gap-2"
           >
             {deleting && <Loader2 className="h-4 w-4 animate-spin" />}

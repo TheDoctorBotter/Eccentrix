@@ -10,9 +10,9 @@ export async function POST(
     const { id: patientId } = await params;
     const { email, password, reason } = await request.json();
 
-    if (!email || !password || !reason) {
+    if (!email || !password) {
       return NextResponse.json(
-        { error: 'Email, password, and reason are required' },
+        { error: 'Email and password are required' },
         { status: 400 }
       );
     }
@@ -75,7 +75,7 @@ export async function POST(
       .update({
         deleted_at: new Date().toISOString(),
         deleted_by: user.id,
-        delete_reason: reason,
+        delete_reason: reason || 'Removed by admin',
       })
       .eq('id', patientId)
       .select()
@@ -84,6 +84,22 @@ export async function POST(
     if (error) {
       console.error('Error soft deleting patient:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Also discharge all active episodes for this patient
+    const { error: episodeError } = await supabaseAdmin
+      .from('episodes')
+      .update({
+        status: 'discharged',
+        discharged_at: new Date().toISOString(),
+        discharged_by: user.id,
+        discharge_reason: 'Patient deleted',
+      })
+      .eq('patient_id', patientId)
+      .eq('status', 'active');
+
+    if (episodeError) {
+      console.error('Error discharging episodes for deleted patient:', episodeError);
     }
 
     return NextResponse.json({
