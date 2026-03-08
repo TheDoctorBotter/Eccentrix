@@ -53,16 +53,34 @@ export async function POST(
       );
     }
 
-    // Verify user is admin for this clinic
+    // Verify user is admin or super_admin for this clinic
     const { data: membership, error: membershipError } = await supabaseAdmin
       .from('clinic_memberships')
-      .select('role')
+      .select('role, is_super_admin')
       .eq('user_id', user.id)
       .eq('clinic_id', patient.clinic_id)
       .eq('is_active', true)
       .single();
 
-    if (membershipError || !membership || membership.role !== 'admin') {
+    // Allow if user is super_admin on any membership (cross-clinic access)
+    let isSuperAdmin = false;
+    if (membershipError || !membership) {
+      // No membership for this clinic — check if super_admin elsewhere
+      const { data: anyMembership } = await supabaseAdmin
+        .from('clinic_memberships')
+        .select('is_super_admin')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .eq('is_super_admin', true)
+        .limit(1);
+      isSuperAdmin = !!(anyMembership && anyMembership.length > 0);
+    } else {
+      isSuperAdmin = membership.is_super_admin === true;
+    }
+
+    const isAdmin = membership?.role === 'admin';
+
+    if (!isAdmin && !isSuperAdmin) {
       return NextResponse.json(
         { error: 'Admin access required' },
         { status: 403 }
