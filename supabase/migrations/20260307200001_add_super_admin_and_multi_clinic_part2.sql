@@ -329,18 +329,16 @@ DO $$ BEGIN
 END $$;
 
 -- CLINIC_MEMBERSHIPS
+-- Also drop the legacy policy name from earlier migrations
+DROP POLICY IF EXISTS "memberships_select_own" ON clinic_memberships;
 DROP POLICY IF EXISTS "clinic_memberships_select" ON clinic_memberships;
 CREATE POLICY "clinic_memberships_select"
 ON clinic_memberships FOR SELECT
 USING (
   user_id = auth.uid()
   OR
-  EXISTS (
-    SELECT 1 FROM clinic_memberships sa
-    WHERE sa.user_id = auth.uid()
-      AND sa.is_super_admin = true
-      AND sa.is_active = true
-  )
+  -- Use SECURITY DEFINER function to avoid self-referencing RLS recursion
+  is_super_admin(auth.uid())
 );
 
 -- =============================================================================
