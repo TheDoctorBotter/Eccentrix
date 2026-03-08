@@ -438,6 +438,12 @@ export default function AddPatientPage() {
                         <SelectItem value="3x/week">3x/week</SelectItem>
                         <SelectItem value="4x/week">4x/week</SelectItem>
                         <SelectItem value="5x/week">5x/week</SelectItem>
+                        <SelectItem value="1x/month">1x/month</SelectItem>
+                        <SelectItem value="2x/month">2x/month</SelectItem>
+                        <SelectItem value="3x/month">3x/month</SelectItem>
+                        <SelectItem value="4x/month">4x/month</SelectItem>
+                        <SelectItem value="6x/month">6x/month</SelectItem>
+                        <SelectItem value="8x/month">8x/month</SelectItem>
                         <SelectItem value="PRN">PRN</SelectItem>
                       </SelectContent>
                     </Select>
@@ -487,6 +493,12 @@ export default function AddPatientPage() {
                                 <SelectItem value="3x/week">3x/week</SelectItem>
                                 <SelectItem value="4x/week">4x/week</SelectItem>
                                 <SelectItem value="5x/week">5x/week</SelectItem>
+                                <SelectItem value="1x/month">1x/month</SelectItem>
+                                <SelectItem value="2x/month">2x/month</SelectItem>
+                                <SelectItem value="3x/month">3x/month</SelectItem>
+                                <SelectItem value="4x/month">4x/month</SelectItem>
+                                <SelectItem value="6x/month">6x/month</SelectItem>
+                                <SelectItem value="8x/month">8x/month</SelectItem>
                                 <SelectItem value="PRN">PRN</SelectItem>
                               </SelectContent>
                             </Select>
