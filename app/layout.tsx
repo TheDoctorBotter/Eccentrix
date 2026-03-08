@@ -5,6 +5,7 @@ import { AlertTriangle } from 'lucide-react';
 import { AuthProvider } from '@/lib/auth-context';
 import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistration';
 import { SuperAdminBanner } from '@/components/SuperAdminBanner';
+import { Toaster } from '@/components/ui/sonner';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -48,6 +49,7 @@ export default function RootLayout({
           </div>
           <SuperAdminBanner />
           {children}
+          <Toaster richColors position="top-right" />
         </AuthProvider>
       </body>
     </html>

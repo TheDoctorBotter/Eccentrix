@@ -329,10 +329,11 @@ export default function FullscreenSchedulePage() {
             .filter((m: { role: string; is_active: boolean }) =>
               ['pt', 'pta', 'ot', 'ota', 'slp', 'slpa'].includes(m.role) && m.is_active
             )
-            .map((m: { user_id: string; display_name?: string; email?: string; primary_discipline?: string }) => ({
+            .map((m: { user_id: string; display_name?: string; email?: string; primary_discipline?: string; role?: string }) => ({
               user_id: m.user_id,
               name: m.display_name || m.email || m.user_id,
               primary_discipline: m.primary_discipline || 'PT',
+              role: m.role,
             }))
         );
       }
@@ -575,7 +576,10 @@ export default function FullscreenSchedulePage() {
   // ---------------------------------------------------------------------------
 
   const handleCreateAppointment = async () => {
-    if (!currentClinic?.clinic_id) return;
+    if (!currentClinic?.clinic_id) {
+      toast.error('No clinic selected. Please select a clinic first.');
+      return;
+    }
     setSubmitting(true);
     try {
       const startISO = new Date(`${formData.date}T${formData.start_time}:00`).toISOString();
