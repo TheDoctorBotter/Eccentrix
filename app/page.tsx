@@ -24,6 +24,7 @@ import {
   FileText,
   Clock,
   Check,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import {
@@ -431,12 +432,20 @@ export default function HomePage() {
                     <Users className="h-5 w-5 text-emerald-600" />
                     <CardTitle className="text-lg">Caseload</CardTitle>
                   </div>
-                  <Link href="/patients/new">
-                    <Button size="sm" className="gap-1">
-                      <Plus className="h-4 w-4" />
-                      Add Patient
-                    </Button>
-                  </Link>
+                  <div className="flex gap-2">
+                    <Link href="/patients/import">
+                      <Button size="sm" variant="outline" className="gap-1">
+                        <FileSpreadsheet className="h-4 w-4" />
+                        Import
+                      </Button>
+                    </Link>
+                    <Link href="/patients/new">
+                      <Button size="sm" className="gap-1">
+                        <Plus className="h-4 w-4" />
+                        Add Patient
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
                 <CardDescription>
                   Active patients • {episodes.length} total
