@@ -79,6 +79,8 @@ export async function PATCH(
       'frequency',
       'duration',
       'primary_pt_id',
+      'primary_ot_id',
+      'primary_slp_id',
       'care_team_ids',
       'status',
       'end_date',
