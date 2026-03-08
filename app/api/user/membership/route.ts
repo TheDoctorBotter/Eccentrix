@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
       const userIds = (staffMembers || []).map((m: Record<string, unknown>) => m.user_id as string);
       let providerMap = new Map<string, { first_name: string; last_name: string; credentials: string | null }>();
       let emailMap = new Map<string, string>();
+      let authNameMap = new Map<string, string>();
 
       if (userIds.length > 0) {
         const { data: providers } = await client
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
           );
         }
 
-        // Fetch emails from auth.users for users without provider profiles
+        // Fetch emails and display names from auth.users for users without provider profiles
         const usersWithoutProfile = userIds.filter((id) => !providerMap.has(id));
         if (usersWithoutProfile.length > 0 && serviceRoleKey) {
           const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
@@ -62,6 +63,11 @@ export async function GET(request: NextRequest) {
             for (const u of authUsers.users) {
               if (usersWithoutProfile.includes(u.id)) {
                 emailMap.set(u.id, u.email || '');
+                // Use full_name from user_metadata as display name fallback
+                const fullName = u.user_metadata?.full_name;
+                if (fullName && fullName !== u.email) {
+                  authNameMap.set(u.id, fullName);
+                }
               }
             }
           }
@@ -73,9 +79,10 @@ export async function GET(request: NextRequest) {
           const userId = m.user_id as string;
           const provider = providerMap.get(userId);
           const email = emailMap.get(userId);
+          const authName = authNameMap.get(userId);
           const displayName = provider
             ? `${provider.first_name} ${provider.last_name}${provider.credentials ? `, ${provider.credentials}` : ''}`
-            : email || userId.slice(0, 8) + '...';
+            : authName || email || userId.slice(0, 8) + '...';
 
           return {
             user_id: userId,
