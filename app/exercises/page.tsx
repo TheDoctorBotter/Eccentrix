@@ -284,7 +284,7 @@ export default function ExercisesPage() {
             </h1>
             <p className="text-slate-500 mt-1">
               Browse and manage exercises for home exercise programs
-              <span className="ml-2 text-xs text-blue-600 font-medium">Powered by PTBot</span>
+              <span className="ml-2 text-xs text-blue-600 font-medium">Powered by Eccentrix EMR</span>
             </p>
           </div>
           {canManageExercises && (

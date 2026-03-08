@@ -217,7 +217,7 @@ export default function SettingsPage() {
                 chart management for physical therapy practices.
               </p>
               <p>Version 3.0.0</p>
-              <p className="text-xs text-slate-400 pt-1">Powered by PTBot</p>
+              <p className="text-xs text-slate-400 pt-1">Powered by Eccentrix EMR</p>
               <p className="text-xs pt-2">
                 This system is designed to assist clinicians in creating professional
                 documentation. It does not replace clinical judgment or the need for

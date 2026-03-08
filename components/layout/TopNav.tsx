@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -50,6 +50,29 @@ export function TopNav() {
   const router = useRouter();
   const { user, currentClinic, memberships, signOut, setCurrentClinic, hasRole, isEmrMode } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [clinicLogoUrl, setClinicLogoUrl] = useState<string | null>(null);
+
+  // Fetch clinic branding logo when the selected clinic changes
+  useEffect(() => {
+    if (!currentClinic?.clinic_id) {
+      setClinicLogoUrl(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/branding?clinic_id=${currentClinic.clinic_id}`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) {
+          setClinicLogoUrl(data.logo_url || null);
+        }
+      } catch {
+        if (!cancelled) setClinicLogoUrl(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [currentClinic?.clinic_id]);
 
   const canSeeFrontOffice = hasRole(['admin', 'front_office', 'pt', 'ot', 'slp']);
   const canSeeBilling = hasRole(['admin', 'biller', 'front_office']);
@@ -154,7 +177,11 @@ export function TopNav() {
           {/* Logo and Title */}
           <div className="flex items-center gap-6">
             <Link href="/" className="flex items-center gap-2">
-              <img src="/logo.png" alt="Eccentrix EMR" className="h-20 object-contain" />
+              <img
+                src={clinicLogoUrl || '/logo.png'}
+                alt={currentClinic?.clinic_name || 'Eccentrix EMR'}
+                className="h-20 w-auto max-w-[200px] object-contain"
+              />
             </Link>
 
             {/* Navigation Links */}
@@ -540,7 +567,7 @@ export function TopNav() {
     </header>
     <div className="w-full border-b bg-slate-50 py-1">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-end">
-        <span className="text-[10px] text-slate-400">Powered by PTBot</span>
+        <span className="text-[10px] text-slate-400">Powered by Eccentrix EMR</span>
       </div>
     </div>
     </>
