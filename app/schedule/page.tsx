@@ -105,13 +105,13 @@ const STATUS_ACTIONS: { from: AppointmentStatus[]; to: AppointmentStatus; label:
 // Background color by discipline
 const DISCIPLINE_BG: Record<string, string> = {
   PT: 'bg-blue-50 hover:bg-blue-100',
-  OT: 'bg-amber-50 hover:bg-amber-100',
-  ST: 'bg-rose-50 hover:bg-rose-100',
+  OT: 'bg-lime-50 hover:bg-lime-100',
+  ST: 'bg-yellow-50 hover:bg-yellow-100',
 };
 const DISCIPLINE_BORDER_COLOR: Record<string, string> = {
   PT: 'border-blue-300',
-  OT: 'border-amber-300',
-  ST: 'border-rose-300',
+  OT: 'border-lime-300',
+  ST: 'border-yellow-300',
 };
 const DEFAULT_DISCIPLINE_BG = 'bg-blue-50 hover:bg-blue-100';
 
@@ -119,7 +119,7 @@ const DEFAULT_DISCIPLINE_BG = 'bg-blue-50 hover:bg-blue-100';
 const STATUS_BORDER: Record<AppointmentStatus, string> = {
   scheduled: 'border-l-slate-400',
   confirmed: 'border-l-green-500',
-  checked_in: 'border-l-yellow-500',
+  checked_in: 'border-l-orange-500',
   in_progress: 'border-l-amber-500',
   checked_out: 'border-l-teal-500',
   completed: 'border-l-teal-600',
@@ -132,7 +132,7 @@ const STATUS_BORDER: Record<AppointmentStatus, string> = {
 const STATUS_BADGE: Record<AppointmentStatus, string> = {
   scheduled: 'bg-slate-100 text-slate-600 border-slate-200',
   confirmed: 'bg-green-100 text-green-700 border-green-200',
-  checked_in: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+  checked_in: 'bg-orange-100 text-orange-700 border-orange-200',
   in_progress: 'bg-amber-100 text-amber-700 border-amber-200',
   checked_out: 'bg-teal-100 text-teal-700 border-teal-200',
   completed: 'bg-teal-100 text-teal-700 border-teal-200',
@@ -1146,8 +1146,8 @@ export default function SchedulePage() {
           {/* Discipline */}
           <span className="font-semibold text-slate-500 uppercase tracking-wide">Discipline:</span>
           <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-50 border border-blue-300" />PT</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-amber-50 border border-amber-300" />OT</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-rose-50 border border-rose-300" />ST</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-lime-50 border border-lime-300" />OT</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-yellow-50 border border-yellow-300" />ST</span>
 
           <span className="text-slate-300">|</span>
 
@@ -1155,7 +1155,7 @@ export default function SchedulePage() {
           <span className="font-semibold text-slate-500 uppercase tracking-wide">Status:</span>
           <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-slate-400 bg-slate-50" />Scheduled</span>
           <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-green-500 bg-slate-50" />Confirmed</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-yellow-500 bg-slate-50" />Checked In</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-orange-500 bg-slate-50" />Checked In</span>
           <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-teal-600 bg-slate-50" />Completed</span>
           <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-red-500 bg-red-50/60 line-through" />No Show</span>
           <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm border-l-[3px] border-l-red-400 bg-red-50/60 line-through" />Cancelled</span>
@@ -1871,8 +1871,8 @@ export default function SchedulePage() {
                               {auth.discipline && (
                                 <span className={`inline-block w-2 h-2 rounded-full ${
                                   auth.discipline === 'PT' ? 'bg-blue-500'
-                                    : auth.discipline === 'OT' ? 'bg-green-500'
-                                      : 'bg-purple-500'
+                                    : auth.discipline === 'OT' ? 'bg-lime-500'
+                                      : 'bg-yellow-500'
                                 }`} />
                               )}
                               <span className="font-medium">

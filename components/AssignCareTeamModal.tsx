@@ -57,8 +57,8 @@ const DISCIPLINES: Discipline[] = ['PT', 'OT', 'ST'];
 
 const DISCIPLINE_STYLES: Record<Discipline, { border: string; bg: string; text: string; badge: string; label: string }> = {
   PT: { border: 'border-l-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700 border-emerald-200', label: 'Physical Therapy' },
-  OT: { border: 'border-l-amber-500', bg: 'bg-amber-50', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-700 border-amber-200', label: 'Occupational Therapy' },
-  ST: { border: 'border-l-rose-500', bg: 'bg-rose-50', text: 'text-rose-700', badge: 'bg-rose-100 text-rose-700 border-rose-200', label: 'Speech Therapy' },
+  OT: { border: 'border-l-lime-500', bg: 'bg-lime-50', text: 'text-lime-700', badge: 'bg-lime-100 text-lime-700 border-lime-200', label: 'Occupational Therapy' },
+  ST: { border: 'border-l-yellow-500', bg: 'bg-yellow-50', text: 'text-yellow-700', badge: 'bg-yellow-100 text-yellow-700 border-yellow-200', label: 'Speech Therapy' },
 };
 
 const ROLE_TO_DISCIPLINE: Record<string, Discipline> = {
