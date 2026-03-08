@@ -185,6 +185,22 @@ export function AssignCareTeamModal({
 
       await Promise.all(ops);
 
+      // After all add/remove ops are done, explicitly set the correct primary IDs
+      // on the episode to avoid race conditions from parallel updates
+      const allUserIds = desired.map((d) => d.user_id);
+      const episodeUpdate: Record<string, unknown> = {
+        care_team_ids: allUserIds.length > 0 ? allUserIds : [],
+        primary_pt_id: assignments.PT.primary || null,
+        primary_ot_id: assignments.OT.primary || null,
+        primary_slp_id: assignments.ST.primary || null,
+      };
+
+      await fetch(`/api/episodes/${episodeId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(episodeUpdate),
+      });
+
       // Also write to patient_clinician_assignments if patientId is available
       if (patientId) {
         const assignmentOps: Promise<Response>[] = [];

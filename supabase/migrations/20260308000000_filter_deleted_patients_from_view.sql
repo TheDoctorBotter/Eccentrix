@@ -1,5 +1,11 @@
 -- Filter out soft-deleted patients from active_episodes_view
 -- Patients with deleted_at set should not appear in the caseload
+-- Also ensure primary_ot_id and primary_slp_id columns exist on episodes
+
+-- Ensure the columns exist before referencing them in the view
+ALTER TABLE episodes
+  ADD COLUMN IF NOT EXISTS primary_ot_id  uuid REFERENCES auth.users(id),
+  ADD COLUMN IF NOT EXISTS primary_slp_id uuid REFERENCES auth.users(id);
 
 DROP VIEW IF EXISTS active_episodes_view;
 CREATE VIEW active_episodes_view
