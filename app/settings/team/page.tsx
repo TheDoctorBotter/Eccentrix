@@ -59,6 +59,10 @@ interface TeamMember {
   user_id: string;
   email: string;
   display_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  credentials: string | null;
+  has_provider_profile: boolean;
   role: string;
   clinic_name: string;
 }
@@ -84,9 +88,12 @@ export default function ManageTeamPage() {
   const [createRole, setCreateRole] = useState('');
   const [creating, setCreating] = useState(false);
 
-  // Edit role dialog
+  // Edit member dialog
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editMember, setEditMember] = useState<TeamMember | null>(null);
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+  const [editCredentials, setEditCredentials] = useState('');
   const [editRole, setEditRole] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -194,10 +201,28 @@ export default function ManageTeamPage() {
         return;
       }
 
+      // Create provider profile if name was provided so it displays correctly
+      if (createName.trim() && data.user_id && currentClinic.clinic_id) {
+        const nameParts = createName.trim().split(/\s+/);
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || nameParts[0] || '';
+
+        await fetch('/api/provider-profiles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: data.user_id,
+            clinic_id: currentClinic.clinic_id,
+            first_name: firstName,
+            last_name: lastName,
+          }),
+        });
+      }
+
       if (data.warning) {
         toast.warning(data.warning);
       } else {
-        toast.success(`Created ${createEmail} as ${createRole}`);
+        toast.success(`Created ${createName || createEmail} as ${createRole}`);
       }
 
       setCreateDialogOpen(false);
@@ -214,12 +239,36 @@ export default function ManageTeamPage() {
     }
   };
 
-  const handleEditRole = async () => {
+  const handleEditMember = async () => {
     if (!editMember || !editRole || !currentClinic) return;
+    if (!editFirstName.trim() || !editLastName.trim()) {
+      toast.error('First name and last name are required');
+      return;
+    }
 
     try {
       setSaving(true);
 
+      // Update provider profile (upsert creates if doesn't exist)
+      const profileRes = await fetch('/api/provider-profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: editMember.user_id,
+          clinic_id: currentClinic.clinic_id,
+          first_name: editFirstName.trim(),
+          last_name: editLastName.trim(),
+          credentials: editCredentials.trim() || null,
+        }),
+      });
+
+      if (!profileRes.ok) {
+        const err = await profileRes.json();
+        toast.error(err.error || 'Failed to update profile');
+        return;
+      }
+
+      // Update role via membership
       const res = await fetch('/api/user/membership', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -237,13 +286,13 @@ export default function ManageTeamPage() {
         return;
       }
 
-      toast.success(`Updated ${editMember.display_name} to ${editRole}`);
+      toast.success(`Updated ${editFirstName} ${editLastName}`);
       setEditDialogOpen(false);
       setEditMember(null);
       fetchMembers();
     } catch (error) {
-      console.error('Error updating role:', error);
-      toast.error('Failed to update role');
+      console.error('Error updating member:', error);
+      toast.error('Failed to update member');
     } finally {
       setSaving(false);
     }
@@ -412,10 +461,13 @@ export default function ManageTeamPage() {
                             size="sm"
                             onClick={() => {
                               setEditMember(member);
+                              setEditFirstName(member.first_name || '');
+                              setEditLastName(member.last_name || '');
+                              setEditCredentials(member.credentials || '');
                               setEditRole(member.role);
                               setEditDialogOpen(true);
                             }}
-                            title="Change role"
+                            title="Edit member"
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -564,16 +616,48 @@ export default function ManageTeamPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Edit Role Dialog */}
+        {/* Edit Member Dialog */}
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Change Role</DialogTitle>
+              <DialogTitle>Edit Team Member</DialogTitle>
               <DialogDescription>
-                Update the role for {editMember?.display_name}
+                Update name, credentials, and role for this team member.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-first-name">First Name</Label>
+                  <Input
+                    id="edit-first-name"
+                    placeholder="First name"
+                    value={editFirstName}
+                    onChange={(e) => setEditFirstName(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-last-name">Last Name</Label>
+                  <Input
+                    id="edit-last-name"
+                    placeholder="Last name"
+                    value={editLastName}
+                    onChange={(e) => setEditLastName(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-credentials">Credentials</Label>
+                <Input
+                  id="edit-credentials"
+                  placeholder="e.g. PT, DPT, OTR/L, SLP, PTA"
+                  value={editCredentials}
+                  onChange={(e) => setEditCredentials(e.target.value)}
+                />
+                <p className="text-xs text-slate-500">
+                  Displayed after the name (e.g. &quot;Jane Smith, DPT&quot;)
+                </p>
+              </div>
               <div className="grid gap-2">
                 <Label>Role</Label>
                 <Select value={editRole} onValueChange={setEditRole}>
@@ -589,6 +673,11 @@ export default function ManageTeamPage() {
                   </SelectContent>
                 </Select>
               </div>
+              {editMember && !editMember.has_provider_profile && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                  This member doesn&apos;t have a provider profile yet. Saving will create one so their name displays correctly throughout the EMR.
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button
@@ -598,7 +687,7 @@ export default function ManageTeamPage() {
               >
                 Cancel
               </Button>
-              <Button onClick={handleEditRole} disabled={saving}>
+              <Button onClick={handleEditMember} disabled={saving}>
                 {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save
               </Button>
