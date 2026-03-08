@@ -204,7 +204,7 @@ interface PatientAuth {
 
 export default function SchedulePage() {
   const router = useRouter();
-  const { currentClinic, loading: authLoading } = useAuth();
+  const { currentClinic, loading: authLoading, isEmrMode } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // View state
@@ -353,10 +353,11 @@ export default function SchedulePage() {
           .filter((m: { role: string; is_active: boolean }) =>
             ['pt', 'pta', 'ot', 'ota', 'slp', 'slpa'].includes(m.role) && m.is_active
           )
-          .map((m: { user_id: string; display_name?: string; email?: string; primary_discipline?: string }) => ({
+          .map((m: { user_id: string; display_name?: string; email?: string; primary_discipline?: string; role?: string }) => ({
             user_id: m.user_id,
             name: m.display_name || m.email || m.user_id,
             primary_discipline: m.primary_discipline || 'PT',
+            role: m.role,
           }));
         setTherapists(therapistMembers);
       }
@@ -668,7 +669,8 @@ export default function SchedulePage() {
         const noteVisitId = completedVisitId;
 
         // Only redirect for real visit IDs (not sms- prefixed without a created visit)
-        if (noteVisitId && !noteVisitId.startsWith('sms-')) {
+        // Skip redirect in paper mode — notes are written on paper, not in EMR
+        if (noteVisitId && !noteVisitId.startsWith('sms-') && isEmrMode) {
           toast.success('Redirecting to SOAP note...');
           router.push(`/daily/new?visit_id=${noteVisitId}`);
           return;
@@ -706,7 +708,10 @@ export default function SchedulePage() {
   // ---------------------------------------------------------------------------
 
   const handleCreateAppointment = async () => {
-    if (!currentClinic?.clinic_id) return;
+    if (!currentClinic?.clinic_id) {
+      toast.error('No clinic selected. Please select a clinic first.');
+      return;
+    }
     setSubmitting(true);
 
     try {
@@ -1628,7 +1633,7 @@ export default function SchedulePage() {
                         Open Note
                       </Button>
                     </>
-                  ) : (
+                  ) : isEmrMode ? (
                     <>
                       <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200">
                         <FileText className="h-3 w-3 mr-1" />
@@ -1644,7 +1649,7 @@ export default function SchedulePage() {
                         Create Note
                       </Button>
                     </>
-                  )}
+                  ) : null}
                 </div>
               )}
             </div>
@@ -2018,7 +2023,8 @@ export default function SchedulePage() {
                         } else if (isSTDiscipline) {
                           displayList = eligibleTherapists;
                         } else {
-                          displayList = therapists;
+                          // For PT/OT: use discipline-filtered list
+                          displayList = eligibleTherapists.length > 0 ? eligibleTherapists : therapists;
                         }
 
                         if (displayList.length === 0) {

@@ -198,7 +198,7 @@ interface PatientAuth {
 
 export default function FullscreenSchedulePage() {
   const router = useRouter();
-  const { currentClinic, loading: authLoading } = useAuth();
+  const { currentClinic, loading: authLoading, isEmrMode } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Live clock
@@ -329,10 +329,11 @@ export default function FullscreenSchedulePage() {
             .filter((m: { role: string; is_active: boolean }) =>
               ['pt', 'pta', 'ot', 'ota', 'slp', 'slpa'].includes(m.role) && m.is_active
             )
-            .map((m: { user_id: string; display_name?: string; email?: string; primary_discipline?: string }) => ({
+            .map((m: { user_id: string; display_name?: string; email?: string; primary_discipline?: string; role?: string }) => ({
               user_id: m.user_id,
               name: m.display_name || m.email || m.user_id,
               primary_discipline: m.primary_discipline || 'PT',
+              role: m.role,
             }))
         );
       }
@@ -537,7 +538,8 @@ export default function FullscreenSchedulePage() {
         }
 
         const noteVisitId = completedVisitId;
-        if (noteVisitId && !noteVisitId.startsWith('sms-')) {
+        // Skip redirect in paper mode — notes are written on paper, not in EMR
+        if (noteVisitId && !noteVisitId.startsWith('sms-') && isEmrMode) {
           toast.success('Redirecting to SOAP note...');
           router.push(`/daily/new?visit_id=${noteVisitId}`);
           return;
@@ -575,7 +577,10 @@ export default function FullscreenSchedulePage() {
   // ---------------------------------------------------------------------------
 
   const handleCreateAppointment = async () => {
-    if (!currentClinic?.clinic_id) return;
+    if (!currentClinic?.clinic_id) {
+      toast.error('No clinic selected. Please select a clinic first.');
+      return;
+    }
     setSubmitting(true);
     try {
       const startISO = new Date(`${formData.date}T${formData.start_time}:00`).toISOString();
@@ -1239,14 +1244,14 @@ export default function FullscreenSchedulePage() {
                         <FileText className="h-3 w-3" /> Open Note
                       </Button>
                     </>
-                  ) : (
+                  ) : isEmrMode ? (
                     <>
                       <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200"><FileText className="h-3 w-3 mr-1" /> Missing</Badge>
                       <Button size="sm" variant="outline" className="gap-1" onClick={() => router.push(`/daily/new?visit_id=${selectedVisit.id}`)}>
                         <FileText className="h-3 w-3" /> Create Note
                       </Button>
                     </>
-                  )}
+                  ) : null}
                 </div>
               )}
             </div>
