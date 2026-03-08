@@ -450,8 +450,8 @@ export default function BillingDashboard() {
                             <TableCell>
                               <Badge variant="outline" className={
                                 auth.discipline === 'PT' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                                auth.discipline === 'OT' ? 'bg-green-100 text-green-700 border-green-200' :
-                                auth.discipline === 'ST' ? 'bg-purple-100 text-purple-700 border-purple-200' : ''
+                                auth.discipline === 'OT' ? 'bg-lime-100 text-lime-700 border-lime-200' :
+                                auth.discipline === 'ST' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' : ''
                               }>
                                 {auth.discipline || 'PT'}
                               </Badge>

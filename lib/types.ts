@@ -27,8 +27,8 @@ export const DISCIPLINE_SHORT_LABELS: Record<Discipline, string> = {
 
 export const DISCIPLINE_COLORS: Record<Discipline, { bg: string; border: string; text: string; badge: string }> = {
   PT: { bg: 'bg-blue-50', border: 'border-blue-400', text: 'text-blue-800', badge: 'bg-blue-100 text-blue-700 border-blue-200' },
-  OT: { bg: 'bg-amber-50', border: 'border-amber-400', text: 'text-amber-800', badge: 'bg-amber-100 text-amber-700 border-amber-200' },
-  ST: { bg: 'bg-rose-50', border: 'border-rose-400', text: 'text-rose-800', badge: 'bg-rose-100 text-rose-700 border-rose-200' },
+  OT: { bg: 'bg-lime-50', border: 'border-lime-400', text: 'text-lime-800', badge: 'bg-lime-100 text-lime-700 border-lime-200' },
+  ST: { bg: 'bg-yellow-50', border: 'border-yellow-400', text: 'text-yellow-800', badge: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
 };
 
 /** Resolve a possibly-null discipline to a concrete Discipline value (default PT). */
@@ -570,7 +570,7 @@ export const APPOINTMENT_STATUS_LABELS: Record<AppointmentStatus, string> = {
 export const APPOINTMENT_STATUS_COLORS: Record<AppointmentStatus, string> = {
   scheduled: 'bg-blue-100 text-blue-700 border-blue-200',
   confirmed: 'bg-teal-100 text-teal-700 border-teal-200',
-  checked_in: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+  checked_in: 'bg-orange-100 text-orange-700 border-orange-200',
   in_progress: 'bg-amber-100 text-amber-700 border-amber-200',
   checked_out: 'bg-purple-100 text-purple-700 border-purple-200',
   completed: 'bg-emerald-100 text-emerald-700 border-emerald-200',
