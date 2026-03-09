@@ -77,6 +77,18 @@ export function isValidDate(value: unknown): boolean {
  * Invalid or missing dates return the fallback (defaults to MAX_SAFE_INTEGER
  * so they sort to the bottom).
  */
+/**
+ * Compute the number of days from now until a given date.
+ * Returns null if the value is not a valid date.
+ */
+export function daysUntil(value: unknown): number | null {
+  if (!value) return null;
+  const d = new Date(value as string | number);
+  if (isNaN(d.getTime())) return null;
+  const diff = d.getTime() - new Date().getTime();
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
 export function safeDateTimestamp(
   value: unknown,
   fallback: number = Number.MAX_SAFE_INTEGER

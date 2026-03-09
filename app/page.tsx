@@ -32,7 +32,8 @@ import {
   DocumentationAlert,
 } from '@/lib/types';
 import { format } from 'date-fns';
-import { formatLocalDate } from '@/lib/utils';
+import { formatLocalDate, daysUntil, isValidDate } from '@/lib/utils';
+import { PAPER_MODE } from '@/lib/config';
 import { useAuth } from '@/lib/auth-context';
 import { PTBotFolder } from '@/components/PTBotFolder';
 import { DashboardAuthSection } from '@/components/dashboard/DashboardAuthSection';
@@ -65,6 +66,7 @@ export default function HomePage() {
   const [alerts, setAlerts] = useState<DocumentationAlert[]>([]);
   const [telehealthDrafts, setTelehealthDrafts] = useState<TelehealthDraft[]>([]);
   const [authAlerts, setAuthAlerts] = useState<AuthAlert[]>([]);
+  const [expiringAuths, setExpiringAuths] = useState<{ id: string; patient_name: string; discipline: string; end_date: string; days_remaining: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [clinicLogoUrl, setClinicLogoUrl] = useState<string | null>(null);
   const prevClinicId = useRef<string | null>(null);
@@ -129,6 +131,55 @@ export default function HomePage() {
     }
   }, []);
 
+  const fetchExpiringAuths = useCallback(async (clinicId: string) => {
+    try {
+      const res = await fetch(`/api/authorizations?clinic_id=${clinicId}&status=approved`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!Array.isArray(data)) return;
+
+      const expiring: { id: string; patient_id: string; patient_name: string; discipline: string; end_date: string; days_remaining: number }[] = [];
+
+      for (const auth of data) {
+        if (!isValidDate(auth.end_date)) continue;
+        const days = daysUntil(auth.end_date);
+        if (days === null) continue;
+        if (days > 30) continue; // only within 30 days or expired
+        expiring.push({
+          id: auth.id,
+          patient_id: auth.patient_id,
+          patient_name: '',
+          discipline: auth.discipline || 'PT',
+          end_date: auth.end_date,
+          days_remaining: days,
+        });
+      }
+
+      // Resolve patient names
+      if (expiring.length > 0) {
+        const patRes = await fetch(`/api/patients?clinic_id=${clinicId}`);
+        if (patRes.ok) {
+          const patients = await patRes.json();
+          const patMap = new Map(
+            (Array.isArray(patients) ? patients : []).map(
+              (p: { id: string; first_name: string; last_name: string }) => [
+                p.id,
+                `${p.last_name}, ${p.first_name}`,
+              ]
+            )
+          );
+          for (const a of expiring) {
+            a.patient_name = (patMap.get(a.patient_id) as string) || 'Unknown';
+          }
+        }
+      }
+
+      setExpiringAuths(expiring.sort((a, b) => a.days_remaining - b.days_remaining));
+    } catch (error) {
+      console.error('Error fetching expiring auths:', error);
+    }
+  }, []);
+
   const dismissAuthAlert = async (authId: string, level: '30' | '15') => {
     try {
       const field = level === '30' ? 'alert_30_dismissed_at' : 'alert_15_dismissed_at';
@@ -149,9 +200,10 @@ export default function HomePage() {
   useEffect(() => {
     if (currentClinic?.clinic_id) {
       fetchCaseload(currentClinic.clinic_id);
-      fetchAlerts(currentClinic.clinic_id);
+      if (!PAPER_MODE) fetchAlerts(currentClinic.clinic_id);
       fetchTelehealthDrafts(currentClinic.clinic_id);
       fetchAuthAlerts(currentClinic.clinic_id);
+      if (PAPER_MODE) fetchExpiringAuths(currentClinic.clinic_id);
 
       // Fetch clinic branding logo
       if (prevClinicId.current !== currentClinic.clinic_id) {
@@ -162,7 +214,7 @@ export default function HomePage() {
           .catch(() => setClinicLogoUrl(null));
       }
     }
-  }, [currentClinic, fetchAuthAlerts]);
+  }, [currentClinic, fetchAuthAlerts, fetchExpiringAuths]);
 
   const fetchCaseload = async (clinicId: string) => {
     setLoading(true);
@@ -290,45 +342,118 @@ export default function HomePage() {
                     <Bell className="h-5 w-5 text-amber-500" />
                     <CardTitle className="text-lg">Alerts</CardTitle>
                   </div>
-                  {alerts.length > 0 && (
-                    <Badge variant="destructive">{alerts.length}</Badge>
+                  {PAPER_MODE ? (
+                    expiringAuths.length > 0 && (
+                      <Badge variant="destructive">{expiringAuths.length}</Badge>
+                    )
+                  ) : (
+                    alerts.length > 0 && (
+                      <Badge variant="destructive">{alerts.length}</Badge>
+                    )
                   )}
                 </div>
-                <CardDescription>Documentation due today</CardDescription>
+                <CardDescription>
+                  {PAPER_MODE ? 'Authorization expirations' : 'Documentation due today'}
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                {alerts.length === 0 ? (
-                  <div className="text-center py-6 text-slate-500">
-                    <AlertCircle className="h-8 w-8 mx-auto mb-2 text-slate-300" />
-                    <p>No alerts due today</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {alerts.map((alert) => (
-                      <div
-                        key={alert.id}
-                        className="flex items-center justify-between p-3 bg-amber-50 border border-amber-100 rounded-lg"
-                      >
-                        <div className="flex items-center gap-3">
-                          <AlertCircle className="h-5 w-5 text-amber-500" />
-                          <div>
-                            <p className="font-medium text-slate-900">
-                              {alert.patient_name}
-                            </p>
-                            <p className="text-sm text-amber-700">
-                              {alert.alert_message}
-                            </p>
+                {PAPER_MODE ? (
+                  /* Paper mode: show authorization expiration alerts */
+                  expiringAuths.length === 0 ? (
+                    <div className="text-center py-6 text-slate-500">
+                      <AlertCircle className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+                      <p>No authorizations ending within 30 days.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {expiringAuths.map((auth) => {
+                        const isExpired = auth.days_remaining <= 0;
+                        const isUrgent = auth.days_remaining <= 7;
+                        const bgClass = isExpired
+                          ? 'bg-red-50 border-red-300'
+                          : isUrgent
+                            ? 'bg-orange-50 border-orange-200'
+                            : 'bg-yellow-50 border-yellow-200';
+
+                        return (
+                          <div
+                            key={auth.id}
+                            className={`flex items-center justify-between p-3 border rounded-lg ${bgClass}`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Clock className={`h-5 w-5 ${isExpired ? 'text-red-500' : isUrgent ? 'text-orange-500' : 'text-yellow-600'}`} />
+                              <div>
+                                <p className="font-medium text-slate-900">
+                                  {auth.patient_name}
+                                  <Badge
+                                    variant="outline"
+                                    className={`ml-2 text-xs ${
+                                      auth.discipline === 'PT'
+                                        ? 'bg-blue-100 text-blue-700 border-blue-200'
+                                        : auth.discipline === 'OT'
+                                          ? 'bg-lime-100 text-lime-700 border-lime-200'
+                                          : 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                                    }`}
+                                  >
+                                    {auth.discipline}
+                                  </Badge>
+                                </p>
+                                <p className="text-sm text-slate-600">
+                                  Ends: {formatLocalDate(auth.end_date, 'MM/dd/yyyy')}
+                                </p>
+                              </div>
+                            </div>
+                            <span
+                              className={`text-sm font-semibold px-2 py-1 rounded ${
+                                isExpired
+                                  ? 'bg-red-100 text-red-700 border border-red-300'
+                                  : isUrgent
+                                    ? 'bg-orange-100 text-orange-700'
+                                    : 'bg-yellow-100 text-yellow-700'
+                              }`}
+                            >
+                              {isExpired ? 'Expired' : `Ends in ${auth.days_remaining} days`}
+                            </span>
                           </div>
+                        );
+                      })}
+                    </div>
+                  )
+                ) : (
+                  /* Normal mode: documentation alerts */
+                  alerts.length === 0 ? (
+                    <div className="text-center py-6 text-slate-500">
+                      <AlertCircle className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+                      <p>No alerts due today</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {alerts.map((alert) => (
+                        <div
+                          key={alert.id}
+                          className="flex items-center justify-between p-3 bg-amber-50 border border-amber-100 rounded-lg"
+                        >
+                          <div className="flex items-center gap-3">
+                            <AlertCircle className="h-5 w-5 text-amber-500" />
+                            <div>
+                              <p className="font-medium text-slate-900">
+                                {alert.patient_name}
+                              </p>
+                              <p className="text-sm text-amber-700">
+                                {alert.alert_message}
+                              </p>
+                            </div>
+                          </div>
+                          <Link href={`/charts/${alert.episode_id}`}>
+                            <Button size="sm" variant="outline">
+                              Open Chart
+                              <ChevronRight className="ml-1 h-4 w-4" />
+                            </Button>
+                          </Link>
                         </div>
-                        <Link href={`/charts/${alert.episode_id}`}>
-                          <Button size="sm" variant="outline">
-                            Open Chart
-                            <ChevronRight className="ml-1 h-4 w-4" />
-                          </Button>
-                        </Link>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )
                 )}
               </CardContent>
             </Card>
