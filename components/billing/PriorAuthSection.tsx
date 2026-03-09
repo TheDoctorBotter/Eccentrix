@@ -4,13 +4,8 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
-import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -19,6 +14,7 @@ import {
 import { toast } from 'sonner';
 import { Plus, AlertTriangle, Clock, Pencil, Trash2, Upload, Download, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { formatLocalDate, safeDate } from '@/lib/utils';
+import { AuthorizationForm, AuthorizationFormData } from '@/components/authorizations/AuthorizationForm';
 import * as XLSX from 'xlsx';
 
 interface PriorAuth {
@@ -51,20 +47,6 @@ interface Props {
   episodeId?: string;
 }
 
-const EMPTY_FORM = {
-  auth_number: '',
-  insurance_name: '',
-  insurance_phone: '',
-  authorized_visits: '',
-  auth_type: 'visits',
-  units_authorized: '',
-  discipline: 'PT',
-  start_date: '',
-  end_date: '',
-  status: 'pending',
-  notes: '',
-};
-
 export function PriorAuthSection({ patientId, clinicId, episodeId }: Props) {
   const [auths, setAuths] = useState<PriorAuth[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,11 +56,6 @@ export function PriorAuthSection({ patientId, clinicId, episodeId }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<PriorAuth | null>(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [form, setForm] = useState({
-    ...EMPTY_FORM,
-    start_date: formatLocalDate(new Date(), 'yyyy-MM-dd'),
-  });
 
   const fetchAuths = useCallback(async () => {
     const params = new URLSearchParams({ patient_id: patientId, clinic_id: clinicId });
@@ -92,38 +69,17 @@ export function PriorAuthSection({ patientId, clinicId, episodeId }: Props) {
     fetchAuths();
   }, [fetchAuths]);
 
-  const resetForm = () => {
-    setForm({
-      ...EMPTY_FORM,
-      start_date: formatLocalDate(new Date(), 'yyyy-MM-dd'),
-    });
-    setEditingAuth(null);
-  };
-
   const openEditDialog = (auth: PriorAuth) => {
     setEditingAuth(auth);
-    setForm({
-      auth_number: auth.auth_number || '',
-      insurance_name: auth.insurance_name || '',
-      insurance_phone: auth.insurance_phone || '',
-      authorized_visits: auth.authorized_visits != null ? String(auth.authorized_visits) : '',
-      auth_type: auth.auth_type || 'visits',
-      units_authorized: auth.units_authorized != null ? String(auth.units_authorized) : '',
-      discipline: auth.discipline || 'PT',
-      start_date: auth.start_date ? auth.start_date.split('T')[0] : '',
-      end_date: auth.end_date ? auth.end_date.split('T')[0] : '',
-      status: auth.status || 'pending',
-      notes: auth.notes || '',
-    });
     setDialogOpen(true);
   };
 
-  const handleSubmit = async () => {
+  const handleFormSave = async (formData: AuthorizationFormData) => {
     if (!editingAuth && !episodeId) {
       toast.error('An active episode is required to create a prior authorization');
       return;
     }
-    if (!form.start_date || !form.end_date) {
+    if (!formData.start_date || !formData.end_date) {
       toast.error('Start date and end date are required');
       return;
     }
@@ -135,36 +91,37 @@ export function PriorAuthSection({ patientId, clinicId, episodeId }: Props) {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            auth_number: form.auth_number || null,
-            insurance_name: form.insurance_name || null,
-            insurance_phone: form.insurance_phone || null,
-            discipline: form.discipline || null,
-            auth_type: form.auth_type,
-            authorized_visits: form.auth_type === 'visits' ? (parseInt(form.authorized_visits) || null) : null,
-            units_authorized: form.auth_type === 'units' ? (parseInt(form.units_authorized) || null) : null,
-            start_date: form.start_date,
-            end_date: form.end_date,
-            status: form.status,
-            notes: form.notes || null,
+            auth_number: formData.auth_number || null,
+            insurance_name: formData.insurance_name || null,
+            insurance_phone: formData.insurance_phone || null,
+            discipline: formData.discipline || null,
+            auth_type: formData.auth_type,
+            authorized_visits: formData.auth_type === 'visits' ? (parseInt(formData.authorized_visits) || null) : null,
+            units_authorized: formData.auth_type === 'units' ? (parseInt(formData.units_authorized) || null) : null,
+            start_date: formData.start_date,
+            end_date: formData.end_date,
+            status: formData.status,
+            notes: formData.notes || null,
+            updated_at: new Date().toISOString(),
           }),
         });
         if (!res.ok) {
           const errBody = await res.json().catch(() => ({}));
           throw new Error(errBody.error || 'Failed to update');
         }
-        toast.success('Authorization updated');
+        toast.success('Authorization updated successfully');
       } else {
         // Create new authorization
         const res = await fetch('/api/authorizations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            ...form,
+            ...formData,
             patient_id: patientId,
             clinic_id: clinicId,
             episode_id: episodeId,
-            authorized_visits: form.auth_type === 'visits' ? parseInt(form.authorized_visits) || null : null,
-            units_authorized: form.auth_type === 'units' ? parseInt(form.units_authorized) || null : null,
+            authorized_visits: formData.auth_type === 'visits' ? parseInt(formData.authorized_visits) || null : null,
+            units_authorized: formData.auth_type === 'units' ? parseInt(formData.units_authorized) || null : null,
           }),
         });
         if (!res.ok) {
@@ -174,7 +131,7 @@ export function PriorAuthSection({ patientId, clinicId, episodeId }: Props) {
         toast.success('Prior authorization created');
       }
       setDialogOpen(false);
-      resetForm();
+      setEditingAuth(null);
       fetchAuths();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error saving authorization');
@@ -328,95 +285,22 @@ export function PriorAuthSection({ patientId, clinicId, episodeId }: Props) {
           </Button>
 
           {/* Add new */}
-          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setEditingAuth(null); }}>
             <DialogTrigger asChild>
-              <Button size="sm" variant="outline"><Plus className="h-3 w-3 mr-1" /> Add</Button>
+              <Button size="sm" variant="outline" onClick={() => setEditingAuth(null)}><Plus className="h-3 w-3 mr-1" /> Add</Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>{editingAuth ? 'Edit Authorization' : 'Add Prior Authorization'}</DialogTitle>
               </DialogHeader>
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label>Auth Number</Label>
-                    <Input value={form.auth_number} onChange={(e) => setForm(f => ({ ...f, auth_number: e.target.value }))} />
-                  </div>
-                  <div>
-                    <Label>Insurance Name</Label>
-                    <Input value={form.insurance_name} onChange={(e) => setForm(f => ({ ...f, insurance_name: e.target.value }))} />
-                  </div>
-                </div>
-                <div>
-                  <Label>Insurance Phone</Label>
-                  <Input value={form.insurance_phone} onChange={(e) => setForm(f => ({ ...f, insurance_phone: e.target.value }))} placeholder="e.g. 800-555-0123" />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label>Discipline</Label>
-                    <Select value={form.discipline} onValueChange={(v) => setForm(f => ({ ...f, discipline: v }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PT">PT</SelectItem>
-                        <SelectItem value="OT">OT</SelectItem>
-                        <SelectItem value="ST">ST</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Auth Type</Label>
-                    <Select value={form.auth_type} onValueChange={(v) => setForm(f => ({ ...f, auth_type: v }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="visits">Visits</SelectItem>
-                        <SelectItem value="units">Units</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                {form.auth_type === 'visits' ? (
-                  <div>
-                    <Label>Authorized Visits</Label>
-                    <Input type="number" value={form.authorized_visits} onChange={(e) => setForm(f => ({ ...f, authorized_visits: e.target.value }))} />
-                  </div>
-                ) : (
-                  <div>
-                    <Label>Authorized Units</Label>
-                    <Input type="number" value={form.units_authorized} onChange={(e) => setForm(f => ({ ...f, units_authorized: e.target.value }))} />
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label>Start Date</Label>
-                    <Input type="date" value={form.start_date} onChange={(e) => setForm(f => ({ ...f, start_date: e.target.value }))} />
-                  </div>
-                  <div>
-                    <Label>End Date</Label>
-                    <Input type="date" value={form.end_date} onChange={(e) => setForm(f => ({ ...f, end_date: e.target.value }))} />
-                  </div>
-                </div>
-                <div>
-                  <Label>Status</Label>
-                  <Select value={form.status} onValueChange={(v) => setForm(f => ({ ...f, status: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="approved">Approved</SelectItem>
-                      <SelectItem value="denied">Denied</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Notes</Label>
-                  <Input value={form.notes} onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))} />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleSubmit} disabled={submitting}>
-                  {submitting ? 'Saving...' : editingAuth ? 'Update' : 'Create'}
-                </Button>
-              </DialogFooter>
+              <AuthorizationForm
+                mode={editingAuth ? 'edit' : 'create'}
+                initialData={editingAuth}
+                onSave={handleFormSave}
+                onCancel={() => setDialogOpen(false)}
+                submitting={submitting}
+                defaultStartDate={formatLocalDate(new Date(), 'yyyy-MM-dd')}
+              />
             </DialogContent>
           </Dialog>
         </div>

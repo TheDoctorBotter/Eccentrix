@@ -29,8 +29,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import {
-  DollarSign, FileText, AlertTriangle, RefreshCw, Download, Eye, Send,
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DollarSign, FileText, AlertTriangle, RefreshCw, Download, Eye, Send, Pencil,
 } from 'lucide-react';
+import { AuthorizationForm, AuthorizationFormData, AuthorizationRecord } from '@/components/authorizations/AuthorizationForm';
 
 interface DashboardFilters {
   dateFrom: string;
@@ -51,6 +55,9 @@ export default function BillingDashboard() {
   const [priorAuths, setPriorAuths] = useState<ExtendedPriorAuth[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<string | null>(null);
+  const [editAuthDialogOpen, setEditAuthDialogOpen] = useState(false);
+  const [editingAuthRecord, setEditingAuthRecord] = useState<ExtendedPriorAuth | null>(null);
+  const [editAuthSubmitting, setEditAuthSubmitting] = useState(false);
 
   // Summary stats
   const [totalCharges, setTotalCharges] = useState(0);
@@ -197,6 +204,51 @@ export default function BillingDashboard() {
     const remaining = a.remaining_visits ?? (a.authorized_visits ?? 0) - (a.used_visits ?? 0);
     return daysToExpiry <= 30 || (remaining !== null && remaining <= 10);
   });
+
+  const openEditAuth = (auth: ExtendedPriorAuth) => {
+    setEditingAuthRecord(auth);
+    setEditAuthDialogOpen(true);
+  };
+
+  const handleEditAuthSave = async (formData: AuthorizationFormData) => {
+    if (!editingAuthRecord) return;
+    setEditAuthSubmitting(true);
+    try {
+      const res = await fetch(`/api/authorizations/${editingAuthRecord.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          auth_number: formData.auth_number || null,
+          insurance_name: formData.insurance_name || null,
+          insurance_phone: formData.insurance_phone || null,
+          discipline: formData.discipline || null,
+          auth_type: formData.auth_type,
+          authorized_visits: formData.auth_type === 'visits' ? (parseInt(formData.authorized_visits) || null) : null,
+          units_authorized: formData.auth_type === 'units' ? (parseInt(formData.units_authorized) || null) : null,
+          start_date: formData.start_date,
+          end_date: formData.end_date,
+          status: formData.status,
+          notes: formData.notes || null,
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || 'Failed to update');
+      }
+      const updated = await res.json();
+      setPriorAuths((prev) =>
+        prev.map((a) => (a.id === editingAuthRecord.id ? { ...a, ...updated } : a))
+      );
+      toast.success('Authorization updated successfully');
+      setEditAuthDialogOpen(false);
+      setEditingAuthRecord(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error updating authorization');
+    } finally {
+      setEditAuthSubmitting(false);
+    }
+  };
 
   return (
     <>
@@ -431,6 +483,7 @@ export default function BillingDashboard() {
                         <TableHead>Remaining</TableHead>
                         <TableHead>Expires</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead className="w-12"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -488,6 +541,17 @@ export default function BillingDashboard() {
                                 {auth.status}
                               </Badge>
                             </TableCell>
+                            <TableCell>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0"
+                                onClick={() => openEditAuth(auth)}
+                                title="Edit"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         );
                       })}
@@ -497,6 +561,23 @@ export default function BillingDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Edit Authorization Dialog */}
+          <Dialog open={editAuthDialogOpen} onOpenChange={(open) => { setEditAuthDialogOpen(open); if (!open) setEditingAuthRecord(null); }}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Edit Authorization</DialogTitle>
+              </DialogHeader>
+              <AuthorizationForm
+                mode="edit"
+                initialData={editingAuthRecord as AuthorizationRecord | null}
+                onSave={handleEditAuthSave}
+                onCancel={() => { setEditAuthDialogOpen(false); setEditingAuthRecord(null); }}
+                submitting={editAuthSubmitting}
+                patientName={editingAuthRecord?.patient_id?.slice(0, 8)}
+              />
+            </DialogContent>
+          </Dialog>
 
           {/* Private Pay Invoices Tab */}
           <TabsContent value="invoices">

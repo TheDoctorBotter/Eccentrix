@@ -77,7 +77,9 @@ import {
   Download,
   Shield,
   Activity,
+  Pencil,
 } from 'lucide-react';
+import { AuthorizationForm, AuthorizationFormData, AuthorizationRecord } from '@/components/authorizations/AuthorizationForm';
 
 interface PatientOption {
   id: string;
@@ -121,6 +123,11 @@ export default function BillingPage() {
   // Auth filters
   const [authDisciplineFilter, setAuthDisciplineFilter] = useState<'All' | 'PT' | 'OT' | 'ST'>('All');
   const [authLastNameSearch, setAuthLastNameSearch] = useState('');
+
+  // Auth edit state
+  const [editAuthDialogOpen, setEditAuthDialogOpen] = useState(false);
+  const [editingAuthRecord, setEditingAuthRecord] = useState<PriorAuthorization | null>(null);
+  const [editAuthSubmitting, setEditAuthSubmitting] = useState(false);
 
   // Charge form
   const [chargeForm, setChargeForm] = useState({
@@ -451,6 +458,53 @@ export default function BillingPage() {
       toast.error(error instanceof Error ? error.message : 'Failed to create authorization');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Edit authorization
+  const openEditAuth = (auth: PriorAuthorization) => {
+    setEditingAuthRecord(auth);
+    setEditAuthDialogOpen(true);
+  };
+
+  const handleEditAuthSave = async (formData: AuthorizationFormData) => {
+    if (!editingAuthRecord) return;
+    setEditAuthSubmitting(true);
+    try {
+      const res = await fetch(`/api/authorizations/${editingAuthRecord.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          auth_number: formData.auth_number || null,
+          insurance_name: formData.insurance_name || null,
+          insurance_phone: formData.insurance_phone || null,
+          discipline: formData.discipline || null,
+          auth_type: formData.auth_type,
+          authorized_visits: formData.auth_type === 'visits' ? (parseInt(formData.authorized_visits) || null) : null,
+          units_authorized: formData.auth_type === 'units' ? (parseInt(formData.units_authorized) || null) : null,
+          start_date: formData.start_date,
+          end_date: formData.end_date,
+          status: formData.status,
+          notes: formData.notes || null,
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || 'Failed to update');
+      }
+      const updated = await res.json();
+      // Update local state immediately — preserve filters
+      setAuthorizations((prev) =>
+        prev.map((a) => (a.id === editingAuthRecord.id ? { ...a, ...updated } : a))
+      );
+      toast.success('Authorization updated successfully');
+      setEditAuthDialogOpen(false);
+      setEditingAuthRecord(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error updating authorization');
+    } finally {
+      setEditAuthSubmitting(false);
     }
   };
 
@@ -2279,6 +2333,7 @@ export default function BillingPage() {
                           <TableHead>Date Range</TableHead>
                           <TableHead>180-Day</TableHead>
                           <TableHead>Status</TableHead>
+                          <TableHead className="w-12"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -2333,6 +2388,17 @@ export default function BillingPage() {
                                 ) : '-'}
                               </TableCell>
                               <TableCell>{getAuthStatusBadge(auth.status)}</TableCell>
+                              <TableCell>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 w-7 p-0"
+                                  onClick={() => openEditAuth(auth)}
+                                  title="Edit"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                              </TableCell>
                             </TableRow>
                           );
                         })}
@@ -2343,6 +2409,23 @@ export default function BillingPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Edit Authorization Dialog */}
+          <Dialog open={editAuthDialogOpen} onOpenChange={(open) => { setEditAuthDialogOpen(open); if (!open) setEditingAuthRecord(null); }}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Edit Authorization</DialogTitle>
+              </DialogHeader>
+              <AuthorizationForm
+                mode="edit"
+                initialData={editingAuthRecord as AuthorizationRecord | null}
+                onSave={handleEditAuthSave}
+                onCancel={() => { setEditAuthDialogOpen(false); setEditingAuthRecord(null); }}
+                submitting={editAuthSubmitting}
+                patientName={editingAuthRecord ? getPatientName(editingAuthRecord.patient_id) : undefined}
+              />
+            </DialogContent>
+          </Dialog>
 
           {/* ============================================================ */}
           {/* PAYMENTS TAB */}
