@@ -472,13 +472,13 @@ export default function BillingDashboard() {
                               )}
                             </TableCell>
                             <TableCell>
-                              {auth.end_date ? (
+                              {auth.end_date && !isNaN(endTime) ? (
                                 daysToExpiry <= 30 ? (
                                   <span className="text-amber-600 font-medium">
-                                    {format(parseISO(auth.end_date), 'MM/dd/yyyy')} ({daysToExpiry}d)
+                                    {format(new Date(endTime), 'MM/dd/yyyy')} ({daysToExpiry}d)
                                   </span>
                                 ) : (
-                                  format(parseISO(auth.end_date), 'MM/dd/yyyy')
+                                  format(new Date(endTime), 'MM/dd/yyyy')
                                 )
                               ) : (
                                 '-'
