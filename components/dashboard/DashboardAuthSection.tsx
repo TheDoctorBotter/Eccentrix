@@ -652,10 +652,11 @@ export function DashboardAuthSection({ clinicId }: Props) {
       )}
       {/* Edit Authorization Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={(open) => { setEditDialogOpen(open); if (!open) setEditingAuth(null); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>Edit Authorization</DialogTitle>
           </DialogHeader>
+          <div className="flex-1 overflow-y-auto">
           <AuthorizationForm
             mode="edit"
             initialData={editingAuth as AuthorizationRecord | null}
@@ -664,6 +665,7 @@ export function DashboardAuthSection({ clinicId }: Props) {
             submitting={editSubmitting}
             patientName={editingAuth?.patient_name}
           />
+          </div>
         </DialogContent>
       </Dialog>
 

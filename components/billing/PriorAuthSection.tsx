@@ -289,10 +289,11 @@ export function PriorAuthSection({ patientId, clinicId, episodeId }: Props) {
             <DialogTrigger asChild>
               <Button size="sm" variant="outline" onClick={() => setEditingAuth(null)}><Plus className="h-3 w-3 mr-1" /> Add</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
               <DialogHeader>
                 <DialogTitle>{editingAuth ? 'Edit Authorization' : 'Add Prior Authorization'}</DialogTitle>
               </DialogHeader>
+              <div className="flex-1 overflow-y-auto">
               <AuthorizationForm
                 mode={editingAuth ? 'edit' : 'create'}
                 initialData={editingAuth}
@@ -301,6 +302,7 @@ export function PriorAuthSection({ patientId, clinicId, episodeId }: Props) {
                 submitting={submitting}
                 defaultStartDate={formatLocalDate(new Date(), 'yyyy-MM-dd')}
               />
+              </div>
             </DialogContent>
           </Dialog>
         </div>
