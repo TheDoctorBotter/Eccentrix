@@ -609,6 +609,8 @@ export interface Visit {
   therapist_name?: string;
   // Authorization link
   auth_id?: string | null;
+  units_used?: number | null;
+  auth_usage_applied?: boolean | null;
   // SMS appointment fields (present when source === 'sms')
   sms_appointment_id?: string | null;
   sms_patient_phone?: string | null;

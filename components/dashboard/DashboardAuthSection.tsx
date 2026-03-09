@@ -586,19 +586,38 @@ export function DashboardAuthSection({ clinicId }: Props) {
                         </div>
                       </div>
                       <div className="flex items-center gap-4 mt-1 text-xs text-slate-600">
-                        <span>
-                          {auth.auth_type === 'units' ? 'Units' : 'Visits'}:{' '}
-                          <span
-                            className={
-                              remaining <= 3
-                                ? 'text-red-600 font-bold'
-                                : remaining < 5
-                                  ? 'text-amber-600 font-semibold'
-                                  : 'text-emerald-600 font-semibold'
-                            }
-                          >
-                            {remaining} remaining
-                          </span>
+                        <span className="flex items-center gap-1">
+                          {(() => {
+                            const isUnitBased = auth.auth_type === 'units' || ['PT', 'OT'].includes(auth.discipline?.toUpperCase() ?? '');
+                            const authorized = isUnitBased ? (auth.units_authorized ?? 0) : (auth.authorized_visits ?? 0);
+                            const label = isUnitBased ? 'units' : 'visits';
+                            return (
+                              <>
+                                <span
+                                  className={
+                                    remaining <= 0
+                                      ? 'text-red-600 font-bold'
+                                      : remaining <= 10
+                                        ? 'text-amber-600 font-semibold'
+                                        : 'text-emerald-600 font-semibold'
+                                  }
+                                >
+                                  {remaining} / {authorized}
+                                </span>
+                                {' '}{label} remaining
+                                {remaining <= 0 && (
+                                  <span className="ml-1 inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">
+                                    Exhausted
+                                  </span>
+                                )}
+                                {remaining > 0 && remaining <= 10 && (
+                                  <span className="ml-1 inline-flex items-center rounded-full bg-yellow-100 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-700">
+                                    Low
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })()}
                         </span>
                         <span>
                           {formatLocalDate(auth.start_date, 'MM/dd/yy')} –{' '}
