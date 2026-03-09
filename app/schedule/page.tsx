@@ -539,6 +539,36 @@ export default function SchedulePage() {
   }, [viewMode, currentDate, weekStart]);
 
   // ---------------------------------------------------------------------------
+  // Day-view therapist columns
+  // ---------------------------------------------------------------------------
+
+  const dayViewTherapists = useMemo(() => {
+    if (viewMode !== 'day') return [];
+    let list = therapists;
+    if (filterTherapist !== 'all') {
+      list = list.filter((t: TherapistOption) => t.user_id === filterTherapist);
+    }
+    if (filterDiscipline !== 'all') {
+      list = list.filter((t: TherapistOption) => {
+        const disc = (t.primary_discipline || 'PT').toUpperCase();
+        return disc === filterDiscipline;
+      });
+    }
+    return list;
+  }, [viewMode, therapists, filterTherapist, filterDiscipline]);
+
+  // Check if any filtered visits in day view are unassigned (no therapist)
+  const dayViewHasUnassigned = useMemo(() => {
+    if (viewMode !== 'day') return false;
+    return filteredVisits
+      .filter((v: Visit) => isSameDay(toLocalDate(v.start_time), currentDate))
+      .some((v: Visit) => !v.therapist_user_id || !dayViewTherapists.some((t: TherapistOption) => t.user_id === v.therapist_user_id));
+  }, [viewMode, filteredVisits, currentDate, dayViewTherapists]);
+
+  // Total columns in day view (therapists + optional unassigned column)
+  const dayViewColumnCount = dayViewTherapists.length + (dayViewHasUnassigned ? 1 : 0);
+
+  // ---------------------------------------------------------------------------
   // Get visits for a specific day
   // ---------------------------------------------------------------------------
 
@@ -546,6 +576,19 @@ export default function SchedulePage() {
     (day: Date) =>
       filteredVisits.filter((v: Visit) => isSameDay(toLocalDate(v.start_time), day)),
     [filteredVisits]
+  );
+
+  const visitsForDayAndTherapist = useCallback(
+    (day: Date, therapistId: string | null) =>
+      filteredVisits.filter((v: Visit) => {
+        if (!isSameDay(toLocalDate(v.start_time), day)) return false;
+        if (therapistId === null) {
+          // Unassigned column: visits with no therapist or therapist not in the column list
+          return !v.therapist_user_id || !dayViewTherapists.some((t: TherapistOption) => t.user_id === v.therapist_user_id);
+        }
+        return v.therapist_user_id === therapistId;
+      }),
+    [filteredVisits, dayViewTherapists]
   );
 
   // ---------------------------------------------------------------------------
@@ -1196,33 +1239,66 @@ export default function SchedulePage() {
           <div
             className="grid border-b bg-slate-50"
             style={{
-              gridTemplateColumns: `64px repeat(${daysToRender.length}, 1fr)`,
+              gridTemplateColumns: viewMode === 'day' && dayViewColumnCount > 0
+                ? `64px repeat(${dayViewColumnCount}, 1fr)`
+                : `64px repeat(${daysToRender.length}, 1fr)`,
             }}
           >
             {/* Time gutter header */}
             <div className="border-r p-2 text-xs text-slate-400 text-center">
               <Clock className="h-3 w-3 mx-auto" />
             </div>
-            {daysToRender.map((day: Date) => (
-              <div
-                key={day.toISOString()}
-                className={`p-2 text-center border-r last:border-r-0 ${
-                  isToday(day) ? 'bg-blue-50' : ''
-                }`}
-              >
-                <div className="text-xs text-slate-500 uppercase">
-                  {format(day, 'EEE')}
-                </div>
+            {viewMode === 'day' && dayViewColumnCount > 0 ? (
+              <>
+                {dayViewTherapists.map((t: TherapistOption) => (
+                  <div
+                    key={t.user_id}
+                    className={`p-2 text-center border-r last:border-r-0 ${
+                      isToday(currentDate) ? 'bg-blue-50' : ''
+                    }`}
+                  >
+                    <div className="text-xs font-semibold text-slate-800 truncate">
+                      {t.name}
+                    </div>
+                    <div className="text-[10px] text-slate-500 uppercase">
+                      {t.primary_discipline || 'PT'}
+                    </div>
+                  </div>
+                ))}
+                {dayViewHasUnassigned && (
+                  <div
+                    className={`p-2 text-center border-r last:border-r-0 ${
+                      isToday(currentDate) ? 'bg-blue-50' : ''
+                    }`}
+                  >
+                    <div className="text-xs font-semibold text-slate-400 truncate">
+                      Unassigned
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              daysToRender.map((day: Date) => (
                 <div
-                  className={`text-lg font-semibold ${
-                    isToday(day) ? 'text-blue-600' : 'text-slate-800'
+                  key={day.toISOString()}
+                  className={`p-2 text-center border-r last:border-r-0 ${
+                    isToday(day) ? 'bg-blue-50' : ''
                   }`}
                 >
-                  {format(day, 'd')}
+                  <div className="text-xs text-slate-500 uppercase">
+                    {format(day, 'EEE')}
+                  </div>
+                  <div
+                    className={`text-lg font-semibold ${
+                      isToday(day) ? 'text-blue-600' : 'text-slate-800'
+                    }`}
+                  >
+                    {format(day, 'd')}
+                  </div>
+                  <div className="text-xs text-slate-400">{format(day, 'MMM')}</div>
                 </div>
-                <div className="text-xs text-slate-400">{format(day, 'MMM')}</div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
 
           {/* Scrollable time grid */}
@@ -1234,7 +1310,9 @@ export default function SchedulePage() {
             <div
               className="grid relative"
               style={{
-                gridTemplateColumns: `64px repeat(${daysToRender.length}, 1fr)`,
+                gridTemplateColumns: viewMode === 'day' && dayViewColumnCount > 0
+                  ? `64px repeat(${dayViewColumnCount}, 1fr)`
+                  : `64px repeat(${daysToRender.length}, 1fr)`,
                 height: `${TOTAL_HOURS * HOUR_HEIGHT}px`,
               }}
             >
@@ -1253,8 +1331,309 @@ export default function SchedulePage() {
                 ))}
               </div>
 
-              {/* Day columns */}
-              {daysToRender.map((day: Date) => {
+              {/* Day view: therapist sub-columns */}
+              {viewMode === 'day' && dayViewColumnCount > 0 ? (
+                <>
+                  {dayViewTherapists.map((t: TherapistOption) => {
+                    const colVisits = visitsForDayAndTherapist(currentDate, t.user_id);
+                    const dayKey = `${currentDate.toISOString()}-${t.user_id}`;
+                    const isDropTarget = dragOverDay === dayKey;
+                    return (
+                      <div
+                        key={dayKey}
+                        className={`relative border-r last:border-r-0 ${
+                          isToday(currentDate) ? 'bg-blue-50/30' : ''
+                        } ${isDropTarget ? 'bg-blue-50/50' : ''}`}
+                        onDragOver={(e) =>
+                          handleDragOver(e, dayKey, e.currentTarget as HTMLElement)
+                        }
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) =>
+                          handleDrop(e, currentDate, e.currentTarget as HTMLElement)
+                        }
+                      >
+                        {/* Hour lines */}
+                        {Array.from({ length: TOTAL_HOURS }, (_, i) => (
+                          <div
+                            key={i}
+                            className="absolute left-0 right-0 border-t border-slate-100"
+                            style={{ top: `${i * HOUR_HEIGHT}px` }}
+                          />
+                        ))}
+                        {/* Half-hour lines */}
+                        {Array.from({ length: TOTAL_HOURS }, (_, i) => (
+                          <div
+                            key={`half-${i}`}
+                            className="absolute left-0 right-0 border-t border-dashed border-slate-50"
+                            style={{ top: `${i * HOUR_HEIGHT + HOUR_HEIGHT / 2}px` }}
+                          />
+                        ))}
+
+                        {/* Current time indicator */}
+                        {isToday(currentDate) && (() => {
+                          const now = new Date();
+                          const nowMinutes = now.getHours() * 60 + now.getMinutes();
+                          if (nowMinutes >= START_HOUR * 60 && nowMinutes <= END_HOUR * 60) {
+                            return (
+                              <div
+                                className="absolute left-0 right-0 z-20 pointer-events-none"
+                                style={{ top: `${minutesToTop(nowMinutes)}px` }}
+                              >
+                                <div className="flex items-center">
+                                  <div className="w-2 h-2 rounded-full bg-red-500 -ml-1" />
+                                  <div className="flex-1 h-px bg-red-500" />
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+
+                        {/* Drop indicator line */}
+                        {isDropTarget && dragOverMinute != null && draggingVisit && (() => {
+                          const indicatorTop = minutesToTop(dragOverMinute);
+                          const durationMin = differenceInMinutes(
+                            toLocalDate(draggingVisit.end_time),
+                            toLocalDate(draggingVisit.start_time)
+                          );
+                          const indicatorHeight = (durationMin / 60) * HOUR_HEIGHT;
+                          return (
+                            <div
+                              className="absolute left-1 right-1 z-30 pointer-events-none rounded-md border-2 border-dashed border-blue-400 bg-blue-100/30"
+                              style={{
+                                top: `${Math.max(indicatorTop, 0)}px`,
+                                height: `${Math.max(indicatorHeight, 20)}px`,
+                              }}
+                            />
+                          );
+                        })()}
+
+                        {/* Appointment blocks */}
+                        {colVisits.map((visit: Visit) => {
+                          const startMin = timeToMinutesSinceMidnight(visit.start_time);
+                          const endMin = timeToMinutesSinceMidnight(visit.end_time);
+                          const top = minutesToTop(startMin);
+                          const height = ((endMin - startMin) / 60) * HOUR_HEIGHT;
+                          const status: AppointmentStatus = visit.status || 'scheduled';
+                          const isCancelled = status === 'cancelled';
+                          const isNoShow = status === 'no_show';
+                          const isInactive = isCancelled || isNoShow;
+                          const discipline = resolveDiscipline(visit.discipline);
+                          const typeBg = isInactive
+                            ? 'bg-red-50/60 hover:bg-red-100/60'
+                            : (DISCIPLINE_BG[discipline] || DEFAULT_DISCIPLINE_BG);
+                          const statusBorder = STATUS_BORDER[status] || STATUS_BORDER.scheduled;
+                          const isSmsAppt = visit.source === 'sms';
+                          const isPtbot = (visit.source as string) === 'ptbot';
+                          const isDraggable = !isInactive && visit.source !== 'sms';
+                          const isBeingDragged = draggingVisit?.id === visit.id;
+
+                          return (
+                            <button
+                              key={visit.id}
+                              draggable={isDraggable}
+                              onDragStart={(e) => handleDragStart(e, visit)}
+                              onDragEnd={handleDragEnd}
+                              onClick={() => handleVisitClick(visit)}
+                              className={`absolute left-1 right-1 rounded-md border-l-4 px-2 py-1 text-left transition-colors cursor-pointer z-10 overflow-hidden ${statusBorder} ${typeBg} ${isDraggable ? 'cursor-grab active:cursor-grabbing' : ''} ${isBeingDragged ? 'opacity-40' : ''}`}
+                              style={{
+                                top: `${Math.max(top, 0)}px`,
+                                height: `${Math.max(height, 20)}px`,
+                              }}
+                            >
+                              <div className={`text-xs font-semibold text-slate-900 truncate flex items-center gap-1 ${isInactive ? 'line-through text-red-400' : ''}`}>
+                                {visit.patient_name || getPatientName(visit.patient_id)}
+                              </div>
+                              {height > 30 && (
+                                <div className={`text-[10px] text-slate-600 truncate ${isInactive ? 'line-through text-red-300' : ''}`}>
+                                  {formatTime12h(visit.start_time)} -{' '}
+                                  {formatTime12h(visit.end_time)}
+                                </div>
+                              )}
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className={`text-[8px] font-semibold px-1 py-px rounded ${DISCIPLINE_COLORS[discipline]?.badge || DISCIPLINE_COLORS.PT.badge}`}>
+                                  {discipline}
+                                </span>
+                                {isSmsAppt && (
+                                  <span className="text-[8px] font-semibold px-1 py-px rounded bg-slate-200 text-slate-600">
+                                    SMS
+                                  </span>
+                                )}
+                                {isPtbot && (
+                                  <span className="text-[8px] font-semibold px-1 py-px rounded bg-indigo-100 text-indigo-600">
+                                    App
+                                  </span>
+                                )}
+                                {height > 40 && (
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-[9px] px-1 py-0 ${STATUS_BADGE[status] || STATUS_BADGE.scheduled}`}
+                                  >
+                                    {APPOINTMENT_STATUS_LABELS[status]}
+                                  </Badge>
+                                )}
+                              </div>
+                              {status === 'completed' && visit.actual_duration_minutes != null && (() => {
+                                const schedMin = differenceInMinutes(
+                                  toLocalDate(visit.end_time),
+                                  toLocalDate(visit.start_time)
+                                );
+                                if (visit.actual_duration_minutes !== schedMin) {
+                                  return (
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <span className="text-[9px] text-amber-700">
+                                        {schedMin}&rarr;{visit.actual_duration_minutes} min
+                                      </span>
+                                      {visit.shortened_visit_reason && (
+                                        <span className="group relative">
+                                          <Info className="h-3 w-3 text-amber-500 cursor-help" />
+                                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-[10px] text-white bg-slate-800 rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 max-w-[200px] truncate">
+                                            {visit.shortened_visit_reason}
+                                          </span>
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                  {/* Unassigned column */}
+                  {dayViewHasUnassigned && (() => {
+                    const colVisits = visitsForDayAndTherapist(currentDate, null);
+                    const dayKey = `${currentDate.toISOString()}-unassigned`;
+                    const isDropTarget = dragOverDay === dayKey;
+                    return (
+                      <div
+                        key={dayKey}
+                        className={`relative border-r last:border-r-0 ${
+                          isToday(currentDate) ? 'bg-blue-50/30' : ''
+                        } ${isDropTarget ? 'bg-blue-50/50' : ''}`}
+                        onDragOver={(e) =>
+                          handleDragOver(e, dayKey, e.currentTarget as HTMLElement)
+                        }
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) =>
+                          handleDrop(e, currentDate, e.currentTarget as HTMLElement)
+                        }
+                      >
+                        {Array.from({ length: TOTAL_HOURS }, (_, i) => (
+                          <div
+                            key={i}
+                            className="absolute left-0 right-0 border-t border-slate-100"
+                            style={{ top: `${i * HOUR_HEIGHT}px` }}
+                          />
+                        ))}
+                        {Array.from({ length: TOTAL_HOURS }, (_, i) => (
+                          <div
+                            key={`half-${i}`}
+                            className="absolute left-0 right-0 border-t border-dashed border-slate-50"
+                            style={{ top: `${i * HOUR_HEIGHT + HOUR_HEIGHT / 2}px` }}
+                          />
+                        ))}
+                        {colVisits.map((visit: Visit) => {
+                          const startMin = timeToMinutesSinceMidnight(visit.start_time);
+                          const endMin = timeToMinutesSinceMidnight(visit.end_time);
+                          const top = minutesToTop(startMin);
+                          const height = ((endMin - startMin) / 60) * HOUR_HEIGHT;
+                          const status: AppointmentStatus = visit.status || 'scheduled';
+                          const isCancelled = status === 'cancelled';
+                          const isNoShow = status === 'no_show';
+                          const isInactive = isCancelled || isNoShow;
+                          const discipline = resolveDiscipline(visit.discipline);
+                          const typeBg = isInactive
+                            ? 'bg-red-50/60 hover:bg-red-100/60'
+                            : (DISCIPLINE_BG[discipline] || DEFAULT_DISCIPLINE_BG);
+                          const statusBorder = STATUS_BORDER[status] || STATUS_BORDER.scheduled;
+                          const isSmsAppt = visit.source === 'sms';
+                          const isPtbot = (visit.source as string) === 'ptbot';
+                          const isDraggable = !isInactive && visit.source !== 'sms';
+                          const isBeingDragged = draggingVisit?.id === visit.id;
+
+                          return (
+                            <button
+                              key={visit.id}
+                              draggable={isDraggable}
+                              onDragStart={(e) => handleDragStart(e, visit)}
+                              onDragEnd={handleDragEnd}
+                              onClick={() => handleVisitClick(visit)}
+                              className={`absolute left-1 right-1 rounded-md border-l-4 px-2 py-1 text-left transition-colors cursor-pointer z-10 overflow-hidden ${statusBorder} ${typeBg} ${isDraggable ? 'cursor-grab active:cursor-grabbing' : ''} ${isBeingDragged ? 'opacity-40' : ''}`}
+                              style={{
+                                top: `${Math.max(top, 0)}px`,
+                                height: `${Math.max(height, 20)}px`,
+                              }}
+                            >
+                              <div className={`text-xs font-semibold text-slate-900 truncate flex items-center gap-1 ${isInactive ? 'line-through text-red-400' : ''}`}>
+                                {visit.patient_name || getPatientName(visit.patient_id)}
+                              </div>
+                              {height > 30 && (
+                                <div className={`text-[10px] text-slate-600 truncate ${isInactive ? 'line-through text-red-300' : ''}`}>
+                                  {formatTime12h(visit.start_time)} -{' '}
+                                  {formatTime12h(visit.end_time)}
+                                </div>
+                              )}
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className={`text-[8px] font-semibold px-1 py-px rounded ${DISCIPLINE_COLORS[discipline]?.badge || DISCIPLINE_COLORS.PT.badge}`}>
+                                  {discipline}
+                                </span>
+                                {isSmsAppt && (
+                                  <span className="text-[8px] font-semibold px-1 py-px rounded bg-slate-200 text-slate-600">
+                                    SMS
+                                  </span>
+                                )}
+                                {isPtbot && (
+                                  <span className="text-[8px] font-semibold px-1 py-px rounded bg-indigo-100 text-indigo-600">
+                                    App
+                                  </span>
+                                )}
+                                {height > 40 && (
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-[9px] px-1 py-0 ${STATUS_BADGE[status] || STATUS_BADGE.scheduled}`}
+                                  >
+                                    {APPOINTMENT_STATUS_LABELS[status]}
+                                  </Badge>
+                                )}
+                              </div>
+                              {status === 'completed' && visit.actual_duration_minutes != null && (() => {
+                                const schedMin = differenceInMinutes(
+                                  toLocalDate(visit.end_time),
+                                  toLocalDate(visit.start_time)
+                                );
+                                if (visit.actual_duration_minutes !== schedMin) {
+                                  return (
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <span className="text-[9px] text-amber-700">
+                                        {schedMin}&rarr;{visit.actual_duration_minutes} min
+                                      </span>
+                                      {visit.shortened_visit_reason && (
+                                        <span className="group relative">
+                                          <Info className="h-3 w-3 text-amber-500 cursor-help" />
+                                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-[10px] text-white bg-slate-800 rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 max-w-[200px] truncate">
+                                            {visit.shortened_visit_reason}
+                                          </span>
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </>
+              ) : (
+              /* Week view: standard day columns */
+              daysToRender.map((day: Date) => {
                 const dayVisits = visitsForDay(day);
                 const dayKey = day.toISOString();
                 const isDropTarget = dragOverDay === dayKey;
@@ -1436,7 +1815,8 @@ export default function SchedulePage() {
                     })}
                   </div>
                 );
-              })}
+              })
+              )}
             </div>
           </div>
         </div>
