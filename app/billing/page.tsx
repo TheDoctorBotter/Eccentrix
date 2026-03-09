@@ -22,7 +22,7 @@ import {
   ELIGIBILITY_STATUS_COLORS,
 } from '@/lib/types';
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
-import { formatLocalDate, localNow } from '@/lib/utils';
+import { formatLocalDate, localNow, safeDate } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -2107,12 +2107,16 @@ export default function BillingPage() {
                               value={authForm.start_date}
                               onChange={(e) => {
                                 const startDate = e.target.value;
-                                const d180 = new Date(startDate);
-                                d180.setDate(d180.getDate() + 180);
+                                const d180 = safeDate(startDate);
+                                let day180Str = '';
+                                if (d180) {
+                                  d180.setDate(d180.getDate() + 180);
+                                  day180Str = d180.toISOString().split('T')[0];
+                                }
                                 setAuthForm((prev) => ({
                                   ...prev,
                                   start_date: startDate,
-                                  day_180_date: d180.toISOString().split('T')[0],
+                                  day_180_date: day180Str,
                                 }));
                               }}
                             />
@@ -2231,8 +2235,9 @@ export default function BillingPage() {
                       <TableBody>
                         {authorizations.map((auth) => {
                           const day180 = auth.day_180_date as string | null;
-                          const days180Left = day180
-                            ? Math.ceil((new Date(day180).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                          const day180Date = safeDate(day180);
+                          const days180Left = day180Date
+                            ? Math.ceil((day180Date.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
                             : null;
                           return (
                             <TableRow
