@@ -600,6 +600,8 @@ export interface Visit {
   discipline?: string | null;
   total_treatment_minutes?: number | null;
   total_units?: number | null;
+  actual_duration_minutes?: number | null;
+  shortened_visit_reason?: string | null;
   created_at: string;
   updated_at: string;
   // Joined fields

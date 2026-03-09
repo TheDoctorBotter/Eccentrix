@@ -77,6 +77,8 @@ export async function PATCH(
       'recurrence_group_id',
       'source',
       'auth_id',
+      'actual_duration_minutes',
+      'shortened_visit_reason',
     ];
 
     const updateData: Record<string, unknown> = {};
