@@ -118,6 +118,10 @@ export default function BillingPage() {
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
 
+  // Auth filters
+  const [authDisciplineFilter, setAuthDisciplineFilter] = useState<'All' | 'PT' | 'OT' | 'ST'>('All');
+  const [authLastNameSearch, setAuthLastNameSearch] = useState('');
+
   // Charge form
   const [chargeForm, setChargeForm] = useState({
     patient_id: '',
@@ -298,6 +302,18 @@ export default function BillingPage() {
   const filteredAuthEpisodes = authForm.patient_id
     ? episodes.filter((e) => e.patient_id === authForm.patient_id)
     : episodes;
+
+  // Filter authorizations by discipline & patient last name
+  const filteredAuthorizations = authorizations.filter((a) => {
+    const disc = a.discipline || 'PT';
+    if (authDisciplineFilter !== 'All' && disc !== authDisciplineFilter) return false;
+    if (authLastNameSearch) {
+      const name = getPatientName(a.patient_id).toLowerCase();
+      const lastName = name.split(',')[0].trim();
+      if (!lastName.includes(authLastNameSearch.toLowerCase())) return false;
+    }
+    return true;
+  });
 
   // Filter CPT codes by search
   const filteredCptCodes = cptSearch
@@ -2205,6 +2221,35 @@ export default function BillingPage() {
                 </div>
               </CardHeader>
               <CardContent>
+                {/* Filters */}
+                {!loading && authorizations.length > 0 && (
+                  <div className="flex items-center gap-3 mb-4 pb-3 border-b flex-wrap">
+                    <div className="flex items-center rounded-lg border overflow-hidden text-xs">
+                      {(['All', 'PT', 'OT', 'ST'] as const).map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          className={`px-3 py-1.5 font-medium transition-colors ${
+                            authDisciplineFilter === opt
+                              ? 'bg-slate-900 text-white'
+                              : 'bg-white text-slate-600 hover:bg-slate-50'
+                          }`}
+                          onClick={() => setAuthDisciplineFilter(opt)}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Search by patient last name"
+                      value={authLastNameSearch}
+                      onChange={(e) => setAuthLastNameSearch(e.target.value)}
+                      className="border rounded-md px-3 py-1.5 text-xs w-56 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                    />
+                  </div>
+                )}
+
                 {loading ? (
                   <Skeleton className="h-64 w-full" />
                 ) : authorizations.length === 0 ? (
@@ -2215,6 +2260,10 @@ export default function BillingPage() {
                       Click &quot;New Authorization&quot; to add one
                     </p>
                   </div>
+                ) : filteredAuthorizations.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-8 text-center">
+                    No authorizations match your filters.
+                  </p>
                 ) : (
                   <div className="overflow-x-auto max-w-full">
                     <Table>
@@ -2233,7 +2282,7 @@ export default function BillingPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {authorizations.map((auth) => {
+                        {filteredAuthorizations.map((auth) => {
                           const day180 = auth.day_180_date as string | null;
                           const day180Date = safeDate(day180);
                           const days180Left = day180Date

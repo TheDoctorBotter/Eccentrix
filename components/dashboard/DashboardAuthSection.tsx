@@ -74,6 +74,8 @@ export function DashboardAuthSection({ clinicId }: Props) {
   const [loading, setLoading] = useState(false);
   const [fetched, setFetched] = useState(false);
   const [page, setPage] = useState(0);
+  const [disciplineFilter, setDisciplineFilter] = useState<'All' | 'PT' | 'OT' | 'ST'>('All');
+  const [lastNameSearch, setLastNameSearch] = useState('');
   const [importing, setImporting] = useState(false);
   const [importResults, setImportResults] = useState<ImportResponse | null>(null);
   const [showResultsDialog, setShowResultsDialog] = useState(false);
@@ -333,8 +335,20 @@ export function DashboardAuthSection({ clinicId }: Props) {
     toast.success('Template downloaded');
   };
 
-  const totalPages = Math.ceil(auths.length / PAGE_SIZE);
-  const pageAuths = auths.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const filteredAuths = auths.filter((a) => {
+    const disc = a.discipline || 'PT';
+    if (disciplineFilter !== 'All' && disc !== disciplineFilter) return false;
+    if (lastNameSearch) {
+      const name = (a.patient_name || '').toLowerCase();
+      // patient_name is "Last, First" — match against the last name portion
+      const lastName = name.split(',')[0].trim();
+      if (!lastName.includes(lastNameSearch.toLowerCase())) return false;
+    }
+    return true;
+  });
+
+  const totalPages = Math.ceil(filteredAuths.length / PAGE_SIZE);
+  const pageAuths = filteredAuths.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <Card>
@@ -402,6 +416,35 @@ export function DashboardAuthSection({ clinicId }: Props) {
             </Button>
           </div>
 
+          {/* Filters */}
+          {fetched && auths.length > 0 && (
+            <div className="flex items-center gap-3 mb-3 pb-3 border-b flex-wrap">
+              <div className="flex items-center rounded-lg border overflow-hidden text-xs">
+                {(['All', 'PT', 'OT', 'ST'] as const).map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    className={`px-3 py-1.5 font-medium transition-colors ${
+                      disciplineFilter === opt
+                        ? 'bg-slate-900 text-white'
+                        : 'bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                    onClick={() => { setDisciplineFilter(opt); setPage(0); }}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="text"
+                placeholder="Search by patient last name"
+                value={lastNameSearch}
+                onChange={(e) => { setLastNameSearch(e.target.value); setPage(0); }}
+                className="border rounded-md px-3 py-1.5 text-xs w-56 focus:outline-none focus:ring-2 focus:ring-slate-300"
+              />
+            </div>
+          )}
+
           {loading ? (
             <p className="text-sm text-muted-foreground py-4 text-center">
               Loading authorizations...
@@ -421,6 +464,10 @@ export function DashboardAuthSection({ clinicId }: Props) {
                 Import from Excel
               </Button>
             </div>
+          ) : filteredAuths.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              No authorizations match your filters.
+            </p>
           ) : (
             <>
               <div className="space-y-2">
