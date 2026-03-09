@@ -72,8 +72,29 @@ export async function GET(request: NextRequest) {
           (therapistCaseload[ep.primary_pt_id] || 0) + 1;
       }
     }
+
+    // Resolve therapist names from provider_profiles
+    const therapistIds = Object.keys(therapistCaseload);
+    const providerNameMap = new Map<string, string>();
+    if (therapistIds.length > 0) {
+      const { data: providers } = await client
+        .from('provider_profiles')
+        .select('user_id, first_name, last_name')
+        .in('user_id', therapistIds)
+        .eq('clinic_id', clinicId);
+      if (providers) {
+        for (const p of providers) {
+          providerNameMap.set(p.user_id, `${p.first_name} ${p.last_name}`);
+        }
+      }
+    }
+
     const caseloadPerTherapist = Object.entries(therapistCaseload).map(
-      ([id, count]) => ({ therapist_id: id, active_episodes: count })
+      ([id, count]) => ({
+        therapist_id: id,
+        name: providerNameMap.get(id) || 'Unknown Therapist',
+        active_episodes: count,
+      })
     );
 
     // Referral source breakdown

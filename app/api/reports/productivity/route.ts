@@ -70,6 +70,24 @@ export async function GET(request: NextRequest) {
         ? Math.round((noShowVisits / totalVisits) * 10000) / 100
         : 0;
 
+    // Fetch provider profiles to resolve therapist names
+    const therapistIds = [
+      ...new Set(allVisits.map((v) => v.therapist_user_id).filter(Boolean)),
+    ];
+    const providerNameMap = new Map<string, string>();
+    if (therapistIds.length > 0) {
+      const { data: providers } = await client
+        .from('provider_profiles')
+        .select('user_id, first_name, last_name')
+        .in('user_id', therapistIds)
+        .eq('clinic_id', clinicId);
+      if (providers) {
+        for (const p of providers) {
+          providerNameMap.set(p.user_id, `${p.first_name} ${p.last_name}`);
+        }
+      }
+    }
+
     // Visits per therapist
     const therapistMap: Record<string, { name: string; count: number; units: number }> =
       {};
@@ -77,7 +95,7 @@ export async function GET(request: NextRequest) {
       if (visit.therapist_user_id) {
         if (!therapistMap[visit.therapist_user_id]) {
           therapistMap[visit.therapist_user_id] = {
-            name: visit.therapist_name || visit.therapist_user_id,
+            name: providerNameMap.get(visit.therapist_user_id) || 'Unknown Therapist',
             count: 0,
             units: 0,
           };

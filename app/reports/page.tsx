@@ -73,7 +73,7 @@ interface CaseloadData {
   total_patients: number;
   new_patients_this_month: number;
   discharges_this_month: number;
-  caseload_per_therapist: Array<{ therapist_id: string; active_episodes: number }>;
+  caseload_per_therapist: Array<{ therapist_id: string; name: string; active_episodes: number }>;
   referral_sources: Array<{ source: string; count: number }>;
   payer_mix: Array<{ payer: string; count: number }>;
 }
@@ -474,9 +474,11 @@ export default function ReportsPage() {
                           <BarChart data={caseloadData.caseload_per_therapist}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis
-                              dataKey="therapist_id"
+                              dataKey="name"
                               tick={{ fontSize: 11 }}
-                              tickFormatter={(v) => v.slice(0, 8)}
+                              tickFormatter={(v) =>
+                                v.length > 12 ? v.slice(0, 12) + '...' : v
+                              }
                             />
                             <YAxis />
                             <Tooltip />
