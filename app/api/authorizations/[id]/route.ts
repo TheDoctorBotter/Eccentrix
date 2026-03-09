@@ -39,6 +39,7 @@ export async function PATCH(
       'day_180_date',
       'alert_30_dismissed_at',
       'alert_15_dismissed_at',
+      'updated_at',
     ];
 
     const updateData: Record<string, unknown> = {};

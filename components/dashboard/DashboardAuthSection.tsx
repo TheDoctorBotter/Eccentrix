@@ -10,9 +10,10 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Clock, ChevronDown, ChevronUp, AlertTriangle, Upload, Download, Loader2, FileSpreadsheet, CheckCircle2, XCircle, AlertCircle, SkipForward } from 'lucide-react';
+import { Clock, ChevronDown, ChevronUp, AlertTriangle, Upload, Download, Loader2, FileSpreadsheet, CheckCircle2, XCircle, AlertCircle, SkipForward, Pencil } from 'lucide-react';
 import { formatLocalDate, safeDateTimestamp } from '@/lib/utils';
 import { toast } from 'sonner';
+import { AuthorizationForm, AuthorizationFormData, AuthorizationRecord } from '@/components/authorizations/AuthorizationForm';
 import * as XLSX from 'xlsx';
 
 interface ImportResultRow {
@@ -84,6 +85,9 @@ export function DashboardAuthSection({ clinicId }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastImportFile = useRef<File | null>(null);
   const [patientMap, setPatientMap] = useState<Map<string, { first_name: string; last_name: string }>>(new Map());
+  const [editingAuth, setEditingAuth] = useState<AuthSummary | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
   const fetchAuths = useCallback(async () => {
     setLoading(true);
@@ -335,6 +339,56 @@ export function DashboardAuthSection({ clinicId }: Props) {
     toast.success('Template downloaded');
   };
 
+  const openEditDialog = (auth: AuthSummary) => {
+    setEditingAuth(auth);
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSave = async (formData: AuthorizationFormData) => {
+    if (!editingAuth) return;
+    setEditSubmitting(true);
+    try {
+      const res = await fetch(`/api/authorizations/${editingAuth.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          auth_number: formData.auth_number || null,
+          insurance_name: formData.insurance_name || null,
+          insurance_phone: formData.insurance_phone || null,
+          discipline: formData.discipline || null,
+          auth_type: formData.auth_type,
+          authorized_visits: formData.auth_type === 'visits' ? (parseInt(formData.authorized_visits) || null) : null,
+          units_authorized: formData.auth_type === 'units' ? (parseInt(formData.units_authorized) || null) : null,
+          start_date: formData.start_date,
+          end_date: formData.end_date,
+          status: formData.status,
+          notes: formData.notes || null,
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || 'Failed to update');
+      }
+      const updated = await res.json();
+      // Update local state immediately — preserve filters
+      setAuths((prev) =>
+        prev.map((a) =>
+          a.id === editingAuth.id
+            ? { ...a, ...updated, patient_name: a.patient_name }
+            : a
+        )
+      );
+      toast.success('Authorization updated successfully');
+      setEditDialogOpen(false);
+      setEditingAuth(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error updating authorization');
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
   const filteredAuths = auths.filter((a) => {
     const disc = a.discipline || 'PT';
     if (disciplineFilter !== 'All' && disc !== disciplineFilter) return false;
@@ -516,9 +570,20 @@ export function DashboardAuthSection({ clinicId }: Props) {
                             </span>
                           )}
                         </div>
-                        {isWarning && (
-                          <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-                        )}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {isWarning && (
+                            <AlertTriangle className="h-4 w-4 text-amber-500" />
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0"
+                            onClick={() => openEditDialog(auth)}
+                            title="Edit"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                       <div className="flex items-center gap-4 mt-1 text-xs text-slate-600">
                         <span>
@@ -585,6 +650,23 @@ export function DashboardAuthSection({ clinicId }: Props) {
           )}
         </CardContent>
       )}
+      {/* Edit Authorization Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={(open) => { setEditDialogOpen(open); if (!open) setEditingAuth(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Authorization</DialogTitle>
+          </DialogHeader>
+          <AuthorizationForm
+            mode="edit"
+            initialData={editingAuth as AuthorizationRecord | null}
+            onSave={handleEditSave}
+            onCancel={() => { setEditDialogOpen(false); setEditingAuth(null); }}
+            submitting={editSubmitting}
+            patientName={editingAuth?.patient_name}
+          />
+        </DialogContent>
+      </Dialog>
+
       {/* Import Results Dialog */}
       <Dialog open={showResultsDialog} onOpenChange={setShowResultsDialog}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
