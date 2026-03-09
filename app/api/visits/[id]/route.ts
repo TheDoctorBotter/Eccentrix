@@ -79,6 +79,8 @@ export async function PATCH(
       'auth_id',
       'actual_duration_minutes',
       'shortened_visit_reason',
+      'units_used',
+      'auth_usage_applied',
     ];
 
     const updateData: Record<string, unknown> = {};

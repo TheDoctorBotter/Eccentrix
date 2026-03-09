@@ -588,10 +588,23 @@ export default function FullscreenSchedulePage() {
 
         if (authIdToDecrement && completedVisitId && !completedVisitId.startsWith('sms-')) {
           try {
+            // Calculate units from actual duration using the 8-minute rule
+            const durationMins = completionData?.actual_duration_minutes
+              ?? visit?.actual_duration_minutes
+              ?? visit?.total_treatment_minutes;
+            const unitsUsed = durationMins && durationMins >= 8
+              ? Math.ceil(durationMins / 15)
+              : 1;
+
             await fetch('/api/authorizations/decrement', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ auth_id: authIdToDecrement, visit_id: completedVisitId }),
+              body: JSON.stringify({
+                auth_id: authIdToDecrement,
+                visit_id: completedVisitId,
+                units_used: unitsUsed,
+                discipline: visit?.discipline ?? 'PT',
+              }),
             });
           } catch { /* non-critical */ }
         }
@@ -1665,6 +1678,15 @@ export default function FullscreenSchedulePage() {
                 if (!selectedVisit) return;
                 setUpdatingStatus(true);
                 try {
+                  // Reverse authorization usage before reverting status
+                  try {
+                    await fetch('/api/authorizations/reverse', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ visit_id: selectedVisit.id }),
+                    });
+                  } catch { /* non-critical — reversal is best-effort */ }
+
                   const res = await fetch(`/api/visits/${selectedVisit.id}`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },

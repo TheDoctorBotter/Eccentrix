@@ -201,7 +201,10 @@ export default function BillingDashboard() {
     const daysToExpiry = Math.ceil(
       (endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
     );
-    const remaining = a.remaining_visits ?? (a.authorized_visits ?? 0) - (a.used_visits ?? 0);
+    const isUnitBased = a.auth_type === 'units' || ['PT', 'OT'].includes(a.discipline?.toUpperCase() ?? '');
+    const remaining = isUnitBased
+      ? (a.units_authorized ?? 0) - (a.units_used ?? 0)
+      : (a.remaining_visits ?? (a.authorized_visits ?? 0) - (a.used_visits ?? 0));
     return daysToExpiry <= 30 || (remaining !== null && remaining <= 10);
   });
 
@@ -488,7 +491,13 @@ export default function BillingDashboard() {
                     </TableHeader>
                     <TableBody>
                       {priorAuths.map((auth) => {
-                        const remaining = auth.remaining_visits ?? ((auth.authorized_visits ?? 0) - (auth.used_visits ?? 0));
+                        const isUnitBased = auth.auth_type === 'units' || ['PT', 'OT'].includes(auth.discipline?.toUpperCase() ?? '');
+                        const authorized = isUnitBased ? (auth.units_authorized ?? 0) : (auth.authorized_visits ?? 0);
+                        const used = isUnitBased ? (auth.units_used ?? 0) : (auth.used_visits ?? 0);
+                        const remaining = isUnitBased
+                          ? authorized - used
+                          : (auth.remaining_visits ?? (authorized - used));
+                        const balanceLabel = isUnitBased ? 'units' : 'visits';
                         const endDate = safeDate(auth.end_date);
                         const daysToExpiry = endDate
                           ? Math.ceil((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
@@ -512,15 +521,20 @@ export default function BillingDashboard() {
                                 {auth.discipline || 'PT'}
                               </Badge>
                             </TableCell>
-                            <TableCell>{auth.authorized_visits ?? auth.units_authorized ?? '-'}</TableCell>
-                            <TableCell>{auth.used_visits ?? auth.units_used ?? 0}</TableCell>
+                            <TableCell>{authorized || '-'} {balanceLabel}</TableCell>
+                            <TableCell>{used}</TableCell>
                             <TableCell>
-                              {remaining !== null && remaining <= 3 ? (
+                              {remaining <= 0 ? (
                                 <span className="text-red-600 font-bold flex items-center gap-1">
-                                  <AlertTriangle className="h-3 w-3" />{remaining}
+                                  <AlertTriangle className="h-3 w-3" />
+                                  <span className="inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">Exhausted</span>
+                                </span>
+                              ) : remaining <= 10 ? (
+                                <span className="text-amber-600 font-semibold flex items-center gap-1">
+                                  <AlertTriangle className="h-3 w-3" />{remaining} / {authorized} {balanceLabel}
                                 </span>
                               ) : (
-                                remaining ?? '-'
+                                <span>{remaining} / {authorized} {balanceLabel}</span>
                               )}
                             </TableCell>
                             <TableCell>
