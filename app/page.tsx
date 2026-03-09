@@ -81,8 +81,10 @@ export default function HomePage() {
 
       for (const auth of data) {
         if (!auth.day_180_date) continue;
+        const d180 = new Date(auth.day_180_date);
+        if (isNaN(d180.getTime())) continue;
         const daysRemaining = Math.ceil(
-          (new Date(auth.day_180_date).getTime() - now) / (1000 * 60 * 60 * 24)
+          (d180.getTime() - now) / (1000 * 60 * 60 * 24)
         );
         // Show alerts at 30 days and 15 days
         const show30 = daysRemaining <= 30 && daysRemaining > 15 && !auth.alert_30_dismissed_at;

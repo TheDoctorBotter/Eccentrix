@@ -62,3 +62,26 @@ export function toLocalDate(utcDate: string | Date): Date {
 export function localNow(): Date {
   return toZonedTime(new Date(), CLINIC_TZ);
 }
+
+/**
+ * Check if a value can be parsed into a valid Date.
+ */
+export function isValidDate(value: unknown): boolean {
+  if (!value) return false;
+  const d = new Date(value as string | number);
+  return !isNaN(d.getTime());
+}
+
+/**
+ * Safely get a timestamp from a date value, for sorting and comparisons.
+ * Invalid or missing dates return the fallback (defaults to MAX_SAFE_INTEGER
+ * so they sort to the bottom).
+ */
+export function safeDateTimestamp(
+  value: unknown,
+  fallback: number = Number.MAX_SAFE_INTEGER
+): number {
+  if (!value) return fallback;
+  const d = new Date(value as string | number);
+  return isNaN(d.getTime()) ? fallback : d.getTime();
+}

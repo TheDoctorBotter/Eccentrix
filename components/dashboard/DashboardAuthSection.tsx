@@ -11,7 +11,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Clock, ChevronDown, ChevronUp, AlertTriangle, Upload, Download, Loader2, FileSpreadsheet, CheckCircle2, XCircle, AlertCircle, SkipForward } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { formatLocalDate, safeDateTimestamp } from '@/lib/utils';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 
@@ -430,8 +430,9 @@ export function DashboardAuthSection({ clinicId }: Props) {
                       ? (auth.units_authorized ?? 0) - (auth.units_used ?? 0)
                       : auth.remaining_visits ??
                         (auth.authorized_visits ?? 0) - auth.used_visits;
+                  const endTs = safeDateTimestamp(auth.end_date, Date.now());
                   const daysToExpiry = Math.ceil(
-                    (new Date(auth.end_date).getTime() - Date.now()) /
+                    (endTs - Date.now()) /
                       (1000 * 60 * 60 * 24)
                   );
                   const isWarning = daysToExpiry <= 30 || remaining <= 10;
@@ -488,8 +489,8 @@ export function DashboardAuthSection({ clinicId }: Props) {
                           </span>
                         </span>
                         <span>
-                          {format(parseISO(auth.start_date), 'MM/dd/yy')} –{' '}
-                          {format(parseISO(auth.end_date), 'MM/dd/yy')}
+                          {formatLocalDate(auth.start_date, 'MM/dd/yy')} –{' '}
+                          {formatLocalDate(auth.end_date, 'MM/dd/yy')}
                         </span>
                         <span
                           className={

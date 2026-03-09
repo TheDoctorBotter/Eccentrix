@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Shield } from 'lucide-react';
-import { format, parseISO, differenceInDays, addWeeks } from 'date-fns';
+import { addWeeks } from 'date-fns';
+import { formatLocalDate, safeDate } from '@/lib/utils';
 
 interface AuthRecord {
   id: string;
@@ -40,7 +41,7 @@ function projectExhaustionDate(
   if (frequency <= 0 || remaining <= 0) return null;
   const weeksNeeded = Math.ceil(remaining / frequency);
   const exhaustionDate = addWeeks(fromDate, weeksNeeded);
-  return format(exhaustionDate, 'MMM d, yyyy');
+  return formatLocalDate(exhaustionDate, 'MMM d, yyyy');
 }
 
 export function VisitAuthSummary({ patientId, clinicId, discipline }: Props) {
@@ -97,10 +98,10 @@ export function VisitAuthSummary({ patientId, clinicId, discipline }: Props) {
             ? (auth.units_authorized ?? 0) - (auth.units_used ?? 0)
             : auth.remaining_visits ??
               (auth.authorized_visits ?? 0) - auth.used_visits;
-        const daysToExpiry = differenceInDays(
-          parseISO(auth.end_date),
-          new Date()
-        );
+        const endDate = safeDate(auth.end_date);
+        const daysToExpiry = endDate
+          ? Math.ceil((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+          : Infinity;
         const isLow = remaining <= 3;
         const isWarning = daysToExpiry <= 30 || remaining <= 10;
 
@@ -158,7 +159,7 @@ export function VisitAuthSummary({ patientId, clinicId, discipline }: Props) {
                 left
               </span>
               <span className="text-slate-400">
-                {format(parseISO(auth.end_date), 'MM/dd/yy')}
+                {formatLocalDate(auth.end_date, 'MM/dd/yy')}
               </span>
               {daysToExpiry <= 30 && daysToExpiry > 0 && (
                 <span className="text-amber-600">({daysToExpiry}d)</span>

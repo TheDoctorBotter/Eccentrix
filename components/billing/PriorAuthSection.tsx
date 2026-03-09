@@ -18,8 +18,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { Plus, AlertTriangle, Clock, Pencil, Trash2, Upload, Download, FileSpreadsheet, Loader2 } from 'lucide-react';
-import { format, parseISO, differenceInDays } from 'date-fns';
-import { formatLocalDate } from '@/lib/utils';
+import { formatLocalDate, safeDate } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 
 interface PriorAuth {
@@ -441,7 +440,10 @@ export function PriorAuthSection({ patientId, clinicId, episodeId }: Props) {
         ) : (
           <div className="space-y-2">
             {auths.map((auth) => {
-              const daysToExpiry = differenceInDays(new Date(auth.end_date), new Date());
+              const endDate = safeDate(auth.end_date);
+              const daysToExpiry = endDate
+                ? Math.ceil((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                : Infinity;
               const remaining = auth.auth_type === 'units'
                 ? (auth.units_authorized ?? 0) - (auth.units_used ?? 0)
                 : auth.remaining_visits ?? ((auth.authorized_visits ?? 0) - auth.used_visits);
@@ -512,7 +514,7 @@ export function PriorAuthSection({ patientId, clinicId, episodeId }: Props) {
                       </span>
                     </div>
                     <div>
-                      {format(parseISO(auth.start_date), 'MM/dd/yy')} - {format(parseISO(auth.end_date), 'MM/dd/yy')}
+                      {formatLocalDate(auth.start_date, 'MM/dd/yy')} - {formatLocalDate(auth.end_date, 'MM/dd/yy')}
                     </div>
                     <div>
                       {daysToExpiry > 0 ? (
