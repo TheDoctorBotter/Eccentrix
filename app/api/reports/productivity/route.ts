@@ -71,9 +71,9 @@ export async function GET(request: NextRequest) {
         : 0;
 
     // Fetch provider profiles to resolve therapist names
-    const therapistIds = [
-      ...new Set(allVisits.map((v) => v.therapist_user_id).filter(Boolean)),
-    ];
+    const therapistIds = Array.from(
+      new Set(allVisits.map((v) => v.therapist_user_id).filter(Boolean))
+    );
     const providerNameMap = new Map<string, string>();
     if (therapistIds.length > 0) {
       const { data: providers } = await client
