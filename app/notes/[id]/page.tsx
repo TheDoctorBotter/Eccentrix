@@ -453,6 +453,19 @@ export default function NoteDetailPage() {
       setBillingDialogOpen(true);
 
       const inputData = note.input_data || {};
+
+      // Fetch actual_duration_minutes from visit if linked
+      let visitActualDuration: number | null = null;
+      if (note.visit_id) {
+        try {
+          const visitRes = await fetch(`/api/visits/${note.visit_id}`);
+          if (visitRes.ok) {
+            const visitData = await visitRes.json();
+            visitActualDuration = visitData.actual_duration_minutes ?? null;
+          }
+        } catch { /* non-critical */ }
+      }
+
       const suggestRes = await fetch('/api/billing/suggest-cpt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -463,6 +476,7 @@ export default function NoteDetailPage() {
           interventions: inputData.objective?.interventions || [],
           start_time: inputData.startTime || null,
           end_time: inputData.endTime || null,
+          actual_duration_minutes: visitActualDuration,
         }),
       });
 

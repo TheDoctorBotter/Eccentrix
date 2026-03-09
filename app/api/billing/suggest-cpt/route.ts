@@ -165,6 +165,7 @@ export async function POST(request: NextRequest) {
       start_time,
       end_time,
       discipline: rawDiscipline,
+      actual_duration_minutes,
     } = body as {
       visit_type?: string;
       interventions?: InterventionInput[];
@@ -172,6 +173,7 @@ export async function POST(request: NextRequest) {
       start_time?: string;
       end_time?: string;
       discipline?: string;
+      actual_duration_minutes?: number | null;
     };
 
     const discipline = rawDiscipline === 'OT' ? 'OT' : rawDiscipline === 'ST' ? 'ST' : 'PT';
@@ -192,13 +194,15 @@ export async function POST(request: NextRequest) {
       (cptCodes || []).map((c: { code: string; id: string; description: string; is_timed: boolean; category: string; default_units: number; unit_minutes: number }) => [c.code, c])
     );
 
-    // Calculate total session time from start/end if not provided
-    let sessionMinutes = total_minutes || 0;
-    if (!sessionMinutes && start_time && end_time) {
+    // Calculate total session time — use actual_duration_minutes when present,
+    // falling back to total_minutes or start/end calculation
+    let scheduledMinutes = total_minutes || 0;
+    if (!scheduledMinutes && start_time && end_time) {
       const [sH, sM] = start_time.split(':').map(Number);
       const [eH, eM] = end_time.split(':').map(Number);
-      sessionMinutes = (eH * 60 + eM) - (sH * 60 + sM);
+      scheduledMinutes = (eH * 60 + eM) - (sH * 60 + sM);
     }
+    const sessionMinutes = actual_duration_minutes ?? scheduledMinutes;
 
     const suggestions: Array<{
       cpt_code: string;

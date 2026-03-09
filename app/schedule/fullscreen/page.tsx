@@ -57,6 +57,8 @@ import {
   FileText,
   Undo2,
   Minimize2,
+  Info,
+  AlertCircle,
 } from 'lucide-react';
 import { VisitAuthSummary } from '@/components/schedule/VisitAuthSummary';
 import { useAuth } from '@/lib/auth-context';
@@ -252,6 +254,13 @@ export default function FullscreenSchedulePage() {
   const [selectedVisitNote, setSelectedVisitNote] = useState<Note | null>(null);
   const [loadingNote, setLoadingNote] = useState(false);
   const [undoConfirmOpen, setUndoConfirmOpen] = useState(false);
+
+  // Completion dialog state
+  const [completeConfirmOpen, setCompleteConfirmOpen] = useState(false);
+  const [completeDurationOption, setCompleteDurationOption] = useState<string>('');
+  const [completeCustomMinutes, setCompleteCustomMinutes] = useState('');
+  const [completeShortenedReason, setCompleteShortenedReason] = useState('');
+  const [completeValidationError, setCompleteValidationError] = useState('');
 
   // Drag-and-drop state
   const [draggingVisit, setDraggingVisit] = useState<Visit | null>(null);
@@ -452,7 +461,7 @@ export default function FullscreenSchedulePage() {
   // Status update
   // ---------------------------------------------------------------------------
 
-  const handleStatusChange = async (visitId: string, newStatus: AppointmentStatus) => {
+  const handleStatusChange = async (visitId: string, newStatus: AppointmentStatus, completionData?: { actual_duration_minutes: number; shortened_visit_reason?: string }) => {
     setUpdatingStatus(true);
     try {
       const visit = visits.find((v: Visit) => v.id === visitId);
@@ -475,6 +484,12 @@ export default function FullscreenSchedulePage() {
           updateBody.cancelled_at = null;
           updateBody.cancel_reason = null;
         }
+        if (newStatus === 'completed' && completionData) {
+          updateBody.actual_duration_minutes = completionData.actual_duration_minutes;
+          if (completionData.shortened_visit_reason) {
+            updateBody.shortened_visit_reason = completionData.shortened_visit_reason;
+          }
+        }
         res = await fetch(`/api/visits/${visitId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -485,7 +500,11 @@ export default function FullscreenSchedulePage() {
       if (!res.ok) throw new Error('Failed to update status');
       const updated = await res.json();
 
-      const statusUpdate = { status: newStatus };
+      const statusUpdate: Partial<Visit> = { status: newStatus };
+      if (newStatus === 'completed' && completionData) {
+        statusUpdate.actual_duration_minutes = completionData.actual_duration_minutes;
+        statusUpdate.shortened_visit_reason = completionData.shortened_visit_reason || null;
+      }
       setVisits((prev: Visit[]) => prev.map((v: Visit) => (v.id === visitId ? { ...v, ...statusUpdate } : v)));
       setSelectedVisit((prev: Visit | null) => (prev && prev.id === visitId ? { ...prev, ...statusUpdate } : prev));
       toast.success(`Status updated to ${APPOINTMENT_STATUS_LABELS[newStatus]}`);
@@ -1108,6 +1127,31 @@ export default function FullscreenSchedulePage() {
                             </Badge>
                           )}
                         </div>
+                        {/* Shortened visit indicator on completed cards */}
+                        {status === 'completed' && visit.actual_duration_minutes != null && (() => {
+                          const schedMin = differenceInMinutes(
+                            toLocalDate(visit.end_time),
+                            toLocalDate(visit.start_time)
+                          );
+                          if (visit.actual_duration_minutes !== schedMin) {
+                            return (
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className="text-[9px] text-amber-700">
+                                  {schedMin}→{visit.actual_duration_minutes} min
+                                </span>
+                                {visit.shortened_visit_reason && (
+                                  <span className="group relative">
+                                    <Info className="h-3 w-3 text-amber-500 cursor-help" />
+                                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-[10px] text-white bg-slate-800 rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 max-w-[200px] truncate">
+                                      {visit.shortened_visit_reason}
+                                    </span>
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                       </button>
                     );
                   })}
@@ -1159,6 +1203,33 @@ export default function FullscreenSchedulePage() {
                   ({differenceInMinutes(parseISO(selectedVisit.end_time), parseISO(selectedVisit.start_time))} min)
                 </span>
               </div>
+
+              {/* Actual duration (shown when different from scheduled) */}
+              {selectedVisit.status === 'completed' && selectedVisit.actual_duration_minutes != null && (() => {
+                const scheduledMin = differenceInMinutes(
+                  parseISO(selectedVisit.end_time),
+                  parseISO(selectedVisit.start_time)
+                );
+                if (selectedVisit.actual_duration_minutes !== scheduledMin) {
+                  return (
+                    <div className="flex items-start gap-2 p-2 rounded-md bg-amber-50 border border-amber-200">
+                      <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                      <div className="text-sm">
+                        <div className="font-medium text-amber-800">
+                          Scheduled: {scheduledMin} min → Actual: {selectedVisit.actual_duration_minutes} min
+                        </div>
+                        {selectedVisit.shortened_visit_reason && (
+                          <div className="text-amber-700 mt-0.5">
+                            {selectedVisit.shortened_visit_reason}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 text-slate-500" />
                 <span className="text-sm text-slate-600">{selectedVisit.therapist_name || getTherapistName(selectedVisit.therapist_user_id)}</span>
@@ -1207,6 +1278,18 @@ export default function FullscreenSchedulePage() {
                       if (action.to === 'cancelled') {
                         setPendingCancelId(selectedVisit.id);
                         setCancelConfirmOpen(true);
+                      } else if (action.to === 'completed') {
+                        const scheduledMin = differenceInMinutes(
+                          parseISO(selectedVisit.end_time),
+                          parseISO(selectedVisit.start_time)
+                        );
+                        const scheduledStr = String(scheduledMin);
+                        const presetOptions = ['15', '30', '45', '60', '90'];
+                        setCompleteDurationOption(presetOptions.includes(scheduledStr) ? scheduledStr : 'custom');
+                        setCompleteCustomMinutes(presetOptions.includes(scheduledStr) ? '' : scheduledStr);
+                        setCompleteShortenedReason('');
+                        setCompleteValidationError('');
+                        setCompleteConfirmOpen(true);
                       } else {
                         handleStatusChange(selectedVisit.id, action.to);
                       }
@@ -1333,6 +1416,131 @@ export default function FullscreenSchedulePage() {
             >
               {updatingStatus ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
               Yes, Undo Complete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* =================================================================== */}
+      {/* Complete Visit Dialog — Duration & Shortened Visit                  */}
+      {/* =================================================================== */}
+      <Dialog open={completeConfirmOpen} onOpenChange={setCompleteConfirmOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Complete Visit</DialogTitle>
+            <DialogDescription>
+              Confirm the actual duration performed for this visit.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedVisit && (() => {
+            const scheduledMin = differenceInMinutes(
+              parseISO(selectedVisit.end_time),
+              parseISO(selectedVisit.start_time)
+            );
+            const actualMin = completeDurationOption === 'custom'
+              ? parseInt(completeCustomMinutes, 10) || 0
+              : parseInt(completeDurationOption, 10) || 0;
+            const isShortened = actualMin > 0 && actualMin < scheduledMin;
+
+            return (
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm text-slate-500">Scheduled Duration</Label>
+                  <div className="text-sm font-medium text-slate-900 mt-1">{scheduledMin} min</div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Actual Duration Performed</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['15', '30', '45', '60', '90'].map((opt) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                          completeDurationOption === opt
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                        }`}
+                        onClick={() => { setCompleteDurationOption(opt); setCompleteValidationError(''); }}
+                      >
+                        {opt} min
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                        completeDurationOption === 'custom'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      }`}
+                      onClick={() => { setCompleteDurationOption('custom'); setCompleteValidationError(''); }}
+                    >
+                      Custom
+                    </button>
+                  </div>
+                  {completeDurationOption === 'custom' && (
+                    <Input
+                      type="number"
+                      min="1"
+                      max="240"
+                      placeholder="Minutes"
+                      value={completeCustomMinutes}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setCompleteCustomMinutes(e.target.value); setCompleteValidationError(''); }}
+                      className="w-32 mt-1"
+                    />
+                  )}
+                </div>
+                {isShortened && (
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1">
+                      <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
+                      Shortened Visit Reason
+                      <span className="text-red-500">*</span>
+                    </Label>
+                    <Textarea
+                      placeholder="Document reason for shortened visit (e.g. arrived late, child fatigue, parent request)"
+                      value={completeShortenedReason}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => { setCompleteShortenedReason(e.target.value); setCompleteValidationError(''); }}
+                      rows={2}
+                    />
+                  </div>
+                )}
+                {completeValidationError && (
+                  <div className="text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    {completeValidationError}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setCompleteConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={updatingStatus}
+              onClick={async () => {
+                if (!selectedVisit) return;
+                const scheduledMin = differenceInMinutes(
+                  parseISO(selectedVisit.end_time),
+                  parseISO(selectedVisit.start_time)
+                );
+                const actualMin = completeDurationOption === 'custom'
+                  ? parseInt(completeCustomMinutes, 10) || 0
+                  : parseInt(completeDurationOption, 10) || 0;
+                if (actualMin <= 0) { setCompleteValidationError('Actual duration must be greater than 0.'); return; }
+                if (actualMin > 240) { setCompleteValidationError('Actual duration must be 240 minutes or less.'); return; }
+                if (actualMin < scheduledMin && !completeShortenedReason.trim()) { setCompleteValidationError('Please document why the visit was shorter than scheduled.'); return; }
+                setCompleteConfirmOpen(false);
+                await handleStatusChange(selectedVisit.id, 'completed', {
+                  actual_duration_minutes: actualMin,
+                  shortened_visit_reason: actualMin < scheduledMin ? completeShortenedReason.trim() : undefined,
+                });
+              }}
+            >
+              {updatingStatus ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+              Mark Complete
             </Button>
           </DialogFooter>
         </DialogContent>
