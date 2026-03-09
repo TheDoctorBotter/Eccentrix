@@ -11,14 +11,36 @@ export function cn(...inputs: ClassValue[]) {
 const CLINIC_TZ = 'America/Chicago';
 
 /**
+ * Safely parse a date value. Returns null if the value is falsy or invalid.
+ */
+export function safeDate(value: unknown): Date | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value as string | number);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Safely format a date value. Returns the fallback string if the value is falsy or invalid.
+ */
+export function safeDateFormat(value: unknown, fallback: string = 'N/A'): string {
+  const d = safeDate(value);
+  if (!d) return fallback;
+  return d.toLocaleDateString('en-US', { timeZone: 'America/Chicago' });
+}
+
+/**
  * Convert a UTC date string (or Date) to America/Chicago timezone and format it.
  * Use this for ALL user-facing date display to avoid the off-by-one-day bug.
+ * Returns fallback string for null/undefined/invalid dates.
  */
 export function formatLocalDate(
-  utcDate: string | Date,
-  formatStr: string = 'MM/dd/yyyy'
+  utcDate: string | Date | null | undefined,
+  formatStr: string = 'MM/dd/yyyy',
+  fallback: string = '-'
 ): string {
+  if (!utcDate) return fallback;
   const date = typeof utcDate === 'string' ? new Date(utcDate) : utcDate;
+  if (isNaN(date.getTime())) return fallback;
   const zoned = toZonedTime(date, CLINIC_TZ);
   return dateFnsFormat(zoned, formatStr);
 }
@@ -26,9 +48,11 @@ export function formatLocalDate(
 /**
  * Convert a UTC date string to a Date object in the clinic's local timezone.
  * Use for comparisons like isSameDay, isToday, etc.
+ * Returns current time for invalid dates to avoid crashing callers.
  */
 export function toLocalDate(utcDate: string | Date): Date {
   const date = typeof utcDate === 'string' ? new Date(utcDate) : utcDate;
+  if (isNaN(date.getTime())) return toZonedTime(new Date(), CLINIC_TZ);
   return toZonedTime(date, CLINIC_TZ);
 }
 
