@@ -189,10 +189,13 @@ export default function BillingDashboard() {
 
   const expiringAuths = priorAuths.filter((a) => {
     if (a.status !== 'approved') return false;
+    if (!a.end_date) return false;
+    const endTime = new Date(a.end_date).getTime();
+    if (isNaN(endTime)) return false;
     const daysToExpiry = Math.ceil(
-      (new Date(a.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+      (endTime - Date.now()) / (1000 * 60 * 60 * 24)
     );
-    const remaining = a.remaining_visits ?? (a.authorized_visits ?? 0) - a.used_visits;
+    const remaining = a.remaining_visits ?? (a.authorized_visits ?? 0) - (a.used_visits ?? 0);
     return daysToExpiry <= 30 || (remaining !== null && remaining <= 10);
   });
 
@@ -433,10 +436,11 @@ export default function BillingDashboard() {
                     </TableHeader>
                     <TableBody>
                       {priorAuths.map((auth) => {
-                        const remaining = auth.remaining_visits ?? ((auth.authorized_visits ?? 0) - auth.used_visits);
-                        const daysToExpiry = Math.ceil(
-                          (new Date(auth.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-                        );
+                        const remaining = auth.remaining_visits ?? ((auth.authorized_visits ?? 0) - (auth.used_visits ?? 0));
+                        const endTime = auth.end_date ? new Date(auth.end_date).getTime() : NaN;
+                        const daysToExpiry = isNaN(endTime)
+                          ? Infinity
+                          : Math.ceil((endTime - Date.now()) / (1000 * 60 * 60 * 24));
                         const isWarning = daysToExpiry <= 30 || (remaining !== null && remaining <= 10);
 
                         return (
@@ -468,12 +472,16 @@ export default function BillingDashboard() {
                               )}
                             </TableCell>
                             <TableCell>
-                              {daysToExpiry <= 30 ? (
-                                <span className="text-amber-600 font-medium">
-                                  {format(parseISO(auth.end_date), 'MM/dd/yyyy')} ({daysToExpiry}d)
-                                </span>
+                              {auth.end_date ? (
+                                daysToExpiry <= 30 ? (
+                                  <span className="text-amber-600 font-medium">
+                                    {format(parseISO(auth.end_date), 'MM/dd/yyyy')} ({daysToExpiry}d)
+                                  </span>
+                                ) : (
+                                  format(parseISO(auth.end_date), 'MM/dd/yyyy')
+                                )
                               ) : (
-                                format(parseISO(auth.end_date), 'MM/dd/yyyy')
+                                '-'
                               )}
                             </TableCell>
                             <TableCell>
