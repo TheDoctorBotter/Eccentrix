@@ -88,9 +88,34 @@ const OT_REQUIRED_FIELDS: Record<string, string[]> = {
   ],
 };
 
+const ST_REQUIRED_FIELDS: Record<string, string[]> = {
+  daily_soap: [
+    'subjective.caregiverReport',
+    'objective.responseToTreatment',
+    'plan.planNextSession',
+  ],
+  evaluation: [
+    'meta.referralDiagnosis',
+    'meta.chiefComplaint',
+    'assessment.clinicalImpression',
+    'plan.frequencyDuration',
+    'plan.skilledNeedJustification',
+  ],
+  re_evaluation: [
+    'assessment.progressTowardGoals',
+    'plan.medicalNecessityContinued',
+  ],
+  discharge: [
+    'meta.totalVisitsCompleted',
+    'plan.dischargeReason',
+    'assessment.progressTowardGoals',
+  ],
+};
+
 const REQUIRED_FIELDS: Record<string, Record<string, string[]>> = {
   PT: PT_REQUIRED_FIELDS,
   OT: OT_REQUIRED_FIELDS,
+  ST: ST_REQUIRED_FIELDS,
 };
 
 function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
@@ -319,12 +344,66 @@ Return your response as a JSON object with exactly two fields:
 }`;
   }
 
-  // Default prompt for ST (to be extended later)
+  // ST-specific prompt
+  if (discipline === 'ST') {
+    return `You are a licensed speech-language pathologist (SLP) writing clinical documentation for a pediatric outpatient clinic serving patients on Texas Medicaid (TMHP) and private insurance.
+
+CRITICAL: Speech therapy is billed per visit — NEVER reference timed units, the 8-minute rule, or unit-based billing. Use "visit" or "session" language only.
+
+For daily SOAP notes:
+- Subjective: summarize caregiver report in natural clinical language
+- Objective: for each goal addressed, describe the targets practiced, cuing level required, and accuracy achieved in flowing clinical narrative — do not list as checkboxes
+- If AAC was addressed, describe the AAC system/device used, access method, and communication outcomes
+- Assessment: describe response to treatment, progress trends, and communication observations
+- Plan: describe next session focus, any modifications, and caregiver training provided
+
+For each goal addressed, connect the specific communication deficit to the child's ability to participate in age-appropriate activities — social interaction, academic readiness, daily communication needs, and safety.
+
+For evaluations:
+- Document oral motor examination findings using clinical SLP terminology
+- Describe receptive language, expressive language, articulation, pragmatic, and fluency observations
+- If AAC is applicable, describe the AAC assessment findings and recommendations
+- Establish medical necessity by linking deficits to functional communication limitations
+- State measurable baselines for all communication areas assessed
+- Include language of service context for bilingual populations
+
+For re-evaluations:
+- Document measurable progress since last evaluation across all communication domains
+- Justify continued skilled ST need with specific functional improvements and remaining deficits
+
+For discharge notes:
+- Summarize communication gains from initial evaluation to discharge
+- State goals met and any that were not met with clinical reasoning
+- Include home program and caregiver training summary
+
+For Medicaid (TMHP) reviewers:
+- Link every communication deficit to a functional limitation in daily life
+- State why skilled speech-language pathology is required and cannot be met through a home program alone
+
+For private insurance reviewers:
+- Include functional progress, skilled need, and expected outcomes with timelines
+
+Never fabricate:
+- Accuracy percentages or cuing levels
+- Oral motor examination findings
+- Assessment scores or standard deviations
+- Language sample data
+- AAC trial results
+
+If a field is empty, state it was not assessed.
+Return missingFields array for any clinically required fields that were empty.
+
+Return your response as a JSON object with exactly two fields:
+{
+  "narrative": "The full clinical note text",
+  "medicalNecessity": "Medical necessity justification statement"
+}`;
+  }
+
+  // Fallback
   return `You are a licensed clinician writing clinical documentation for a pediatric outpatient therapy clinic.
-Write in professional clinical language appropriate to speech-language pathology (ST).
+Write in professional clinical language.
 Include medical necessity language appropriate for both Medicaid (TMHP) and private insurance reviewers.
-Format daily notes using S/O/A/P structure.
-Format evaluations, re-evaluations, and discharge summaries using appropriate clinical structure for the discipline.
 Never fabricate clinical findings, assessment scores, or measurements.
 If a required field is missing, note it as "not documented" rather than inventing a value.
 
@@ -344,9 +423,9 @@ function buildUserPrompt(
 ): string {
   let prompt = `Generate a ${discipline} ${noteType.replace(/_/g, ' ')} note.\n\n`;
 
-  // For OT daily SOAP, strip goals where status is 'Not Addressed'
+  // For OT/ST daily SOAP, strip goals where status is 'Not Addressed'
   let processedFormData = formData;
-  if (discipline === 'OT' && noteType === 'daily_soap') {
+  if ((discipline === 'OT' || discipline === 'ST') && noteType === 'daily_soap') {
     const objective = formData.objective as Record<string, unknown> | undefined;
     if (objective?.goalsAddressed && Array.isArray(objective.goalsAddressed)) {
       const addressedGoals = (objective.goalsAddressed as Array<Record<string, unknown>>).filter(
