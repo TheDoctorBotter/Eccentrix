@@ -1,0 +1,251 @@
+/**
+ * POST /api/notes/generate
+ *
+ * Generates a clinical narrative + medical necessity statement using AI.
+ * Returns { narrative, medicalNecessity, missingFields? }
+ *
+ * Rate-limited to 10 requests per minute per clinic.
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+
+// ---------------------------------------------------------------------------
+// Rate limiter (per clinic, in-memory)
+// ---------------------------------------------------------------------------
+
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT = 10;
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+
+function checkRateLimit(key: string): boolean {
+  const now = Date.now();
+  const record = rateLimitMap.get(key);
+
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(key, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+
+  if (record.count >= RATE_LIMIT) return false;
+  record.count++;
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Required-field definitions per note type
+// ---------------------------------------------------------------------------
+
+const REQUIRED_FIELDS: Record<string, string[]> = {
+  daily_soap: [
+    'subjective',
+    'objective.interventions',
+    'assessment.progression',
+    'plan.next_session_focus',
+  ],
+  evaluation: [
+    'patientDemographic.diagnosis',
+    'patientDemographic.dateOfBirth',
+    'objective.key_measures',
+    'assessment.impairments',
+    'plan.frequency_duration',
+  ],
+  re_evaluation: [
+    'patientDemographic.diagnosis',
+    'objective.key_measures',
+    'assessment.progression',
+    'plan.frequency_duration',
+  ],
+  discharge: [
+    'patientDemographic.diagnosis',
+    'assessment.progression',
+    'plan.next_session_focus',
+  ],
+};
+
+function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
+  return path.split('.').reduce((o: unknown, key) => {
+    if (o && typeof o === 'object') return (o as Record<string, unknown>)[key];
+    return undefined;
+  }, obj);
+}
+
+function detectMissingFields(
+  noteType: string,
+  formData: Record<string, unknown>
+): string[] {
+  const required = REQUIRED_FIELDS[noteType] || [];
+  return required.filter((path) => {
+    const val = getNestedValue(formData, path);
+    if (val === undefined || val === null || val === '') return true;
+    if (Array.isArray(val) && val.length === 0) return true;
+    return false;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Handler
+// ---------------------------------------------------------------------------
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const {
+      discipline,
+      noteType,
+      formData,
+      patientContext,
+    }: {
+      discipline: string;
+      noteType: string;
+      formData: Record<string, unknown>;
+      patientContext: Record<string, unknown>;
+    } = body;
+
+    // Validate required fields
+    if (!discipline || !noteType) {
+      return NextResponse.json(
+        { error: 'discipline and noteType are required' },
+        { status: 400 }
+      );
+    }
+
+    // Rate limit per clinic
+    const clinicKey = (patientContext?.clinicId as string) || 'unknown';
+    if (!checkRateLimit(clinicKey)) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. Maximum 10 requests per minute per clinic.' },
+        { status: 429 }
+      );
+    }
+
+    // Check for missing fields
+    const missingFields = detectMissingFields(noteType, formData || {});
+
+    // OpenAI API setup (reuse existing env vars)
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'OPENAI_API_KEY is not configured' },
+        { status: 500 }
+      );
+    }
+
+    const apiBase = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1';
+    const model = process.env.OPENAI_MODEL || 'gpt-4-turbo-preview';
+
+    // Build prompts
+    const systemPrompt = buildSystemPrompt(discipline);
+    const userPrompt = buildUserPrompt(discipline, noteType, formData || {}, patientContext || {}, missingFields);
+
+    const response = await fetch(`${apiBase}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.7,
+        max_tokens: 2500,
+      }),
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      console.error('[notes/generate] OpenAI error:', response.status, errData);
+      return NextResponse.json(
+        { error: errData?.error?.message || `OpenAI API error (${response.status})` },
+        { status: 500 }
+      );
+    }
+
+    const data = await response.json();
+    const raw = data.choices?.[0]?.message?.content || '';
+
+    // Parse response — expect JSON with "narrative" and "medicalNecessity"
+    let narrative = '';
+    let medicalNecessity = '';
+
+    try {
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        narrative = parsed.narrative || parsed.note || raw;
+        medicalNecessity = parsed.medicalNecessity || parsed.medical_necessity || '';
+      } else {
+        narrative = raw;
+      }
+    } catch {
+      narrative = raw;
+    }
+
+    return NextResponse.json({
+      narrative,
+      medicalNecessity,
+      ...(missingFields.length > 0 ? { missingFields } : {}),
+    });
+  } catch (error) {
+    console.error('[notes/generate] Unexpected error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Prompt builders
+// ---------------------------------------------------------------------------
+
+function buildSystemPrompt(discipline: string): string {
+  const disciplineName =
+    discipline === 'PT'
+      ? 'physical therapy'
+      : discipline === 'OT'
+        ? 'occupational therapy'
+        : 'speech-language pathology';
+
+  return `You are a licensed clinician writing clinical documentation for a pediatric outpatient therapy clinic.
+Write in professional clinical language appropriate to ${disciplineName} (${discipline}).
+Include medical necessity language appropriate for both Medicaid (TMHP) and private insurance reviewers.
+Format daily notes using S/O/A/P structure.
+Format evaluations, re-evaluations, and discharge summaries using appropriate clinical structure for the discipline.
+Never fabricate clinical findings, assessment scores, or measurements.
+If a required field is missing, note it as "not documented" rather than inventing a value.
+
+Return your response as a JSON object with exactly two fields:
+{
+  "narrative": "The full clinical note text",
+  "medicalNecessity": "Medical necessity justification statement"
+}`;
+}
+
+function buildUserPrompt(
+  discipline: string,
+  noteType: string,
+  formData: Record<string, unknown>,
+  patientContext: Record<string, unknown>,
+  missingFields: string[]
+): string {
+  let prompt = `Generate a ${discipline} ${noteType.replace(/_/g, ' ')} note.\n\n`;
+
+  if (Object.keys(formData).length > 0) {
+    prompt += `CLINICAL DATA:\n${JSON.stringify(formData, null, 2)}\n\n`;
+  }
+
+  if (Object.keys(patientContext).length > 0) {
+    prompt += `PATIENT CONTEXT:\n${JSON.stringify(patientContext, null, 2)}\n\n`;
+  }
+
+  if (missingFields.length > 0) {
+    prompt += `MISSING REQUIRED FIELDS (note as "not documented"):\n${missingFields.join(', ')}\n\n`;
+  }
+
+  prompt += `Return ONLY a JSON object with "narrative" and "medicalNecessity" fields. Do not include any other text outside the JSON.`;
+
+  return prompt;
+}
