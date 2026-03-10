@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
 import {
@@ -32,9 +32,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  DollarSign, FileText, AlertTriangle, RefreshCw, Download, Eye, Send, Pencil,
+  DollarSign, FileText, AlertTriangle, RefreshCw, Download, Eye, Send, Pencil, History, ChevronDown,
 } from 'lucide-react';
 import { AuthorizationForm, AuthorizationFormData, AuthorizationRecord } from '@/components/authorizations/AuthorizationForm';
+import { AuthUsageHistory } from '@/components/authorizations/AuthUsageHistory';
 
 interface DashboardFilters {
   dateFrom: string;
@@ -58,6 +59,7 @@ export default function BillingDashboard() {
   const [editAuthDialogOpen, setEditAuthDialogOpen] = useState(false);
   const [editingAuthRecord, setEditingAuthRecord] = useState<ExtendedPriorAuth | null>(null);
   const [editAuthSubmitting, setEditAuthSubmitting] = useState(false);
+  const [expandedAuthId, setExpandedAuthId] = useState<string | null>(null);
 
   // Summary stats
   const [totalCharges, setTotalCharges] = useState(0);
@@ -505,7 +507,8 @@ export default function BillingDashboard() {
                         const isWarning = daysToExpiry <= 30 || (remaining !== null && remaining <= 10);
 
                         return (
-                          <TableRow key={auth.id} className={`${isWarning ? 'bg-amber-50' : ''} ${
+                          <React.Fragment key={auth.id}>
+                          <TableRow className={`${isWarning ? 'bg-amber-50' : ''} ${
                             auth.discipline === 'PT' ? 'border-l-4 border-l-blue-500' :
                             auth.discipline === 'OT' ? 'border-l-4 border-l-green-500' :
                             auth.discipline === 'ST' ? 'border-l-4 border-l-purple-500' : ''
@@ -556,17 +559,42 @@ export default function BillingDashboard() {
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 w-7 p-0"
-                                onClick={() => openEditAuth(auth)}
-                                title="Edit"
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </Button>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 w-7 p-0"
+                                  onClick={() => setExpandedAuthId(expandedAuthId === auth.id ? null : auth.id)}
+                                  title="Usage History"
+                                >
+                                  {expandedAuthId === auth.id
+                                    ? <ChevronDown className="h-3 w-3" />
+                                    : <History className="h-3 w-3" />}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 w-7 p-0"
+                                  onClick={() => openEditAuth(auth)}
+                                  title="Edit"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
+                          {expandedAuthId === auth.id && (
+                            <TableRow>
+                              <TableCell colSpan={9} className="bg-slate-50 p-3">
+                                <div className="text-xs font-semibold mb-2">Usage History</div>
+                                <AuthUsageHistory
+                                  authorizationId={auth.id}
+                                  clinicId={auth.clinic_id}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          </React.Fragment>
                         );
                       })}
                     </TableBody>

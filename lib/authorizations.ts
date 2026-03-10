@@ -10,6 +10,7 @@
  */
 
 import { calculateEightMinuteRule } from '@/lib/billing/eight-minute-rule';
+import { logAuthUsage } from '@/lib/authUsageLog';
 
 // ---------------------------------------------------------------------------
 // Unit calculation helper
@@ -92,9 +93,10 @@ export async function applyAuthorizationUsage(
   const normalizedDiscipline = discipline.toUpperCase();
 
   // Idempotency check — never deduct twice
+  // Also fetch visit details needed for the usage log
   const { data: visit } = await supabase
     .from('visits')
-    .select('auth_usage_applied')
+    .select('auth_usage_applied, patient_id, clinic_id, date_of_service, therapist_user_id')
     .eq('id', visitId)
     .single();
 
@@ -125,13 +127,17 @@ export async function applyAuthorizationUsage(
 
   const updatePayload: Record<string, unknown> = {};
   let newRemaining: number;
+  let beforeBalance: number;
+  let actualAmount: number;
 
   if (isUnitBased) {
     // Unit-based (PT/OT): increment units_used, cap so remaining never goes below 0
     const currentUsed = auth.units_used ?? 0;
     const authorized = auth.units_authorized ?? 0;
+    beforeBalance = authorized - currentUsed;
     const maxDeductible = Math.max(0, authorized - currentUsed);
     const actualDeduction = Math.min(unitsUsed, maxDeductible);
+    actualAmount = actualDeduction;
     updatePayload.units_used = currentUsed + actualDeduction;
     newRemaining = authorized - (currentUsed + actualDeduction);
 
@@ -144,9 +150,11 @@ export async function applyAuthorizationUsage(
     // so we must NOT include it in the update payload.
     const currentUsed = auth.used_visits ?? 0;
     const authorized = auth.authorized_visits ?? 0;
+    beforeBalance = authorized - currentUsed;
     const canDeduct = currentUsed < authorized || authorized === 0;
-    updatePayload.used_visits = currentUsed + (canDeduct ? 1 : 0);
-    newRemaining = authorized - (currentUsed + (canDeduct ? 1 : 0));
+    actualAmount = canDeduct ? 1 : 0;
+    updatePayload.used_visits = currentUsed + actualAmount;
+    newRemaining = authorized - (currentUsed + actualAmount);
 
     if (newRemaining <= 0 && authorized > 0) {
       updatePayload.status = 'exhausted';
@@ -174,6 +182,25 @@ export async function applyAuthorizationUsage(
     })
     .eq('id', visitId);
 
+  // Log the deduction — non-blocking, never throws
+  if (actualAmount > 0) {
+    await logAuthUsage(supabase, {
+      authorization_id: authorizationId,
+      visit_id: visitId,
+      patient_id: visit?.patient_id ?? null,
+      clinic_id: visit?.clinic_id ?? null,
+      discipline: normalizedDiscipline as 'PT' | 'OT' | 'ST',
+      usage_type: 'deduction',
+      amount: actualAmount,
+      amount_kind: isUnitBased ? 'units' : 'visits',
+      before_balance: beforeBalance,
+      after_balance: newRemaining,
+      date_of_service: visit?.date_of_service ?? null,
+      therapist_id: visit?.therapist_user_id ?? null,
+      note: null,
+    });
+  }
+
   if (newRemaining <= 0) {
     return { success: true, warning: 'Authorization balance is now 0' };
   }
@@ -199,7 +226,7 @@ export async function reverseAuthorizationUsage(
   // Fetch the visit to see if usage was applied
   const { data: visit } = await supabase
     .from('visits')
-    .select('id, auth_id, auth_usage_applied, units_used, discipline')
+    .select('id, auth_id, auth_usage_applied, units_used, discipline, patient_id, clinic_id, date_of_service, therapist_user_id')
     .eq('id', visitId)
     .single();
 
@@ -221,15 +248,31 @@ export async function reverseAuthorizationUsage(
   }
 
   const updatePayload: Record<string, unknown> = {};
+  let beforeBalance: number;
+  let afterBalance: number;
+  let restoredAmount: number;
+  const normalizedDiscipline = (visit.discipline ?? '').toUpperCase();
 
   if (isUnitBased) {
     // Restore units
     const restoredUnits = visit.units_used ?? 0;
-    updatePayload.units_used = Math.max(0, (auth.units_used ?? 0) - restoredUnits);
+    restoredAmount = restoredUnits;
+    const authorized = auth.units_authorized ?? 0;
+    const currentUsed = auth.units_used ?? 0;
+    beforeBalance = authorized - currentUsed;
+    const newUsed = Math.max(0, currentUsed - restoredUnits);
+    afterBalance = authorized - newUsed;
+    updatePayload.units_used = newUsed;
   } else {
     // Restore 1 visit
     // NOTE: remaining_visits is a GENERATED column — do NOT include in update
-    updatePayload.used_visits = Math.max(0, (auth.used_visits ?? 0) - 1);
+    restoredAmount = 1;
+    const authorized = auth.authorized_visits ?? 0;
+    const currentUsed = auth.used_visits ?? 0;
+    beforeBalance = authorized - currentUsed;
+    const newUsed = Math.max(0, currentUsed - 1);
+    afterBalance = authorized - newUsed;
+    updatePayload.used_visits = newUsed;
   }
 
   // If auth was exhausted, set back to approved
@@ -255,6 +298,23 @@ export async function reverseAuthorizationUsage(
       units_used: null,
     })
     .eq('id', visitId);
+
+  // Log the restore — non-blocking, never throws
+  await logAuthUsage(supabase, {
+    authorization_id: visit.auth_id,
+    visit_id: visitId,
+    patient_id: visit.patient_id ?? null,
+    clinic_id: visit.clinic_id ?? null,
+    discipline: (['PT', 'OT', 'ST'].includes(normalizedDiscipline) ? normalizedDiscipline : 'PT') as 'PT' | 'OT' | 'ST',
+    usage_type: 'restore',
+    amount: restoredAmount,
+    amount_kind: isUnitBased ? 'units' : 'visits',
+    before_balance: beforeBalance,
+    after_balance: afterBalance,
+    date_of_service: visit.date_of_service ?? null,
+    therapist_id: visit.therapist_user_id ?? null,
+    note: 'Visit completion undone',
+  });
 
   return { success: true };
 }

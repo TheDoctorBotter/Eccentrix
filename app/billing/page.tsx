@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
 import {
@@ -78,8 +78,12 @@ import {
   Shield,
   Activity,
   Pencil,
+  History,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { AuthorizationForm, AuthorizationFormData, AuthorizationRecord } from '@/components/authorizations/AuthorizationForm';
+import { AuthUsageHistory } from '@/components/authorizations/AuthUsageHistory';
 
 interface PatientOption {
   id: string;
@@ -128,6 +132,9 @@ export default function BillingPage() {
   const [editAuthDialogOpen, setEditAuthDialogOpen] = useState(false);
   const [editingAuthRecord, setEditingAuthRecord] = useState<PriorAuthorization | null>(null);
   const [editAuthSubmitting, setEditAuthSubmitting] = useState(false);
+
+  // Auth usage history expanded row
+  const [expandedAuthId, setExpandedAuthId] = useState<string | null>(null);
 
   // Charge form
   const [chargeForm, setChargeForm] = useState({
@@ -2344,8 +2351,8 @@ export default function BillingPage() {
                             ? Math.ceil((day180Date.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
                             : null;
                           return (
+                            <React.Fragment key={auth.id}>
                             <TableRow
-                              key={auth.id}
                               className={getDisciplineBorder(auth.discipline)}
                             >
                               <TableCell className="font-medium text-sm">
@@ -2389,17 +2396,42 @@ export default function BillingPage() {
                               </TableCell>
                               <TableCell>{getAuthStatusBadge(auth.status)}</TableCell>
                               <TableCell>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 w-7 p-0"
-                                  onClick={() => openEditAuth(auth)}
-                                  title="Edit"
-                                >
-                                  <Pencil className="h-3 w-3" />
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 w-7 p-0"
+                                    onClick={() => setExpandedAuthId(expandedAuthId === auth.id ? null : auth.id)}
+                                    title="Usage History"
+                                  >
+                                    {expandedAuthId === auth.id
+                                      ? <ChevronDown className="h-3 w-3" />
+                                      : <History className="h-3 w-3" />}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 w-7 p-0"
+                                    onClick={() => openEditAuth(auth)}
+                                    title="Edit"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
+                            {expandedAuthId === auth.id && (
+                              <TableRow>
+                                <TableCell colSpan={11} className="bg-slate-50 p-3">
+                                  <div className="text-xs font-semibold mb-2">Usage History</div>
+                                  <AuthUsageHistory
+                                    authorizationId={auth.id}
+                                    clinicId={auth.clinic_id}
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </React.Fragment>
                           );
                         })}
                       </TableBody>
