@@ -31,6 +31,14 @@ import PTDischarge from './pt/PTDischarge';
 import type { PTFormData } from '@/types/notes/pt';
 import { createEmptyPTFormData } from '@/types/notes/pt';
 
+// OT discipline forms
+import OTDailySOAP from './ot/OTDailySOAP';
+import OTEvaluation from './ot/OTEvaluation';
+import OTReEvaluation from './ot/OTReEvaluation';
+import OTDischarge from './ot/OTDischarge';
+import type { OTFormData } from '@/types/notes/ot';
+import { createEmptyOTFormData } from '@/types/notes/ot';
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -188,15 +196,26 @@ export default function NoteEditor({
       if (noteType === 're_evaluation') return PTReEvaluation;
       if (noteType === 'discharge') return PTDischarge;
     }
-    // OT/ST will be added in future prompts
+    if (discipline === 'OT') {
+      if (noteType === 'daily_soap') return OTDailySOAP;
+      if (noteType === 'evaluation') return OTEvaluation;
+      if (noteType === 're_evaluation') return OTReEvaluation;
+      if (noteType === 'discharge') return OTDischarge;
+    }
+    // ST will be added in a future prompt
     return null;
   }, [discipline, noteType]);
 
-  // Ensure PT form data is initialized with the correct shape
+  // Ensure discipline form data is initialized with the correct shape
   useEffect(() => {
-    if (discipline === 'PT' && formData && !formData.meta) {
-      const initial = createEmptyPTFormData(noteType);
-      setFormData(initial as unknown as Record<string, unknown>);
+    if (formData && !formData.meta) {
+      if (discipline === 'PT') {
+        const initial = createEmptyPTFormData(noteType);
+        setFormData(initial as unknown as Record<string, unknown>);
+      } else if (discipline === 'OT') {
+        const initial = createEmptyOTFormData(noteType);
+        setFormData(initial as unknown as Record<string, unknown>);
+      }
     }
   }, [discipline, noteType]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -375,8 +394,8 @@ export default function NoteEditor({
       {/* ============================================================== */}
       {FormComponent ? (
         <FormComponent
-          formData={formData as unknown as PTFormData}
-          onChange={(data: PTFormData) =>
+          formData={formData as unknown as PTFormData & OTFormData}
+          onChange={(data: PTFormData | OTFormData) =>
             handleFormDataChange(data as unknown as Record<string, unknown>)
           }
           readOnly={isFinalized}
