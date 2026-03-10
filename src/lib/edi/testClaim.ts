@@ -1,5 +1,5 @@
 /**
- * Buckeye EMR — Sample Test Claim Data
+ * Eccentrix EMR — Sample Test Claim Data
  *
  * Realistic physical therapy claim data for testing the 837P generator.
  * Uses common PT CPT codes, GP modifier, and ICD-10 diagnosis code M54.5

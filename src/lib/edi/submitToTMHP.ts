@@ -1,5 +1,5 @@
 /**
- * Buckeye EMR — TMHP EDI Gateway SFTP Upload Module
+ * Eccentrix EMR — TMHP EDI Gateway SFTP Upload Module
  *
  * Uploads generated 837P EDI files to TMHP's (Texas Medicaid & Healthcare
  * Partnership) EDI Gateway via SFTP using the ssh2-sftp-client package.

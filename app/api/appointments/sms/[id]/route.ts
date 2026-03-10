@@ -10,11 +10,11 @@
  * Body:
  *   { status: string, therapist_user_id?: string, clinic_id?: string }
  *
- * IMPORTANT — BUCKEYE SCHEDULER / SMS SAFETY NOTE:
+ * IMPORTANT — ECCENTRIX SCHEDULER / SMS SAFETY NOTE:
  * Insurance-based scheduling rules and evaluation visit-type clinician filtering
  * only apply to the UI scheduling flow (app/schedule/page.tsx via the
  * /api/eligible-clinicians endpoint). They do NOT apply here.
- * Buckeye Scheduler and PTBot insert appointments via SMS without going through
+ * Eccentrix Scheduler and PTBot insert appointments via SMS without going through
  * the scheduling UI, and these automated inserts must NOT be affected by
  * insurance-based or visit-type-based clinician filtering rules.
  */

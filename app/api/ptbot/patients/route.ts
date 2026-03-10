@@ -1,7 +1,7 @@
 /**
- * PTBot → Buckeye EMR Patient Sync Endpoint
+ * PTBot → Eccentrix EMR Patient Sync Endpoint
  *
- * Receives patient records from PTBot and upserts them into Buckeye EMR.
+ * Receives patient records from PTBot and upserts them into Eccentrix EMR.
  * Authenticates via a shared bearer token (PTBOT_API_KEY env var).
  *
  * Required environment variables:
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   const clinicId = process.env.PTBOT_DEFAULT_CLINIC_ID;
   if (!clinicId) {
     return NextResponse.json(
-      { success: false, error: 'PTBOT_DEFAULT_CLINIC_ID not configured on Buckeye EMR server' },
+      { success: false, error: 'PTBOT_DEFAULT_CLINIC_ID not configured on Eccentrix EMR server' },
       { status: 503 }
     );
   }

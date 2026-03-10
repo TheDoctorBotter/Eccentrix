@@ -1247,7 +1247,7 @@ export default function SchedulePage() {
 
           {/* Source */}
           <span className="font-semibold text-slate-500 uppercase tracking-wide">Source:</span>
-          <span className="flex items-center gap-1"><span className="text-[8px] font-semibold px-1 py-px rounded bg-slate-200 text-slate-600">SMS</span>Buckeye</span>
+          <span className="flex items-center gap-1"><span className="text-[8px] font-semibold px-1 py-px rounded bg-slate-200 text-slate-600">SMS</span>Eccentrix</span>
           <span className="flex items-center gap-1"><span className="text-[8px] font-semibold px-1 py-px rounded bg-indigo-100 text-indigo-600">App</span>PTBot</span>
         </div>
 
@@ -1860,7 +1860,7 @@ export default function SchedulePage() {
                 <div className="flex items-center gap-2 p-2 rounded-md bg-violet-50 border border-violet-200">
                   <Smartphone className="h-4 w-4 text-violet-600" />
                   <span className="text-sm font-medium text-violet-700">
-                    Booked via SMS (Buckeye Scheduler)
+                    Booked via SMS (Eccentrix Scheduler)
                   </span>
                 </div>
               )}
