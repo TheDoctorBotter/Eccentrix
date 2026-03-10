@@ -73,6 +73,7 @@ import {
   DISCIPLINE_LABELS,
   DISCIPLINE_COLORS,
   resolveDiscipline,
+  roleToDiscipline,
 } from '@/lib/types';
 import { toast } from 'sonner';
 
@@ -341,7 +342,7 @@ export default function FullscreenSchedulePage() {
             .map((m: { user_id: string; display_name?: string; email?: string; primary_discipline?: string; role?: string }) => ({
               user_id: m.user_id,
               name: m.display_name || m.email || m.user_id,
-              primary_discipline: m.primary_discipline || 'PT',
+              primary_discipline: m.primary_discipline || roleToDiscipline(m.role),
               role: m.role,
             }))
         );

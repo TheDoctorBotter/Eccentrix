@@ -74,6 +74,7 @@ import {
   DISCIPLINE_LABELS,
   DISCIPLINE_COLORS,
   resolveDiscipline,
+  roleToDiscipline,
 } from '@/lib/types';
 import { toast } from 'sonner';
 import type { InsuranceRuleResult } from '@/lib/scheduling/insuranceRules';
@@ -365,7 +366,7 @@ export default function SchedulePage() {
           .map((m: { user_id: string; display_name?: string; email?: string; primary_discipline?: string; role?: string }) => ({
             user_id: m.user_id,
             name: m.display_name || m.email || m.user_id,
-            primary_discipline: m.primary_discipline || 'PT',
+            primary_discipline: m.primary_discipline || roleToDiscipline(m.role),
             role: m.role,
           }));
         setTherapists(therapistMembers);
@@ -426,9 +427,7 @@ export default function SchedulePage() {
       // Use the full therapist list filtered to the discipline
       setEligibleTherapists(
         therapists.filter((t: TherapistOption) => {
-          if (formData.discipline === 'PT') return ['PT'].includes(t.primary_discipline || 'PT');
-          if (formData.discipline === 'OT') return t.primary_discipline === 'OT';
-          return true;
+          return t.primary_discipline === formData.discipline;
         })
       );
       return;
@@ -456,7 +455,7 @@ export default function SchedulePage() {
             (c: { user_id: string; display_name: string; primary_discipline?: string; role?: string; credential?: string | null }) => ({
               user_id: c.user_id,
               name: c.display_name,
-              primary_discipline: c.primary_discipline || 'PT',
+              primary_discipline: c.primary_discipline || roleToDiscipline(c.role),
               role: c.role,
               credential: c.credential,
             })
@@ -2643,11 +2642,9 @@ export default function SchedulePage() {
                       const allTherapistsList = formData.discipline === 'ST' ? eligibleTherapists : therapists;
                       const useAll = adminOverride && insuranceRule?.hasRule && !insuranceRule?.evaluationOverride;
                       const sourceList = useAll ? therapists.filter((t: TherapistOption) => ['slp', 'slpa'].includes(t.role || '')) : allTherapistsList;
-                      const selected = sourceList.find((t: TherapistOption) => t.user_id === val) || therapists.find((t: TherapistOption) => t.user_id === val);
                       setFormData((p: AppointmentFormData) => ({
                         ...p,
                         therapist_user_id: val,
-                        discipline: selected?.primary_discipline || p.discipline,
                       }));
                     }}
                   >

@@ -37,6 +37,23 @@ export function resolveDiscipline(d: string | null | undefined): Discipline {
   return 'PT';
 }
 
+/** Infer discipline from a clinic membership role. */
+export function roleToDiscipline(role: string | null | undefined): Discipline {
+  switch (role) {
+    case 'ot':
+    case 'ota':
+      return 'OT';
+    case 'slp':
+    case 'slpa':
+      return 'ST';
+    case 'pt':
+    case 'pta':
+      return 'PT';
+    default:
+      return 'PT';
+  }
+}
+
 // Clinical document types for finalization rules
 export type ClinicalDocType =
   | 'daily_note'
