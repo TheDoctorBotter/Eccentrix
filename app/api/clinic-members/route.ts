@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { supabaseAdmin } from '@/lib/supabase-server';
+import { roleToDiscipline } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
   try {
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
         display_name: displayName,
         first_name: provider?.first_name || null,
         last_name: provider?.last_name || null,
-        primary_discipline: provider?.primary_discipline || 'PT',
+        primary_discipline: provider?.primary_discipline || roleToDiscipline(m.role as string),
         role: m.role,
         is_active: m.is_active,
         clinic_name: m.clinic_name,

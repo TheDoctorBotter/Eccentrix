@@ -24,6 +24,7 @@ import {
   applySchedulingRule,
   InsuranceRuleResult,
 } from '@/lib/scheduling/insuranceRules';
+import { roleToDiscipline } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
   try {
@@ -150,7 +151,7 @@ export async function GET(request: NextRequest) {
           display_name: displayName,
           first_name: provider?.first_name || null,
           last_name: provider?.last_name || null,
-          primary_discipline: provider?.primary_discipline || 'PT',
+          primary_discipline: provider?.primary_discipline || roleToDiscipline(m.role as string),
           role: m.role as string,
           // Use the canonical credential field if set, otherwise fall back to
           // inferring from the free-text credentials display string
