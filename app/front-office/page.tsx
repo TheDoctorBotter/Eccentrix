@@ -422,14 +422,14 @@ export default function FrontOfficePage() {
                     </Button>
                   </div>
 
-                  {/* Buckeye Scheduler */}
+                  {/* Eccentrix Scheduler */}
                   <div className="p-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 text-center">
                     <ClipboardList className="h-8 w-8 mx-auto mb-2 text-slate-400" />
                     <p className="text-sm font-medium text-slate-700">
-                      Buckeye Scheduler
+                      Eccentrix Scheduler
                     </p>
                     <p className="text-xs text-slate-500 mt-1 mb-3">
-                      Sync from Buckeye Scheduler app
+                      Sync from Eccentrix Scheduler
                     </p>
                     <div className="flex items-center justify-center gap-2">
                       <div className="h-2 w-2 rounded-full bg-slate-300" />

@@ -38,7 +38,7 @@ async function sendCancellationSms(
   try {
     const dateStr = formatLocalDate(appointmentDate, 'EEEE, MMMM d, h:mm a');
 
-    const message = `[Buckeye PT] Patient ${patientName} has cancelled their appointment on ${dateStr} via the patient app.`;
+    const message = `[Eccentrix] Patient ${patientName} has cancelled their appointment on ${dateStr} via the patient app.`;
 
     // Twilio REST API call
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;

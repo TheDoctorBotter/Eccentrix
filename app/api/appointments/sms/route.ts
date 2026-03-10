@@ -9,10 +9,10 @@
  *   - from: ISO date string — filter appointments on or after this time
  *   - to:   ISO date string — filter appointments on or before this time
  *
- * IMPORTANT — BUCKEYE SCHEDULER / SMS SAFETY NOTE:
+ * IMPORTANT — ECCENTRIX SCHEDULER / SMS SAFETY NOTE:
  * Insurance-based scheduling rules and evaluation visit-type clinician filtering
  * only apply to the UI scheduling flow (app/schedule/page.tsx via the
- * /api/eligible-clinicians endpoint). They do NOT apply to this SMS/Buckeye
+ * /api/eligible-clinicians endpoint). They do NOT apply to this SMS/Eccentrix
  * Scheduler path. Automated SMS inserts are not subject to insurance-based or
  * visit-type-based clinician filtering.
  */

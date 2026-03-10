@@ -1,5 +1,5 @@
 /**
- * Buckeye EMR — EDI 837P & 835 TypeScript Interfaces
+ * Eccentrix EMR — EDI 837P & 835 TypeScript Interfaces
  * ANSI X12 5010 005010X222A1 (Professional Claims)
  *
  * All data structures used for:

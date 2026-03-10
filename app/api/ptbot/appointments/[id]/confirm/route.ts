@@ -7,7 +7,7 @@
  *
  * NOTE: Insurance-based scheduling rules and visit-type clinician filtering
  * do NOT apply to this endpoint. These rules only apply to the UI scheduling
- * flow. PTBot/Buckeye Scheduler automated actions are not subject to those rules.
+ * flow. PTBot/Eccentrix Scheduler automated actions are not subject to those rules.
  */
 
 import { NextRequest, NextResponse } from 'next/server';

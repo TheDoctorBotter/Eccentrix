@@ -1475,7 +1475,7 @@ export default function FullscreenSchedulePage() {
               {selectedVisit.source === 'sms' && (
                 <div className="flex items-center gap-2 p-2 rounded-md bg-violet-50 border border-violet-200">
                   <Smartphone className="h-4 w-4 text-violet-600" />
-                  <span className="text-sm font-medium text-violet-700">Booked via SMS (Buckeye Scheduler)</span>
+                  <span className="text-sm font-medium text-violet-700">Booked via SMS (Eccentrix Scheduler)</span>
                 </div>
               )}
               <div className="flex items-center justify-between">
