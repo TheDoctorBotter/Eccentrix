@@ -35,7 +35,7 @@ function checkRateLimit(key: string): boolean {
 // Required-field definitions per note type
 // ---------------------------------------------------------------------------
 
-const REQUIRED_FIELDS: Record<string, string[]> = {
+const PT_REQUIRED_FIELDS: Record<string, string[]> = {
   daily_soap: [
     'subjective.subjectiveReport',
     'objective.interventions',
@@ -64,6 +64,35 @@ const REQUIRED_FIELDS: Record<string, string[]> = {
   ],
 };
 
+const OT_REQUIRED_FIELDS: Record<string, string[]> = {
+  daily_soap: [
+    'subjective.caregiverReport',
+    'objective.responseToTreatment',
+    'plan.planNextSession',
+  ],
+  evaluation: [
+    'meta.referralDiagnosis',
+    'meta.chiefComplaint',
+    'assessment.clinicalImpression',
+    'plan.frequencyDuration',
+    'plan.skilledNeedJustification',
+  ],
+  re_evaluation: [
+    'assessment.progressTowardGoals',
+    'plan.medicalNecessityContinued',
+  ],
+  discharge: [
+    'meta.totalVisitsCompleted',
+    'plan.dischargeReason',
+    'assessment.progressTowardGoals',
+  ],
+};
+
+const REQUIRED_FIELDS: Record<string, Record<string, string[]>> = {
+  PT: PT_REQUIRED_FIELDS,
+  OT: OT_REQUIRED_FIELDS,
+};
+
 function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   return path.split('.').reduce((o: unknown, key) => {
     if (o && typeof o === 'object') return (o as Record<string, unknown>)[key];
@@ -73,9 +102,11 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
 
 function detectMissingFields(
   noteType: string,
-  formData: Record<string, unknown>
+  formData: Record<string, unknown>,
+  discipline?: string
 ): string[] {
-  const required = REQUIRED_FIELDS[noteType] || [];
+  const disciplineFields = REQUIRED_FIELDS[discipline || 'PT'] || PT_REQUIRED_FIELDS;
+  const required = disciplineFields[noteType] || [];
   return required.filter((path) => {
     const val = getNestedValue(formData, path);
     if (val === undefined || val === null || val === '') return true;
@@ -121,7 +152,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for missing fields
-    const missingFields = detectMissingFields(noteType, formData || {});
+    const missingFields = detectMissingFields(noteType, formData || {}, discipline);
 
     // OpenAI API setup (reuse existing env vars)
     const apiKey = process.env.OPENAI_API_KEY;
@@ -247,14 +278,50 @@ Return your response as a JSON object with exactly two fields:
 }`;
   }
 
-  // Default prompt for OT/ST (to be extended later)
-  const disciplineName =
-    discipline === 'OT'
-      ? 'occupational therapy'
-      : 'speech-language pathology';
+  // OT-specific prompt
+  if (discipline === 'OT') {
+    return `You are a licensed occupational therapist writing clinical documentation for a pediatric outpatient clinic serving patients on Texas Medicaid (TMHP) and private insurance.
 
+For daily SOAP notes:
+- Subjective: summarize caregiver report in natural clinical language
+- Objective: for each goal addressed, describe the skills practiced, cuing level required, and accuracy achieved in flowing clinical narrative — do not list as checkboxes
+- Assessment: describe response to treatment, progress trends, sensory or behavioral observations
+- Plan: describe next session focus and any modifications to approach
+
+For each goal addressed, connect the specific functional deficit to the child's ability to participate in age-appropriate occupations — self-care, play, school readiness, social participation.
+
+For evaluations and re-evaluations:
+- Document sensory processing patterns using clinical OT terminology
+- Establish medical necessity by linking deficits to occupational performance limitations
+- State measurable baselines for functional performance areas
+
+For Medicaid (TMHP) reviewers:
+- Link every skill deficit to a functional limitation in a named daily occupation
+- State why skilled OT is required and cannot be met through a home program alone
+
+For private insurance reviewers:
+- Include functional progress, skilled need, and expected outcomes with timelines
+
+Never fabricate:
+- Accuracy percentages
+- Cuing levels
+- Developmental history
+- Assessment scores
+- Sensory processing ratings
+
+If a field is empty, state it was not assessed.
+Return missingFields array for any clinically required fields that were empty.
+
+Return your response as a JSON object with exactly two fields:
+{
+  "narrative": "The full clinical note text",
+  "medicalNecessity": "Medical necessity justification statement"
+}`;
+  }
+
+  // Default prompt for ST (to be extended later)
   return `You are a licensed clinician writing clinical documentation for a pediatric outpatient therapy clinic.
-Write in professional clinical language appropriate to ${disciplineName} (${discipline}).
+Write in professional clinical language appropriate to speech-language pathology (ST).
 Include medical necessity language appropriate for both Medicaid (TMHP) and private insurance reviewers.
 Format daily notes using S/O/A/P structure.
 Format evaluations, re-evaluations, and discharge summaries using appropriate clinical structure for the discipline.
@@ -277,8 +344,26 @@ function buildUserPrompt(
 ): string {
   let prompt = `Generate a ${discipline} ${noteType.replace(/_/g, ' ')} note.\n\n`;
 
-  if (Object.keys(formData).length > 0) {
-    prompt += `CLINICAL DATA:\n${JSON.stringify(formData, null, 2)}\n\n`;
+  // For OT daily SOAP, strip goals where status is 'Not Addressed'
+  let processedFormData = formData;
+  if (discipline === 'OT' && noteType === 'daily_soap') {
+    const objective = formData.objective as Record<string, unknown> | undefined;
+    if (objective?.goalsAddressed && Array.isArray(objective.goalsAddressed)) {
+      const addressedGoals = (objective.goalsAddressed as Array<Record<string, unknown>>).filter(
+        (g) => g.status !== 'Not Addressed'
+      );
+      processedFormData = {
+        ...formData,
+        objective: {
+          ...objective,
+          goalsAddressed: addressedGoals,
+        },
+      };
+    }
+  }
+
+  if (Object.keys(processedFormData).length > 0) {
+    prompt += `CLINICAL DATA:\n${JSON.stringify(processedFormData, null, 2)}\n\n`;
   }
 
   if (Object.keys(patientContext).length > 0) {
