@@ -37,28 +37,30 @@ function checkRateLimit(key: string): boolean {
 
 const REQUIRED_FIELDS: Record<string, string[]> = {
   daily_soap: [
-    'subjective',
+    'subjective.subjectiveReport',
     'objective.interventions',
-    'assessment.progression',
-    'plan.next_session_focus',
+    'objective.responseToTreatment',
+    'plan.planNextSession',
   ],
   evaluation: [
-    'patientDemographic.diagnosis',
-    'patientDemographic.dateOfBirth',
-    'objective.key_measures',
-    'assessment.impairments',
-    'plan.frequency_duration',
+    'meta.referralDiagnosis',
+    'meta.chiefComplaint',
+    'objective.rom',
+    'objective.strength',
+    'assessment.clinicalImpression',
+    'plan.frequencyDuration',
+    'plan.skilledNeedJustification',
   ],
   re_evaluation: [
-    'patientDemographic.diagnosis',
-    'objective.key_measures',
-    'assessment.progression',
-    'plan.frequency_duration',
+    'assessment.progressTowardGoals',
+    'objective.rom',
+    'objective.strength',
+    'meta.medicalNecessityContinued',
   ],
   discharge: [
-    'patientDemographic.diagnosis',
-    'assessment.progression',
-    'plan.next_session_focus',
+    'meta.totalVisitsCompleted',
+    'plan.dischargeReason',
+    'assessment.progressTowardGoals',
   ],
 };
 
@@ -134,7 +136,7 @@ export async function POST(request: NextRequest) {
     const model = process.env.OPENAI_MODEL || 'gpt-4-turbo-preview';
 
     // Build prompts
-    const systemPrompt = buildSystemPrompt(discipline);
+    const systemPrompt = buildSystemPrompt(discipline, noteType);
     const userPrompt = buildUserPrompt(discipline, noteType, formData || {}, patientContext || {}, missingFields);
 
     const response = await fetch(`${apiBase}/chat/completions`, {
@@ -201,13 +203,55 @@ export async function POST(request: NextRequest) {
 // Prompt builders
 // ---------------------------------------------------------------------------
 
-function buildSystemPrompt(discipline: string): string {
+function buildSystemPrompt(discipline: string, noteType?: string): string {
+  // PT-specific prompt
+  if (discipline === 'PT') {
+    return `You are a licensed physical therapist writing clinical documentation for a pediatric outpatient clinic serving patients on Texas Medicaid (TMHP) and private insurance.
+
+For daily SOAP notes:
+- Subjective: document patient/caregiver report of pain, function, and progress
+- Objective: describe each intervention performed, body region, parameters, and patient response using clinical PT terminology
+- Assessment: state progress toward goals, response to skilled intervention, and clinical reasoning
+- Plan: describe next session focus and any modifications
+
+For evaluations:
+- Establish medical necessity by documenting specific functional deficits and how they impact the child's ability to perform age-appropriate activities
+- State measurable baselines for all key functional areas
+- Justify why skilled PT is required and cannot be achieved through a home program alone
+
+For re-evaluations:
+- Document measurable progress since initial evaluation
+- Justify continued skilled PT need with specific functional improvements and remaining deficits
+
+For discharge notes:
+- Summarize functional gains from initial to discharge
+- State goals met and any that were not met with clinical reasoning
+
+For Medicaid (TMHP) reviewers:
+- Use specific functional limitation language
+- Include measurable baselines and targets
+- State why the patient cannot progress without skilled PT intervention
+
+For private insurance reviewers:
+- Include functional progress, skilled need, and expected outcomes with timelines
+
+Use the 8-minute rule context only when documenting unit justification.
+Never fabricate clinical data, ROM measurements, or strength grades.
+If a field is empty, state it was not assessed — never invent a value.
+Return missingFields array for any required fields that were empty.
+
+Return your response as a JSON object with exactly two fields:
+{
+  "narrative": "The full clinical note text",
+  "medicalNecessity": "Medical necessity justification statement"
+}`;
+  }
+
+  // Default prompt for OT/ST (to be extended later)
   const disciplineName =
-    discipline === 'PT'
-      ? 'physical therapy'
-      : discipline === 'OT'
-        ? 'occupational therapy'
-        : 'speech-language pathology';
+    discipline === 'OT'
+      ? 'occupational therapy'
+      : 'speech-language pathology';
 
   return `You are a licensed clinician writing clinical documentation for a pediatric outpatient therapy clinic.
 Write in professional clinical language appropriate to ${disciplineName} (${discipline}).
