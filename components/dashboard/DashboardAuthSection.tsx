@@ -526,11 +526,11 @@ export function DashboardAuthSection({ clinicId }: Props) {
             <>
               <div className="space-y-2">
                 {pageAuths.map((auth) => {
-                  const remaining =
-                    auth.auth_type === 'units'
-                      ? (auth.units_authorized ?? 0) - (auth.units_used ?? 0)
-                      : auth.remaining_visits ??
-                        (auth.authorized_visits ?? 0) - auth.used_visits;
+                  const isUnitBasedAuth = auth.auth_type === 'units' || ['PT', 'OT'].includes(auth.discipline?.toUpperCase() ?? '');
+                  const remaining = isUnitBasedAuth
+                    ? (auth.units_authorized ?? 0) - (auth.units_used ?? 0)
+                    : auth.remaining_visits ??
+                      (auth.authorized_visits ?? 0) - auth.used_visits;
                   const endTs = safeDateTimestamp(auth.end_date, Date.now());
                   const daysToExpiry = Math.ceil(
                     (endTs - Date.now()) /

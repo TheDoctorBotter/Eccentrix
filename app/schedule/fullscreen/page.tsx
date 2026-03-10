@@ -589,12 +589,15 @@ export default function FullscreenSchedulePage() {
         if (authIdToDecrement && completedVisitId && !completedVisitId.startsWith('sms-')) {
           try {
             // Calculate units from actual duration using the 8-minute rule
+            // (8-22 min = 1 unit, each additional 15 min = +1 unit)
             const durationMins = completionData?.actual_duration_minutes
               ?? visit?.actual_duration_minutes
               ?? visit?.total_treatment_minutes;
-            const unitsUsed = durationMins && durationMins >= 8
-              ? Math.ceil(durationMins / 15)
-              : 1;
+            let unitsUsed = 1;
+            if (durationMins && durationMins >= 8) {
+              // 8-minute rule: first unit at 8 min, each subsequent at 15 min intervals
+              unitsUsed = Math.max(1, Math.floor((durationMins + 7) / 15));
+            }
 
             await fetch('/api/authorizations/decrement', {
               method: 'POST',
