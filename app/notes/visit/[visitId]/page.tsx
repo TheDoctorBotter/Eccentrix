@@ -20,6 +20,7 @@ interface Visit {
   start_time: string | null;
   end_time: string | null;
   status: string | null;
+  actual_duration_minutes?: number | null;
 }
 
 export default function VisitNotePage() {
@@ -32,6 +33,7 @@ export default function VisitNotePage() {
 
   const [visit, setVisit] = useState<Visit | null>(null);
   const [note, setNote] = useState<Note | null>(null);
+  const [patientDiagnosis, setPatientDiagnosis] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,6 +56,21 @@ export default function VisitNotePage() {
       }
       const visitData: Visit = await visitRes.json();
       setVisit(visitData);
+
+      // 1b) Fetch patient diagnosis for ICD-10 pre-population
+      if (visitData.patient_id) {
+        try {
+          const patientRes = await fetch(`/api/patients/${visitData.patient_id}`);
+          if (patientRes.ok) {
+            const patientData = await patientRes.json();
+            if (patientData.primary_diagnosis) {
+              setPatientDiagnosis(patientData.primary_diagnosis);
+            }
+          }
+        } catch {
+          // Non-critical — continue without diagnosis pre-population
+        }
+      }
 
       // 2) Check for existing note for this visit + note_type
       const notesRes = await fetch(
@@ -179,6 +196,17 @@ export default function VisitNotePage() {
             therapistId={visit.therapist_user_id || undefined}
             existingNote={note}
             onFinalize={handleFinalize}
+            visitDurationMinutes={
+              visit.actual_duration_minutes ??
+              (visit.start_time && visit.end_time
+                ? Math.round(
+                    (new Date(visit.end_time).getTime() -
+                      new Date(visit.start_time).getTime()) /
+                      60000
+                  )
+                : undefined)
+            }
+            patientDiagnosis={patientDiagnosis}
           />
         )}
       </div>

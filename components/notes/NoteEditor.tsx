@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -22,6 +22,14 @@ import {
   CheckCircle,
   Lock,
 } from 'lucide-react';
+
+// PT discipline forms
+import PTDailySOAP from './pt/PTDailySOAP';
+import PTEvaluation from './pt/PTEvaluation';
+import PTReEvaluation from './pt/PTReEvaluation';
+import PTDischarge from './pt/PTDischarge';
+import type { PTFormData } from '@/types/notes/pt';
+import { createEmptyPTFormData } from '@/types/notes/pt';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,6 +61,10 @@ export interface NoteEditorProps {
   therapistId?: string;
   existingNote?: Note;
   onFinalize: (note: Note) => void;
+  /** Visit actual duration for 8-minute rule unit calculation */
+  visitDurationMinutes?: number;
+  /** Patient primary diagnosis for ICD-10 pre-population */
+  patientDiagnosis?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -68,6 +80,8 @@ export default function NoteEditor({
   therapistId,
   existingNote,
   onFinalize,
+  visitDurationMinutes,
+  patientDiagnosis,
 }: NoteEditorProps) {
   // ---- State ----
   const [note, setNote] = useState<Note | null>(existingNote ?? null);
@@ -162,6 +176,29 @@ export default function NoteEditor({
     },
     [note?.id, isFinalized, saveDraft]
   );
+
+  // ------------------------------------------------------------------
+  // Discipline-specific form routing
+  // ------------------------------------------------------------------
+
+  const FormComponent = useMemo(() => {
+    if (discipline === 'PT') {
+      if (noteType === 'daily_soap') return PTDailySOAP;
+      if (noteType === 'evaluation') return PTEvaluation;
+      if (noteType === 're_evaluation') return PTReEvaluation;
+      if (noteType === 'discharge') return PTDischarge;
+    }
+    // OT/ST will be added in future prompts
+    return null;
+  }, [discipline, noteType]);
+
+  // Ensure PT form data is initialized with the correct shape
+  useEffect(() => {
+    if (discipline === 'PT' && formData && !formData.meta) {
+      const initial = createEmptyPTFormData(noteType);
+      setFormData(initial as unknown as Record<string, unknown>);
+    }
+  }, [discipline, noteType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ------------------------------------------------------------------
   // Generate Draft
@@ -334,25 +371,33 @@ export default function NoteEditor({
       )}
 
       {/* ============================================================== */}
-      {/* 1) Form Section — placeholder for discipline-specific content */}
+      {/* 1) Form Section — discipline-specific content */}
       {/* ============================================================== */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Clinical Data Entry</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
-            <p>
-              Discipline-specific form fields for{' '}
-              <strong>{discipline}</strong> will be rendered here.
-            </p>
-            <p className="mt-1 text-xs text-slate-400">
-              This section accepts child components that emit structured
-              form_data on every change.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      {FormComponent ? (
+        <FormComponent
+          formData={formData as unknown as PTFormData}
+          onChange={(data: PTFormData) =>
+            handleFormDataChange(data as unknown as Record<string, unknown>)
+          }
+          readOnly={isFinalized}
+          visitDurationMinutes={visitDurationMinutes}
+          patientDiagnosis={patientDiagnosis}
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Clinical Data Entry</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+              <p>
+                Discipline-specific form fields for{' '}
+                <strong>{discipline}</strong> will be available soon.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ============================================================== */}
       {/* 2) Generate Draft Button */}
