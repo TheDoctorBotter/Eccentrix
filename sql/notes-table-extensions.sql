@@ -80,6 +80,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS notes_one_draft_per_visit_note_type
 -- Drop the open policy if it exists, then create clinic-scoped policies.
 
 DROP POLICY IF EXISTS "Staff full access" ON notes;
+DROP POLICY IF EXISTS "notes_select" ON notes;
+DROP POLICY IF EXISTS "notes_insert" ON notes;
+DROP POLICY IF EXISTS "notes_update" ON notes;
+DROP POLICY IF EXISTS "notes_delete" ON notes;
 
 -- SELECT: clinic members can read their own clinic notes
 CREATE POLICY "notes_select" ON notes FOR SELECT
