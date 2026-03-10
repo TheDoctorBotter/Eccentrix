@@ -60,6 +60,17 @@ interface AuthAlert {
   patient_name?: string;
 }
 
+interface LowBalanceAlert {
+  id: string;
+  patient_id: string;
+  patient_name: string;
+  discipline: string;
+  remaining: number;
+  unit_label: string; // 'visits' or 'units'
+  end_date: string | null;
+  auth_number: string | null;
+}
+
 export default function HomePage() {
   const { currentClinic, loading: authLoading, isEmrMode } = useAuth();
   const [episodes, setEpisodes] = useState<Episode[]>([]);
@@ -67,6 +78,7 @@ export default function HomePage() {
   const [telehealthDrafts, setTelehealthDrafts] = useState<TelehealthDraft[]>([]);
   const [authAlerts, setAuthAlerts] = useState<AuthAlert[]>([]);
   const [expiringAuths, setExpiringAuths] = useState<{ id: string; patient_name: string; discipline: string; end_date: string; days_remaining: number }[]>([]);
+  const [lowBalanceAlerts, setLowBalanceAlerts] = useState<LowBalanceAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [clinicLogoUrl, setClinicLogoUrl] = useState<string | null>(null);
   const prevClinicId = useRef<string | null>(null);
@@ -180,6 +192,75 @@ export default function HomePage() {
     }
   }, []);
 
+  const fetchLowBalanceAuths = useCallback(async (clinicId: string) => {
+    try {
+      const res = await fetch(`/api/authorizations?clinic_id=${clinicId}&status=approved`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!Array.isArray(data)) return;
+
+      const lowBalance: LowBalanceAlert[] = [];
+
+      for (const auth of data) {
+        const disc = auth.discipline || 'PT';
+
+        if (disc === 'ST') {
+          // ST: check remaining_visits
+          if (auth.remaining_visits != null && auth.remaining_visits <= 5) {
+            lowBalance.push({
+              id: auth.id,
+              patient_id: auth.patient_id,
+              patient_name: '',
+              discipline: disc,
+              remaining: auth.remaining_visits,
+              unit_label: 'visits',
+              end_date: auth.end_date || null,
+              auth_number: auth.auth_number || null,
+            });
+          }
+        } else if (disc === 'PT' || disc === 'OT') {
+          // PT/OT: check remaining_units
+          if (auth.remaining_units != null && auth.remaining_units <= 16) {
+            lowBalance.push({
+              id: auth.id,
+              patient_id: auth.patient_id,
+              patient_name: '',
+              discipline: disc,
+              remaining: auth.remaining_units,
+              unit_label: 'units',
+              end_date: auth.end_date || null,
+              auth_number: auth.auth_number || null,
+            });
+          }
+        }
+      }
+
+      // Resolve patient names
+      if (lowBalance.length > 0) {
+        const patRes = await fetch(`/api/patients?clinic_id=${clinicId}`);
+        if (patRes.ok) {
+          const patients = await patRes.json();
+          const patMap = new Map(
+            (Array.isArray(patients) ? patients : []).map(
+              (p: { id: string; first_name: string; last_name: string }) => [
+                p.id,
+                `${p.last_name}, ${p.first_name}`,
+              ]
+            )
+          );
+          for (const a of lowBalance) {
+            a.patient_name = (patMap.get(a.patient_id) as string) || 'Unknown';
+          }
+        }
+      }
+
+      // Sort by lowest remaining balance first
+      setLowBalanceAlerts(lowBalance.sort((a, b) => a.remaining - b.remaining));
+    } catch (error) {
+      console.error('Error fetching low-balance auths:', error);
+    }
+  }, []);
+
   const dismissAuthAlert = async (authId: string, level: '30' | '15') => {
     try {
       const field = level === '30' ? 'alert_30_dismissed_at' : 'alert_15_dismissed_at';
@@ -204,6 +285,7 @@ export default function HomePage() {
       fetchTelehealthDrafts(currentClinic.clinic_id);
       fetchAuthAlerts(currentClinic.clinic_id);
       if (PAPER_MODE) fetchExpiringAuths(currentClinic.clinic_id);
+      fetchLowBalanceAuths(currentClinic.clinic_id);
 
       // Fetch clinic branding logo
       if (prevClinicId.current !== currentClinic.clinic_id) {
@@ -214,7 +296,7 @@ export default function HomePage() {
           .catch(() => setClinicLogoUrl(null));
       }
     }
-  }, [currentClinic, fetchAuthAlerts, fetchExpiringAuths]);
+  }, [currentClinic, fetchAuthAlerts, fetchExpiringAuths, fetchLowBalanceAuths]);
 
   const fetchCaseload = async (clinicId: string) => {
     setLoading(true);
@@ -343,26 +425,26 @@ export default function HomePage() {
                     <CardTitle className="text-lg">Alerts</CardTitle>
                   </div>
                   {PAPER_MODE ? (
-                    expiringAuths.length > 0 && (
-                      <Badge variant="destructive">{expiringAuths.length}</Badge>
+                    (expiringAuths.length + lowBalanceAlerts.length) > 0 && (
+                      <Badge variant="destructive">{expiringAuths.length + lowBalanceAlerts.length}</Badge>
                     )
                   ) : (
-                    alerts.length > 0 && (
-                      <Badge variant="destructive">{alerts.length}</Badge>
+                    (alerts.length + lowBalanceAlerts.length) > 0 && (
+                      <Badge variant="destructive">{alerts.length + lowBalanceAlerts.length}</Badge>
                     )
                   )}
                 </div>
                 <CardDescription>
-                  {PAPER_MODE ? 'Authorization expirations' : 'Documentation due today'}
+                  {PAPER_MODE ? 'Authorization expirations & low balances' : 'Documentation & authorization alerts'}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {PAPER_MODE ? (
-                  /* Paper mode: show authorization expiration alerts */
-                  expiringAuths.length === 0 ? (
+                  /* Paper mode: show authorization expiration alerts + low balance */
+                  (expiringAuths.length === 0 && lowBalanceAlerts.length === 0) ? (
                     <div className="text-center py-6 text-slate-500">
                       <AlertCircle className="h-8 w-8 mx-auto mb-2 text-slate-300" />
-                      <p>No authorizations ending within 30 days.</p>
+                      <p>No authorization alerts.</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -417,11 +499,45 @@ export default function HomePage() {
                           </div>
                         );
                       })}
+                      {lowBalanceAlerts.map((alert) => (
+                        <div
+                          key={`low-${alert.id}`}
+                          className="flex items-center justify-between p-3 border rounded-lg bg-red-50 border-red-300"
+                        >
+                          <div className="flex items-center gap-3">
+                            <AlertCircle className="h-5 w-5 text-red-500" />
+                            <div>
+                              <p className="font-medium text-slate-900">
+                                {alert.patient_name}
+                                <Badge
+                                  variant="outline"
+                                  className={`ml-2 text-xs ${
+                                    alert.discipline === 'PT'
+                                      ? 'bg-blue-100 text-blue-700 border-blue-200'
+                                      : alert.discipline === 'OT'
+                                        ? 'bg-lime-100 text-lime-700 border-lime-200'
+                                        : 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                                  }`}
+                                >
+                                  {alert.discipline}
+                                </Badge>
+                              </p>
+                              <p className="text-sm text-red-700">
+                                {alert.discipline} authorization low: {alert.remaining} {alert.unit_label} remaining
+                                {alert.end_date ? ` · Ends: ${formatLocalDate(alert.end_date, 'MM/dd/yyyy')}` : ''}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-sm font-semibold px-2 py-1 rounded bg-red-100 text-red-700 border border-red-300">
+                            {alert.remaining} {alert.unit_label}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   )
                 ) : (
-                  /* Normal mode: documentation alerts */
-                  alerts.length === 0 ? (
+                  /* Normal mode: documentation alerts + low balance */
+                  (alerts.length === 0 && lowBalanceAlerts.length === 0) ? (
                     <div className="text-center py-6 text-slate-500">
                       <AlertCircle className="h-8 w-8 mx-auto mb-2 text-slate-300" />
                       <p>No alerts due today</p>
@@ -450,6 +566,40 @@ export default function HomePage() {
                               <ChevronRight className="ml-1 h-4 w-4" />
                             </Button>
                           </Link>
+                        </div>
+                      ))}
+                      {lowBalanceAlerts.map((alert) => (
+                        <div
+                          key={`low-${alert.id}`}
+                          className="flex items-center justify-between p-3 border rounded-lg bg-red-50 border-red-300"
+                        >
+                          <div className="flex items-center gap-3">
+                            <AlertCircle className="h-5 w-5 text-red-500" />
+                            <div>
+                              <p className="font-medium text-slate-900">
+                                {alert.patient_name}
+                                <Badge
+                                  variant="outline"
+                                  className={`ml-2 text-xs ${
+                                    alert.discipline === 'PT'
+                                      ? 'bg-blue-100 text-blue-700 border-blue-200'
+                                      : alert.discipline === 'OT'
+                                        ? 'bg-lime-100 text-lime-700 border-lime-200'
+                                        : 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                                  }`}
+                                >
+                                  {alert.discipline}
+                                </Badge>
+                              </p>
+                              <p className="text-sm text-red-700">
+                                {alert.discipline} authorization low: {alert.remaining} {alert.unit_label} remaining
+                                {alert.end_date ? ` · Ends: ${formatLocalDate(alert.end_date, 'MM/dd/yyyy')}` : ''}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-sm font-semibold px-2 py-1 rounded bg-red-100 text-red-700 border border-red-300">
+                            {alert.remaining} {alert.unit_label}
+                          </span>
                         </div>
                       ))}
                     </div>
