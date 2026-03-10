@@ -3,14 +3,24 @@
 -- Run this manually in the Supabase SQL Editor.
 -- ==========================================================================
 
--- PHASE 2A: Add new columns (safe — uses IF NOT EXISTS)
+-- PHASE 2A-1: Extend the note_type ENUM with new values
+-- -------------------------------------------------------
+-- The note_type column already exists as a PostgreSQL ENUM.
+-- We need to add the new values the application uses.
+-- ADD VALUE IF NOT EXISTS is safe to run multiple times.
+
+ALTER TYPE note_type ADD VALUE IF NOT EXISTS 'evaluation';
+ALTER TYPE note_type ADD VALUE IF NOT EXISTS 're_evaluation';
+ALTER TYPE note_type ADD VALUE IF NOT EXISTS 'discharge';
+
+-- PHASE 2A-2: Add new columns (safe — uses IF NOT EXISTS)
 -- -------------------------------------------------------
 -- NOTE: Many columns may already exist (visit_id, clinic_id, patient_id,
--- status, finalized_at, finalized_by). The IF NOT EXISTS clause prevents errors.
+-- status, finalized_at, finalized_by, note_type). IF NOT EXISTS prevents errors.
+-- note_type is NOT included here — it already exists as an enum column.
 
 alter table notes
   add column if not exists discipline text null,
-  add column if not exists note_type text null,
   add column if not exists visit_id uuid references visits(id),
   add column if not exists clinic_id uuid references clinics(id),
   add column if not exists form_data jsonb null,
@@ -24,6 +34,8 @@ alter table notes
 -- PHASE 2B: Check constraints
 -- -------------------------------------------------------
 -- These use DO blocks to avoid errors if constraints already exist.
+-- NOTE: No check constraint is needed for note_type — the ENUM itself
+-- enforces valid values (daily_soap, pt_evaluation, evaluation, re_evaluation, discharge).
 
 DO $$
 BEGIN
@@ -33,17 +45,6 @@ BEGIN
     ALTER TABLE notes
       ADD CONSTRAINT notes_discipline_check
       CHECK (discipline IN ('PT','OT','ST') OR discipline IS NULL);
-  END IF;
-END $$;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'notes_note_type_check'
-  ) THEN
-    ALTER TABLE notes
-      ADD CONSTRAINT notes_note_type_check
-      CHECK (note_type IN ('daily_soap','evaluation','re_evaluation','discharge') OR note_type IS NULL);
   END IF;
 END $$;
 
