@@ -219,18 +219,23 @@ export default function HomePage() {
             });
           }
         } else if (disc === 'PT' || disc === 'OT') {
-          // PT/OT: check remaining_units
-          if (auth.remaining_units != null && auth.remaining_units <= 16) {
-            lowBalance.push({
-              id: auth.id,
-              patient_id: auth.patient_id,
-              patient_name: '',
-              discipline: disc,
-              remaining: auth.remaining_units,
-              unit_label: 'units',
-              end_date: auth.end_date || null,
-              auth_number: auth.auth_number || null,
-            });
+          // PT/OT: compute remaining units (no generated column in DB)
+          const unitsAuth = auth.units_authorized;
+          const unitsUsed = auth.units_used ?? 0;
+          if (unitsAuth != null) {
+            const remainingUnits = unitsAuth - unitsUsed;
+            if (remainingUnits <= 16) {
+              lowBalance.push({
+                id: auth.id,
+                patient_id: auth.patient_id,
+                patient_name: '',
+                discipline: disc,
+                remaining: Math.max(0, remainingUnits),
+                unit_label: 'units',
+                end_date: auth.end_date || null,
+                auth_number: auth.auth_number || null,
+              });
+            }
           }
         }
       }
