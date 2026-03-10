@@ -92,6 +92,7 @@ const VISIT_TYPE_OPTIONS = [
   { value: 'evaluation', label: 'Evaluation' },
   { value: 're_evaluation', label: 'Re-Evaluation' },
   { value: 'discharge', label: 'Discharge' },
+  { value: 'discharge', label: 'Discharge' },
 ];
 
 const STATUS_ACTIONS: { from: AppointmentStatus[]; to: AppointmentStatus; label: string }[] = [
@@ -616,8 +617,14 @@ export default function FullscreenSchedulePage() {
         const noteVisitId = completedVisitId;
         // Skip redirect in paper mode — notes are written on paper, not in EMR
         if (noteVisitId && !noteVisitId.startsWith('sms-') && isEmrMode) {
-          toast.success('Redirecting to SOAP note...');
-          router.push(`/daily/new?visit_id=${noteVisitId}`);
+          const vt = visit?.visit_type;
+          if (vt === 'evaluation' || vt === 're_evaluation' || vt === 'discharge') {
+            toast.success(`Redirecting to ${vt.replace('_', ' ')} documentation...`);
+            router.push(`/notes/visit/${noteVisitId}?type=${vt}`);
+          } else {
+            toast.success('Redirecting to SOAP note...');
+            router.push(`/daily/new?visit_id=${noteVisitId}`);
+          }
           return;
         }
       }
@@ -1622,7 +1629,14 @@ export default function FullscreenSchedulePage() {
                   ) : isEmrMode ? (
                     <>
                       <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200"><FileText className="h-3 w-3 mr-1" /> Missing</Badge>
-                      <Button size="sm" variant="outline" className="gap-1" onClick={() => router.push(`/daily/new?visit_id=${selectedVisit.id}`)}>
+                      <Button size="sm" variant="outline" className="gap-1" onClick={() => {
+                        const vt = selectedVisit.visit_type;
+                        if (vt === 'evaluation' || vt === 're_evaluation' || vt === 'discharge') {
+                          router.push(`/notes/visit/${selectedVisit.id}?type=${vt}`);
+                        } else {
+                          router.push(`/daily/new?visit_id=${selectedVisit.id}`);
+                        }
+                      }}>
                         <FileText className="h-3 w-3" /> Create Note
                       </Button>
                     </>
@@ -1989,7 +2003,17 @@ export default function FullscreenSchedulePage() {
             {/* Discipline */}
             <div className="space-y-2">
               <Label>Discipline</Label>
-              <Select value={formData.discipline} onValueChange={(val: string) => setFormData((p: AppointmentFormData) => ({ ...p, discipline: val }))}>
+              <Select value={formData.discipline} onValueChange={(val: string) => {
+                setFormData((p: AppointmentFormData) => {
+                  // ST visits default to 30 minutes; PT/OT default to 45 minutes
+                  const durationMin = val === 'ST' ? 30 : 45;
+                  const [h, m] = p.start_time.split(':').map(Number);
+                  const endTotal = h * 60 + m + durationMin;
+                  const endH = Math.floor(endTotal / 60).toString().padStart(2, '0');
+                  const endM = (endTotal % 60).toString().padStart(2, '0');
+                  return { ...p, discipline: val, end_time: `${endH}:${endM}` };
+                });
+              }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="PT">PT - Physical Therapy</SelectItem>
