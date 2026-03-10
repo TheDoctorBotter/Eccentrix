@@ -39,6 +39,14 @@ import OTDischarge from './ot/OTDischarge';
 import type { OTFormData } from '@/types/notes/ot';
 import { createEmptyOTFormData } from '@/types/notes/ot';
 
+// ST discipline forms
+import STDailySOAP from './st/STDailySOAP';
+import STEvaluation from './st/STEvaluation';
+import STReEvaluation from './st/STReEvaluation';
+import STDischarge from './st/STDischarge';
+import type { STFormData } from '@/types/notes/st';
+import { createEmptySTFormData } from '@/types/notes/st';
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -202,7 +210,12 @@ export default function NoteEditor({
       if (noteType === 're_evaluation') return OTReEvaluation;
       if (noteType === 'discharge') return OTDischarge;
     }
-    // ST will be added in a future prompt
+    if (discipline === 'ST') {
+      if (noteType === 'daily_soap') return STDailySOAP;
+      if (noteType === 'evaluation') return STEvaluation;
+      if (noteType === 're_evaluation') return STReEvaluation;
+      if (noteType === 'discharge') return STDischarge;
+    }
     return null;
   }, [discipline, noteType]);
 
@@ -214,6 +227,9 @@ export default function NoteEditor({
         setFormData(initial as unknown as Record<string, unknown>);
       } else if (discipline === 'OT') {
         const initial = createEmptyOTFormData(noteType);
+        setFormData(initial as unknown as Record<string, unknown>);
+      } else if (discipline === 'ST') {
+        const initial = createEmptySTFormData(noteType);
         setFormData(initial as unknown as Record<string, unknown>);
       }
     }
@@ -394,8 +410,8 @@ export default function NoteEditor({
       {/* ============================================================== */}
       {FormComponent ? (
         <FormComponent
-          formData={formData as unknown as PTFormData & OTFormData}
-          onChange={(data: PTFormData | OTFormData) =>
+          formData={formData as unknown as PTFormData & OTFormData & STFormData}
+          onChange={(data: PTFormData | OTFormData | STFormData) =>
             handleFormDataChange(data as unknown as Record<string, unknown>)
           }
           readOnly={isFinalized}
