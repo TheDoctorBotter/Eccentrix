@@ -108,7 +108,10 @@ export async function DELETE(
 }
 
 /**
- * PATCH - Update note content (rich text and plain text) and/or finalize
+ * PATCH - Update note content (rich text, plain text, form_data, ai_narrative,
+ *         medical_necessity) and/or finalize.
+ *
+ * Rejects updates when the note status is already 'final' (immutability).
  */
 export async function PATCH(
   request: NextRequest,
@@ -116,13 +119,32 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json();
-    const { rich_content, output_text, status, finalized_by } = body;
+    const { rich_content, output_text, status, finalized_by, form_data, ai_narrative, medical_necessity } = body;
 
     // Validate that we have at least one field to update
-    if (!rich_content && !output_text && !status) {
+    const hasContent = rich_content || output_text || status || form_data !== undefined || ai_narrative !== undefined || medical_necessity !== undefined;
+    if (!hasContent) {
       return NextResponse.json(
         { error: 'No content provided for update' },
         { status: 400 }
+      );
+    }
+
+    // Check if note is already finalized — reject edits to finalized notes
+    const { data: currentNote, error: fetchErr } = await supabaseAdmin
+      .from('notes')
+      .select('id, status')
+      .eq('id', params.id)
+      .single();
+
+    if (fetchErr && fetchErr.code !== 'PGRST116') {
+      return NextResponse.json({ error: fetchErr.message }, { status: 500 });
+    }
+
+    if (currentNote?.status === 'final' && status !== 'final') {
+      return NextResponse.json(
+        { error: 'Cannot edit a finalized note' },
+        { status: 403 }
       );
     }
 
@@ -138,6 +160,17 @@ export async function PATCH(
 
     if (output_text) {
       updateData.output_text = output_text;
+    }
+
+    // New EMR fields
+    if (form_data !== undefined) {
+      updateData.form_data = form_data;
+    }
+    if (ai_narrative !== undefined) {
+      updateData.ai_narrative = ai_narrative;
+    }
+    if (medical_necessity !== undefined) {
+      updateData.medical_necessity = medical_necessity;
     }
 
     // Handle finalization
