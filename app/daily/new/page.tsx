@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, Loader2, UserCheck, Calendar } from 'lucide-react';
-import { NoteInputData, Template, Intervention, Episode, Visit, resolveDiscipline } from '@/lib/types';
+import { NoteInputData, Template, Intervention, Episode, Visit, resolveDiscipline, DISCIPLINE_LABELS } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { ensureSoapHeaders } from '@/lib/note-utils';
 import DateOfServiceForm from '@/components/note-wizard/DateOfServiceForm';
@@ -528,7 +528,7 @@ function DailySoapNoteContent() {
             </Button>
           </Link>
           <Badge variant="outline" className="text-lg px-4 py-2">
-            Physical Therapy Daily Note
+            {DISCIPLINE_LABELS[resolveDiscipline(visitData?.discipline)]} Daily Note
           </Badge>
         </div>
 
@@ -618,7 +618,7 @@ function DailySoapNoteContent() {
             </CardHeader>
             <CardContent>
               <p className="text-slate-600 mb-4">
-                Review your inputs above, then click the button below to generate your Physical Therapy Daily Note.
+                Review your inputs above, then click the button below to generate your {DISCIPLINE_LABELS[resolveDiscipline(visitData?.discipline)]} Daily Note.
               </p>
               <Button onClick={handleGenerateNote} disabled={generating || loadingEpisode} size="lg" className="w-full">
                 {generating ? (
