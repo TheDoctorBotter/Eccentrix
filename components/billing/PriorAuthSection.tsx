@@ -330,7 +330,8 @@ export function PriorAuthSection({ patientId, clinicId, episodeId }: Props) {
               const daysToExpiry = endDate
                 ? Math.ceil((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
                 : Infinity;
-              const remaining = auth.auth_type === 'units'
+              const isUnitBasedAuth = auth.auth_type === 'units' || ['PT', 'OT'].includes(auth.discipline?.toUpperCase() ?? '');
+              const remaining = isUnitBasedAuth
                 ? (auth.units_authorized ?? 0) - (auth.units_used ?? 0)
                 : auth.remaining_visits ?? ((auth.authorized_visits ?? 0) - auth.used_visits);
               const isWarning = daysToExpiry <= 30 || remaining <= 10;

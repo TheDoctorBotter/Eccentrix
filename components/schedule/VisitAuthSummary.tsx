@@ -93,11 +93,11 @@ export function VisitAuthSummary({ patientId, clinicId, discipline }: Props) {
         Authorizations
       </div>
       {auths.map((auth) => {
-        const remaining =
-          auth.auth_type === 'units'
-            ? (auth.units_authorized ?? 0) - (auth.units_used ?? 0)
-            : auth.remaining_visits ??
-              (auth.authorized_visits ?? 0) - auth.used_visits;
+        const isUnitBasedAuth = auth.auth_type === 'units' || ['PT', 'OT'].includes(auth.discipline?.toUpperCase() ?? '');
+        const remaining = isUnitBasedAuth
+          ? (auth.units_authorized ?? 0) - (auth.units_used ?? 0)
+          : auth.remaining_visits ??
+            (auth.authorized_visits ?? 0) - auth.used_visits;
         const endDate = safeDate(auth.end_date);
         const daysToExpiry = endDate
           ? Math.ceil((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
@@ -155,7 +155,7 @@ export function VisitAuthSummary({ patientId, clinicId, discipline }: Props) {
                       : 'text-emerald-600 font-semibold'
                 }
               >
-                {remaining} {auth.auth_type === 'units' ? 'units' : 'visits'}{' '}
+                {remaining} {isUnitBasedAuth ? 'units' : 'visits'}{' '}
                 left
               </span>
               <span className="text-slate-400">

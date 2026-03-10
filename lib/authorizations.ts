@@ -89,6 +89,8 @@ export async function applyAuthorizationUsage(
   discipline: string,
   unitsUsed: number,
 ): Promise<{ success: boolean; warning?: string }> {
+  const normalizedDiscipline = discipline.toUpperCase();
+
   // Idempotency check — never deduct twice
   const { data: visit } = await supabase
     .from('visits')
@@ -100,22 +102,32 @@ export async function applyAuthorizationUsage(
     return { success: true, warning: 'Auth usage already applied' };
   }
 
-  const isUnitBased = ['PT', 'OT'].includes(discipline.toUpperCase());
+  // Discipline determines the deduction type — PT/OT are always unit-based,
+  // ST is always visit-based. auth_type is a secondary signal only.
+  const isUnitBased = ['PT', 'OT'].includes(normalizedDiscipline);
 
-  // Fetch current authorization balance
+  // Verify the authorization discipline matches the visit discipline
   const { data: auth } = await supabase
     .from('prior_authorizations')
-    .select('units_authorized, units_used, authorized_visits, used_visits, remaining_visits, auth_type')
+    .select('discipline, units_authorized, units_used, authorized_visits, used_visits, auth_type')
     .eq('id', authorizationId)
     .single();
 
   if (!auth) return { success: false, warning: 'Authorization not found' };
 
+  // Discipline safety: never cross-deduct
+  if (auth.discipline && auth.discipline.toUpperCase() !== normalizedDiscipline) {
+    return {
+      success: false,
+      warning: `Discipline mismatch: visit is ${normalizedDiscipline} but auth is ${auth.discipline}`,
+    };
+  }
+
   const updatePayload: Record<string, unknown> = {};
   let newRemaining: number;
 
-  if (isUnitBased || auth.auth_type === 'units') {
-    // Unit-based: increment units_used, cap so remaining never goes below 0
+  if (isUnitBased) {
+    // Unit-based (PT/OT): increment units_used, cap so remaining never goes below 0
     const currentUsed = auth.units_used ?? 0;
     const authorized = auth.units_authorized ?? 0;
     const maxDeductible = Math.max(0, authorized - currentUsed);
@@ -123,20 +135,17 @@ export async function applyAuthorizationUsage(
     updatePayload.units_used = currentUsed + actualDeduction;
     newRemaining = authorized - (currentUsed + actualDeduction);
 
-    if (newRemaining <= 0) {
+    if (newRemaining <= 0 && authorized > 0) {
       updatePayload.status = 'exhausted';
     }
   } else {
-    // Visit-based: increment used_visits by 1
+    // Visit-based (ST): increment used_visits by 1
+    // NOTE: remaining_visits is a GENERATED column (authorized_visits - used_visits)
+    // so we must NOT include it in the update payload.
     const currentUsed = auth.used_visits ?? 0;
     const authorized = auth.authorized_visits ?? 0;
     const canDeduct = currentUsed < authorized || authorized === 0;
     updatePayload.used_visits = currentUsed + (canDeduct ? 1 : 0);
-
-    // Also update remaining_visits if the column is populated
-    if (auth.remaining_visits != null) {
-      updatePayload.remaining_visits = Math.max(0, (auth.remaining_visits ?? 0) - (canDeduct ? 1 : 0));
-    }
     newRemaining = authorized - (currentUsed + (canDeduct ? 1 : 0));
 
     if (newRemaining <= 0 && authorized > 0) {
@@ -144,19 +153,24 @@ export async function applyAuthorizationUsage(
     }
   }
 
-  // Apply deduction to authorization
-  await supabase
+  // Apply deduction to authorization — check for errors before marking visit
+  const { error: updateError } = await supabase
     .from('prior_authorizations')
     .update(updatePayload)
     .eq('id', authorizationId);
 
-  // Mark visit as applied and store units used
+  if (updateError) {
+    console.error('[AUTH] Failed to update authorization:', updateError.message);
+    return { success: false, warning: `DB update failed: ${updateError.message}` };
+  }
+
+  // Mark visit as applied and store units used — only after successful deduction
   await supabase
     .from('visits')
     .update({
       auth_usage_applied: true,
       auth_id: authorizationId,
-      units_used: isUnitBased || auth.auth_type === 'units' ? unitsUsed : null,
+      units_used: isUnitBased ? unitsUsed : null,
     })
     .eq('id', visitId);
 
@@ -198,7 +212,7 @@ export async function reverseAuthorizationUsage(
   // Fetch current authorization
   const { data: auth } = await supabase
     .from('prior_authorizations')
-    .select('units_authorized, units_used, authorized_visits, used_visits, remaining_visits, auth_type, status')
+    .select('units_authorized, units_used, authorized_visits, used_visits, auth_type, status')
     .eq('id', visit.auth_id)
     .single();
 
@@ -208,16 +222,14 @@ export async function reverseAuthorizationUsage(
 
   const updatePayload: Record<string, unknown> = {};
 
-  if (isUnitBased || auth.auth_type === 'units') {
+  if (isUnitBased) {
     // Restore units
     const restoredUnits = visit.units_used ?? 0;
     updatePayload.units_used = Math.max(0, (auth.units_used ?? 0) - restoredUnits);
   } else {
     // Restore 1 visit
+    // NOTE: remaining_visits is a GENERATED column — do NOT include in update
     updatePayload.used_visits = Math.max(0, (auth.used_visits ?? 0) - 1);
-    if (auth.remaining_visits != null) {
-      updatePayload.remaining_visits = (auth.remaining_visits ?? 0) + 1;
-    }
   }
 
   // If auth was exhausted, set back to approved
@@ -225,12 +237,17 @@ export async function reverseAuthorizationUsage(
     updatePayload.status = 'approved';
   }
 
-  await supabase
+  const { error: updateError } = await supabase
     .from('prior_authorizations')
     .update(updatePayload)
     .eq('id', visit.auth_id);
 
-  // Clear usage flags on the visit
+  if (updateError) {
+    console.error('[AUTH] Failed to reverse authorization:', updateError.message);
+    return { success: false, warning: `DB update failed: ${updateError.message}` };
+  }
+
+  // Clear usage flags on the visit — only after successful reversal
   await supabase
     .from('visits')
     .update({
