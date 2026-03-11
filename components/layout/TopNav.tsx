@@ -41,6 +41,7 @@ import {
   BarChart3,
   FileSignature,
   MessageSquare,
+  ClipboardList,
   Menu,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -200,7 +201,7 @@ export function TopNav() {
               )}
               <Link href="/">
                 <Button
-                  variant={isActive('/') && !isActive('/settings') && !isActive('/charts') && !isActive('/archived') && !isActive('/front-office') && !isActive('/schedule') && !isActive('/billing') && !isActive('/reports') && !isActive('/exercises') && !isActive('/goals') && !isActive('/outcome-measures') && !isActive('/cosign') && !isActive('/messages') && !isActive('/hep') && !isActive('/audit') ? 'secondary' : 'ghost'}
+                  variant={isActive('/') && !isActive('/settings') && !isActive('/charts') && !isActive('/archived') && !isActive('/front-office') && !isActive('/schedule') && !isActive('/billing') && !isActive('/reports') && !isActive('/exercises') && !isActive('/goals') && !isActive('/outcome-measures') && !isActive('/cosign') && !isActive('/messages') && !isActive('/hep') && !isActive('/audit') && !isActive('/equipment') ? 'secondary' : 'ghost'}
                   size="sm"
                   className="gap-1.5 text-xs"
                 >
@@ -292,6 +293,16 @@ export function TopNav() {
                 >
                   <MessageSquare className="h-3.5 w-3.5" />
                   Messages
+                </Button>
+              </Link>
+              <Link href="/equipment">
+                <Button
+                  variant={isActive('/equipment') ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                >
+                  <ClipboardList className="h-3.5 w-3.5" />
+                  Equipment
                 </Button>
               </Link>
               {canSeeReports && (
@@ -400,6 +411,10 @@ export function TopNav() {
                 <Link href="/messages" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/messages') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
                   <MessageSquare className="h-4 w-4" />
                   Messages
+                </Link>
+                <Link href="/equipment" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/equipment') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
+                  <ClipboardList className="h-4 w-4" />
+                  Equipment
                 </Link>
                 {canSeeReports && (
                 <Link href="/reports" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/reports') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
