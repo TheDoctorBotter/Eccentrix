@@ -25,6 +25,7 @@ import {
   Clock,
   Check,
   FileSpreadsheet,
+  ClipboardList,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import {
@@ -35,6 +36,7 @@ import { format } from 'date-fns';
 import { formatLocalDate, daysUntil, isValidDate } from '@/lib/utils';
 import { PAPER_MODE } from '@/lib/config';
 import { useAuth } from '@/lib/auth-context';
+import { supabase } from '@/lib/supabase';
 import { PTBotFolder } from '@/components/PTBotFolder';
 import { DashboardAuthSection } from '@/components/dashboard/DashboardAuthSection';
 import { toast } from 'sonner';
@@ -79,6 +81,7 @@ export default function HomePage() {
   const [authAlerts, setAuthAlerts] = useState<AuthAlert[]>([]);
   const [expiringAuths, setExpiringAuths] = useState<{ id: string; patient_name: string; discipline: string; end_date: string; days_remaining: number }[]>([]);
   const [lowBalanceAlerts, setLowBalanceAlerts] = useState<LowBalanceAlert[]>([]);
+  const [staleEquipmentCount, setStaleEquipmentCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [clinicLogoUrl, setClinicLogoUrl] = useState<string | null>(null);
   const prevClinicId = useRef<string | null>(null);
@@ -283,6 +286,27 @@ export default function HomePage() {
     }
   };
 
+  const fetchStaleEquipment = useCallback(async (clinicId: string) => {
+    try {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const { count, error } = await supabase
+        .from('equipment_referrals')
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId)
+        .eq('is_active', true)
+        .neq('phase', 'equipment_received')
+        .lt('last_updated_at', thirtyDaysAgo.toISOString());
+
+      if (!error) {
+        setStaleEquipmentCount(count || 0);
+      }
+    } catch (err) {
+      console.error('Error fetching stale equipment referrals:', err);
+    }
+  }, []);
+
   useEffect(() => {
     if (currentClinic?.clinic_id) {
       fetchCaseload(currentClinic.clinic_id);
@@ -291,6 +315,7 @@ export default function HomePage() {
       fetchAuthAlerts(currentClinic.clinic_id);
       if (PAPER_MODE) fetchExpiringAuths(currentClinic.clinic_id);
       fetchLowBalanceAuths(currentClinic.clinic_id);
+      fetchStaleEquipment(currentClinic.clinic_id);
 
       // Fetch clinic branding logo
       if (prevClinicId.current !== currentClinic.clinic_id) {
@@ -301,7 +326,7 @@ export default function HomePage() {
           .catch(() => setClinicLogoUrl(null));
       }
     }
-  }, [currentClinic, fetchAuthAlerts, fetchExpiringAuths, fetchLowBalanceAuths]);
+  }, [currentClinic, fetchAuthAlerts, fetchExpiringAuths, fetchLowBalanceAuths, fetchStaleEquipment]);
 
   const fetchCaseload = async (clinicId: string) => {
     setLoading(true);
@@ -679,6 +704,33 @@ export default function HomePage() {
                         </div>
                       );
                     })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Stale Equipment Referrals Alert */}
+            {staleEquipmentCount > 0 && (
+              <Card>
+                <CardContent className="py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-red-100 rounded-lg">
+                        <ClipboardList className="h-5 w-5 text-red-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900 text-sm">Equipment Follow-Up Needed</p>
+                        <p className="text-sm text-red-700">
+                          {staleEquipmentCount} patient{staleEquipmentCount !== 1 ? 's have' : ' has'} equipment referrals with no update in 30+ days.
+                        </p>
+                      </div>
+                    </div>
+                    <Link href="/equipment">
+                      <Button size="sm" variant="outline" className="gap-1 text-red-700 border-red-200 hover:bg-red-50">
+                        Review Equipment Tracker
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </Link>
                   </div>
                 </CardContent>
               </Card>
