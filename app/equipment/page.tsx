@@ -305,13 +305,35 @@ export default function EquipmentPage() {
                                 {r.provider_company && (
                                   <span>| {r.provider_company}</span>
                                 )}
-                                {r.provider_contact_name && (
-                                  <span>| ATP: {r.provider_contact_name}</span>
-                                )}
                                 <span className={stale ? 'font-bold text-red-600' : ''}>
                                   | Updated {days}d ago
                                 </span>
                               </div>
+                              {r.provider_contact_name && (
+                                <div className="mt-1 text-sm text-gray-600 space-y-0.5">
+                                  <div>{r.provider_contact_name}</div>
+                                  {r.provider_contact_phone && (
+                                    <div>
+                                      <a
+                                        href={`tel:${r.provider_contact_phone}`}
+                                        className="hover:text-blue-600 hover:underline"
+                                      >
+                                        📞 {r.provider_contact_phone}
+                                      </a>
+                                    </div>
+                                  )}
+                                  {r.provider_contact_email && (
+                                    <div>
+                                      <a
+                                        href={`mailto:${r.provider_contact_email}`}
+                                        className="hover:text-blue-600 hover:underline"
+                                      >
+                                        ✉ {r.provider_contact_email}
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
 
                             <div className="flex items-center gap-1.5 shrink-0 ml-3">
