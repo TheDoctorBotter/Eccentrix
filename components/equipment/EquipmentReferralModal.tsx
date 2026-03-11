@@ -10,6 +10,10 @@ import {
   EQUIPMENT_PHASES,
   EQUIPMENT_TYPES,
   PROVIDER_COMPANIES,
+  ATP_DIRECTORY,
+  ORTHOTIST_DIRECTORY,
+  PROVIDER_DIRECTORY,
+  type ProviderDirectoryEntry,
   getEquipmentTypeLabel,
   getPhaseById,
 } from '@/lib/equipment/phases';
@@ -84,22 +88,34 @@ export function EquipmentReferralModal({ existingReferral, onClose, onSaved }: P
   const [showDropdown, setShowDropdown] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  // Provider company custom entry
-  const [customProvider, setCustomProvider] = useState(false);
+  // Provider directory selection
+  const [providerType, setProviderType] = useState<'atp' | 'orthotist'>('atp');
+  const [selectedProviderId, setSelectedProviderId] = useState<string>('');
+  const [isOtherProvider, setIsOtherProvider] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  // Initialize patient display for edit mode
+  // Initialize patient display and provider selection for edit mode
   useEffect(() => {
     if (existingReferral && existingReferral.patient_first_name) {
       setPatientDisplay(
         `${existingReferral.patient_last_name}, ${existingReferral.patient_first_name}`
       );
     }
-    // Check if provider is custom
-    if (existingReferral?.provider_company && !PROVIDER_COMPANIES.includes(existingReferral.provider_company)) {
-      setCustomProvider(true);
+    // Match existing provider against directory
+    if (existingReferral?.provider_contact_name) {
+      const match = PROVIDER_DIRECTORY.find(
+        (p) => p.name === existingReferral.provider_contact_name
+      );
+      if (match) {
+        setProviderType(match.providerType);
+        setSelectedProviderId(match.id);
+        setIsOtherProvider(false);
+      } else {
+        setIsOtherProvider(true);
+        setSelectedProviderId('__other__');
+      }
     }
   }, [existingReferral]);
 
@@ -157,6 +173,30 @@ export function EquipmentReferralModal({ existingReferral, onClose, onSaved }: P
     if (newPhase === 'referral_sent' && !referralSentDate) setReferralSentDate(today);
     if (newPhase === 'evaluation_completed' && !evaluationDate) setEvaluationDate(today);
     if (newPhase === 'equipment_received' && !equipmentReceivedDate) setEquipmentReceivedDate(today);
+  };
+
+  const activeDirectory = providerType === 'atp' ? ATP_DIRECTORY : ORTHOTIST_DIRECTORY;
+  const selectedProvider = PROVIDER_DIRECTORY.find((p) => p.id === selectedProviderId) || null;
+
+  const handleProviderSelect = (providerId: string) => {
+    setSelectedProviderId(providerId);
+    setDirty(true);
+    if (providerId === '__other__') {
+      setIsOtherProvider(true);
+      setProviderCompany('');
+      setProviderContactName('');
+      setProviderContactPhone('');
+      setProviderContactEmail('');
+    } else {
+      setIsOtherProvider(false);
+      const provider = PROVIDER_DIRECTORY.find((p) => p.id === providerId);
+      if (provider) {
+        setProviderCompany(provider.company);
+        setProviderContactName(provider.name);
+        setProviderContactPhone(provider.phone);
+        setProviderContactEmail(provider.email || '');
+      }
+    }
   };
 
   const handleClose = () => {
@@ -421,72 +461,134 @@ export function EquipmentReferralModal({ existingReferral, onClose, onSaved }: P
           <div>
             <h3 className="text-sm font-semibold text-slate-700 mb-2">Provider</h3>
             <div className="space-y-3">
+              {/* Provider type toggle */}
               <div>
-                <label className="block text-xs text-slate-500 mb-1">Provider Company</label>
-                {customProvider ? (
-                  <div className="flex gap-2">
+                <label className="block text-xs text-slate-500 mb-1">Provider Type</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProviderType('atp');
+                      setSelectedProviderId('');
+                      setIsOtherProvider(false);
+                      setProviderCompany('');
+                      setProviderContactName('');
+                      setProviderContactPhone('');
+                      setProviderContactEmail('');
+                      setDirty(true);
+                    }}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                      providerType === 'atp'
+                        ? 'bg-blue-50 border-blue-300 text-blue-700'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    ATP / Mobility
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProviderType('orthotist');
+                      setSelectedProviderId('');
+                      setIsOtherProvider(false);
+                      setProviderCompany('');
+                      setProviderContactName('');
+                      setProviderContactPhone('');
+                      setProviderContactEmail('');
+                      setDirty(true);
+                    }}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                      providerType === 'orthotist'
+                        ? 'bg-blue-50 border-blue-300 text-blue-700'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Orthotist / Hanger
+                  </button>
+                </div>
+              </div>
+
+              {/* Provider select dropdown */}
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Select Provider</label>
+                <select
+                  value={selectedProviderId}
+                  onChange={(e) => handleProviderSelect(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select provider...</option>
+                  {activeDirectory.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} — {p.company}
+                    </option>
+                  ))}
+                  <option value="__other__">Other / Not Listed</option>
+                </select>
+              </div>
+
+              {/* Known provider: read-only contact display */}
+              {selectedProvider && !isOtherProvider && (
+                <div className="bg-slate-50 border rounded-lg px-3 py-2 space-y-1">
+                  <div className="text-sm text-slate-700">
+                    <span className="text-xs text-slate-500">Company:</span>{' '}
+                    {selectedProvider.company}
+                  </div>
+                  <div className="text-sm text-slate-700">
+                    <span className="text-xs text-slate-500">Phone:</span>{' '}
+                    {selectedProvider.phone}
+                  </div>
+                  <div className="text-sm text-slate-700">
+                    <span className="text-xs text-slate-500">Email:</span>{' '}
+                    {selectedProvider.email || 'Not on file'}
+                  </div>
+                </div>
+              )}
+
+              {/* Other / Not Listed: free-text fallback */}
+              {isOtherProvider && (
+                <div className="space-y-3 border-l-2 border-slate-200 pl-3">
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Provider / Company Name</label>
                     <input
                       type="text"
                       value={providerCompany}
                       onChange={(e) => { setProviderCompany(e.target.value); setDirty(true); }}
-                      placeholder="Enter provider name..."
-                      className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter provider or company name..."
+                      className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
-                    <Button variant="ghost" size="sm" onClick={() => { setCustomProvider(false); setProviderCompany(''); }}>
-                      List
-                    </Button>
                   </div>
-                ) : (
-                  <select
-                    value={providerCompany}
-                    onChange={(e) => {
-                      if (e.target.value === '__custom__') {
-                        setCustomProvider(true);
-                        setProviderCompany('');
-                      } else {
-                        setProviderCompany(e.target.value);
-                      }
-                      setDirty(true);
-                    }}
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select provider...</option>
-                    {PROVIDER_COMPANIES.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                    <option value="__custom__">— Enter custom —</option>
-                  </select>
-                )}
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">ATP / Orthotist Name</label>
-                <input
-                  type="text"
-                  value={providerContactName}
-                  onChange={(e) => { setProviderContactName(e.target.value); setDirty(true); }}
-                  className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-slate-500 mb-1">Contact Phone</label>
-                  <input
-                    type="text"
-                    value={providerContactPhone}
-                    onChange={(e) => { setProviderContactPhone(e.target.value); setDirty(true); }}
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Contact Name</label>
+                    <input
+                      type="text"
+                      value={providerContactName}
+                      onChange={(e) => { setProviderContactName(e.target.value); setDirty(true); }}
+                      placeholder="ATP or Orthotist name..."
+                      className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Phone</label>
+                      <input
+                        type="text"
+                        value={providerContactPhone}
+                        onChange={(e) => { setProviderContactPhone(e.target.value); setDirty(true); }}
+                        className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Email</label>
+                      <input
+                        type="email"
+                        value={providerContactEmail}
+                        onChange={(e) => { setProviderContactEmail(e.target.value); setDirty(true); }}
+                        className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs text-slate-500 mb-1">Contact Email</label>
-                  <input
-                    type="email"
-                    value={providerContactEmail}
-                    onChange={(e) => { setProviderContactEmail(e.target.value); setDirty(true); }}
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
+              )}
             </div>
           </div>
 

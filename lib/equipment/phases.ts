@@ -65,6 +65,75 @@ export const PROVIDER_COMPANIES = [
   'Other',
 ];
 
+export interface ProviderDirectoryEntry {
+  id: string;
+  name: string;
+  company: string;
+  providerType: 'atp' | 'orthotist';
+  phone: string;
+  email: string | null;
+}
+
+export const ATP_DIRECTORY: ProviderDirectoryEntry[] = [
+  {
+    id: 'michael_bird',
+    name: 'Michael Bird, ATP',
+    company: 'Travis Medical',
+    providerType: 'atp',
+    phone: '956-994-8405',
+    email: 'michael.bird@travismedical.com',
+  },
+  {
+    id: 'luis_garcia',
+    name: 'Luis Garcia, ATP',
+    company: 'National Seating and Mobility (NSM)',
+    providerType: 'atp',
+    phone: '956-994-8405',
+    email: 'Luis.Garcia1@nsm-seating.com',
+  },
+  {
+    id: 'rene_garcia',
+    name: 'Rene Garcia, ATP',
+    company: 'National Seating and Mobility (NSM)',
+    providerType: 'atp',
+    phone: '956-994-8405',
+    email: 'Rene.Garcia@nsm-seating.com',
+  },
+];
+
+export const ORTHOTIST_DIRECTORY: ProviderDirectoryEntry[] = [
+  {
+    id: 'hanger_edinburg',
+    name: 'Hanger Clinic — Edinburg',
+    company: 'Hanger Clinic',
+    providerType: 'orthotist',
+    phone: '956-682-4409',
+    email: null,
+  },
+  {
+    id: 'hanger_harlingen',
+    name: 'Hanger Clinic — Harlingen',
+    company: 'Hanger Clinic',
+    providerType: 'orthotist',
+    phone: '956-428-1160',
+    email: null,
+  },
+  {
+    id: 'hanger_brownsville',
+    name: 'Hanger Clinic — Brownsville',
+    company: 'Hanger Clinic',
+    providerType: 'orthotist',
+    phone: '956-646-1892',
+    email: null,
+  },
+];
+
+// Combined directory for unified search
+export const PROVIDER_DIRECTORY: ProviderDirectoryEntry[] = [
+  ...ATP_DIRECTORY,
+  ...ORTHOTIST_DIRECTORY,
+];
+
 const STALE_THRESHOLD_DAYS = 30;
 
 export function isStale(lastUpdatedAt: string): boolean {
