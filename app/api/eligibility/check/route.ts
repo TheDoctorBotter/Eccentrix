@@ -135,12 +135,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const npi = process.env.AVAILITY_NPI || clinic.billing_npi;
-    const taxId = process.env.AVAILITY_TAX_ID || '';
+    const npi = clinic.npi || clinic.billing_npi;
+    const taxId = clinic.tax_id || '';
 
     if (!npi || npi.length < 2) {
       return NextResponse.json(
-        { error: 'NPI is required. Set AVAILITY_NPI or configure Billing NPI in Settings > Billing.' },
+        { error: 'Clinic NPI is not configured. Go to Settings > Billing to set your 10-digit NPI.' },
+        { status: 400 }
+      );
+    }
+
+    if (!taxId) {
+      return NextResponse.json(
+        { error: 'Clinic Tax ID is not configured. Go to Settings > Billing to set your Tax ID.' },
         { status: 400 }
       );
     }
