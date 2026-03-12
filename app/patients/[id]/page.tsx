@@ -179,6 +179,12 @@ export default function PatientRecordPage() {
                 </div>
               )}
             </div>
+            {patient.medicaid_id && (
+              <div className="mt-3 text-sm">
+                <span className="font-medium text-slate-700">Medicaid ID:</span>{' '}
+                <span className="text-slate-600">{patient.medicaid_id}</span>
+              </div>
+            )}
             {patient.allergies && (
               <div className="mt-3 text-sm">
                 <span className="font-medium text-red-600">Allergies:</span>{' '}

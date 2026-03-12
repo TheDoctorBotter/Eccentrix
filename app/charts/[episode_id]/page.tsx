@@ -398,7 +398,7 @@ export default function PatientChartPage({ params }: PageProps) {
                         setPatientDetails({
                           gender: episode.gender || '',
                           insurance_id: episode.insurance_id || '',
-                          medicaid_id: (episode as unknown as { medicaid_id?: string }).medicaid_id || '',
+                          medicaid_id: episode.medicaid_id || '',
                           allergies: episode.allergies || '',
                           precautions: episode.precautions || '',
                           referring_physician: episode.referring_physician || '',
@@ -493,6 +493,10 @@ export default function PatientChartPage({ params }: PageProps) {
                     <div className="p-3 bg-slate-50 rounded-lg">
                       <p className="text-xs text-slate-500">Insurance ID</p>
                       <p className="text-sm font-medium text-slate-900">{episode.insurance_id || '—'}</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                      <p className="text-xs text-slate-500">Medicaid ID</p>
+                      <p className="text-sm font-medium text-slate-900">{episode.medicaid_id || '—'}</p>
                     </div>
                     <div className="p-3 bg-slate-50 rounded-lg">
                       <p className="text-xs text-slate-500">Allergies</p>

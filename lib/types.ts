@@ -455,6 +455,7 @@ export interface Patient {
   secondary_diagnoses?: string[] | null;
   referring_physician?: string | null;
   insurance_id?: string | null;
+  medicaid_id?: string | null;
   allergies?: string | null;
   precautions?: string | null;
   is_active: boolean;
@@ -496,6 +497,7 @@ export interface Episode {
   primary_diagnosis?: string;
   referring_physician?: string;
   insurance_id?: string;
+  medicaid_id?: string;
   allergies?: string;
   precautions?: string;
 }
