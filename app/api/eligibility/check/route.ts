@@ -1,22 +1,26 @@
 /**
  * Eligibility Check API
- * POST: Check patient eligibility via Stedi API (real-time) or generate 270 EDI file (fallback)
+ * POST: Check patient eligibility via Availity API (real-time) or return manual fallback.
  *
- * If STEDI_API_KEY env var is set (or clinic has stedi_api_key), does a real-time check.
- * Otherwise, generates a 270 EDI file for manual clearinghouse upload.
+ * When AVAILITY_ENABLED=true and credentials are configured, performs a real-time
+ * 270/271 eligibility check via Availity Essentials API.
+ *
+ * When AVAILITY_ENABLED is not 'true', returns a manual_required response so the
+ * UI can show a clean fallback card (no 403 errors).
+ *
+ * Every check (including manual_required) is logged to the eligibility_checks table.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { supabaseAdmin } from '@/lib/supabase-server';
-import { generate270 } from '@/lib/edi/generate-270';
 import {
-  getStediConfig,
-  checkEligibility,
-  parseEligibilityStatus,
-  toStediDate,
-  StediError,
-} from '@/lib/stedi-client';
+  checkAvailityEligibility,
+  generateControlNumber,
+  toAvailityDate,
+  AvailityError,
+} from '@/lib/eligibility/availity-client';
+import { resolvePayerId } from '@/lib/eligibility/payerMap';
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,6 +67,48 @@ export async function POST(request: NextRequest) {
     }
 
     const effectiveMedicaidId = medicaid_id || patient.medicaid_id || patient.insurance_id || '';
+    const effectiveDate = date_of_service || new Date().toISOString().split('T')[0];
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Manual fallback: AVAILITY_ENABLED !== 'true'
+    // ──────────────────────────────────────────────────────────────────────
+    if (process.env.AVAILITY_ENABLED !== 'true') {
+      const portalUrl = process.env.AVAILITY_PORTAL_URL || 'https://apps.availity.com';
+
+      // Log the manual check attempt
+      const { data: check } = await client
+        .from('eligibility_checks')
+        .insert({
+          clinic_id,
+          patient_id,
+          medicaid_id: effectiveMedicaidId || null,
+          patient_first_name: patient.first_name,
+          patient_last_name: patient.last_name,
+          patient_dob: patient.date_of_birth || null,
+          check_date: effectiveDate,
+          service_type: service_type || '30',
+          status: 'manual_required',
+          checked_by: checked_by || null,
+        })
+        .select()
+        .single();
+
+      return NextResponse.json({
+        check,
+        mode: 'manual',
+        result: {
+          status: 'manual_required',
+          portalUrl,
+          medicaidId: effectiveMedicaidId || null,
+          message:
+            'Automated eligibility verification is not yet active. Please check manually via Availity portal.',
+        },
+      }, { status: 201 });
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Automated check: AVAILITY_ENABLED === 'true'
+    // ──────────────────────────────────────────────────────────────────────
 
     if (!effectiveMedicaidId) {
       return NextResponse.json(
@@ -71,151 +117,169 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const effectiveDate = date_of_service || new Date().toISOString().split('T')[0];
-
-    // Try Stedi real-time check first
-    const stediConfig = getStediConfig(clinic.stedi_api_key);
-
-    if (stediConfig) {
-      // Validate required fields before calling Stedi
-      if (!clinic.billing_npi || clinic.billing_npi.length < 2) {
-        return NextResponse.json(
-          { error: 'Clinic Billing NPI is required. Go to Settings > Billing to configure your 10-digit NPI.' },
-          { status: 400 }
-        );
-      }
-
-      if (!patient.date_of_birth) {
-        return NextResponse.json(
-          { error: 'Patient date of birth is required for eligibility checks.' },
-          { status: 400 }
-        );
-      }
-
-      // ===== Real-time eligibility via Stedi =====
-      try {
-        const stediResponse = await checkEligibility(stediConfig, {
-          tradingPartnerServiceId: clinic.payer_trading_partner_id || 'TXMCD',
-          provider: {
-            organizationName: clinic.name,
-            npi: clinic.billing_npi,
-          },
-          subscriber: {
-            memberId: effectiveMedicaidId,
-            firstName: patient.first_name,
-            lastName: patient.last_name,
-            dateOfBirth: toStediDate(patient.date_of_birth),
-            gender: patient.gender?.toLowerCase() === 'female' ? 'F' : 'M',
-          },
-          encounter: {
-            serviceTypeCodes: [service_type || '30'],
-          },
-        });
-
-        const parsed = parseEligibilityStatus(stediResponse);
-
-        const { data: check, error: checkError } = await client
-          .from('eligibility_checks')
-          .insert({
-            clinic_id,
-            patient_id,
-            medicaid_id: effectiveMedicaidId,
-            patient_first_name: patient.first_name,
-            patient_last_name: patient.last_name,
-            patient_dob: patient.date_of_birth || null,
-            check_date: effectiveDate,
-            service_type: service_type || '30',
-            status: parsed.status,
-            response_data: { ...stediResponse, parsed },
-            checked_by: checked_by || null,
-          })
-          .select()
-          .single();
-
-        if (checkError) {
-          console.error('Error saving eligibility check:', checkError);
-          return NextResponse.json({ error: checkError.message }, { status: 500 });
-        }
-
-        return NextResponse.json({ check, mode: 'realtime', result: parsed }, { status: 201 });
-      } catch (error) {
-        console.error('Stedi eligibility check failed:', error);
-        const errorMessage = error instanceof StediError
-          ? `${error.message}: ${error.responseBody}`
-          : error instanceof Error ? error.message : 'Unknown error';
-
-        const { data: check } = await client
-          .from('eligibility_checks')
-          .insert({
-            clinic_id,
-            patient_id,
-            medicaid_id: effectiveMedicaidId,
-            patient_first_name: patient.first_name,
-            patient_last_name: patient.last_name,
-            patient_dob: patient.date_of_birth || null,
-            check_date: effectiveDate,
-            service_type: service_type || '30',
-            status: 'error',
-            error_message: errorMessage,
-            checked_by: checked_by || null,
-          })
-          .select()
-          .single();
-
-        return NextResponse.json({
-          check,
-          mode: 'realtime',
-          result: { status: 'error', summary: errorMessage, details: [] },
-        }, { status: 201 });
-      }
+    if (!patient.date_of_birth) {
+      return NextResponse.json(
+        { error: 'Patient date of birth is required for eligibility checks.' },
+        { status: 400 }
+      );
     }
 
-    // ===== Fallback: Generate 270 EDI file for manual submission =====
-    const edi270Content = generate270({
-      payerName: 'Texas Medicaid',
-      payerId: '330897513',
-      submitterId: clinic.submitter_id || clinic.billing_npi || '',
-      providerName: clinic.name,
-      providerNpi: clinic.billing_npi || '',
-      subscriberId: effectiveMedicaidId,
-      patientLastName: patient.last_name,
-      patientFirstName: patient.first_name,
-      patientDob: patient.date_of_birth || '',
-      patientGender: patient.gender || 'unknown',
-      dateOfService: effectiveDate,
-      serviceTypeCode: service_type || '30',
-    });
+    // Resolve payer/trading partner ID
+    const payerKey = clinic.payer_trading_partner_id || clinic.payer_name || 'medicaid';
+    const tradingPartnerId = resolvePayerId(payerKey);
 
-    const { data: check, error: checkError } = await client
-      .from('eligibility_checks')
-      .insert({
-        clinic_id,
-        patient_id,
-        medicaid_id: effectiveMedicaidId,
-        patient_first_name: patient.first_name,
-        patient_last_name: patient.last_name,
-        patient_dob: patient.date_of_birth || null,
-        check_date: effectiveDate,
-        service_type: service_type || '30',
-        status: 'pending',
-        edi_270_content: edi270Content,
-        checked_by: checked_by || null,
-      })
-      .select()
-      .single();
-
-    if (checkError) {
-      console.error('Error creating eligibility check:', checkError);
-      return NextResponse.json({ error: checkError.message }, { status: 500 });
+    if (!tradingPartnerId) {
+      return NextResponse.json(
+        { error: 'Payer not supported for automated eligibility. Please check manually via the Availity portal.' },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json({
-      check,
-      mode: 'file',
-      edi_270_content: edi270Content,
-    }, { status: 201 });
+    const npi = process.env.AVAILITY_NPI || clinic.billing_npi;
+    const taxId = process.env.AVAILITY_TAX_ID || '';
+
+    if (!npi || npi.length < 2) {
+      return NextResponse.json(
+        { error: 'NPI is required. Set AVAILITY_NPI or configure Billing NPI in Settings > Billing.' },
+        { status: 400 }
+      );
+    }
+
+    try {
+      const result = await checkAvailityEligibility({
+        controlNumber: generateControlNumber(),
+        tradingPartnerId,
+        provider: {
+          npi,
+          taxId,
+          serviceProviderNumber: npi,
+        },
+        subscriber: {
+          memberId: effectiveMedicaidId,
+          firstName: patient.first_name,
+          lastName: patient.last_name,
+          dateOfBirth: toAvailityDate(patient.date_of_birth),
+          gender: patient.gender?.toLowerCase() === 'female' ? 'F' : 'M',
+        },
+        serviceTypeCode: service_type || '30',
+      });
+
+      // Map Availity status to legacy status for DB compatibility
+      const dbStatus = result.status === 'active' ? 'eligible'
+        : result.status === 'inactive' ? 'ineligible'
+        : 'error';
+
+      const { data: check, error: checkError } = await client
+        .from('eligibility_checks')
+        .insert({
+          clinic_id,
+          patient_id,
+          medicaid_id: effectiveMedicaidId,
+          patient_first_name: patient.first_name,
+          patient_last_name: patient.last_name,
+          patient_dob: patient.date_of_birth || null,
+          check_date: effectiveDate,
+          service_type: service_type || '30',
+          status: dbStatus,
+          response_data: {
+            availity: result.rawResponse,
+            parsed: {
+              status: result.status,
+              payerName: result.payerName,
+              planName: result.planName,
+              memberId: result.memberId,
+              groupNumber: result.groupNumber,
+              effectiveDate: result.effectiveDate,
+              terminationDate: result.terminationDate,
+              copay: result.copay,
+              deductible: result.deductible,
+              summary: result.status === 'active'
+                ? `Active coverage${result.planName ? ` — ${result.planName}` : ''}`
+                : result.status === 'inactive'
+                ? 'No active coverage found'
+                : result.message || 'Unable to verify eligibility',
+              details: [
+                result.payerName ? `Payer: ${result.payerName}` : null,
+                result.planName ? `Plan: ${result.planName}` : null,
+                result.memberId ? `Member ID: ${result.memberId}` : null,
+                result.groupNumber ? `Group: ${result.groupNumber}` : null,
+                result.effectiveDate ? `Effective: ${result.effectiveDate}` : null,
+                result.terminationDate ? `Termination: ${result.terminationDate}` : null,
+                result.copay ? `Copay: ${result.copay}` : null,
+                result.deductible ? `Deductible: ${result.deductible}` : null,
+              ].filter(Boolean),
+            },
+          },
+          checked_by: checked_by || null,
+        })
+        .select()
+        .single();
+
+      if (checkError) {
+        console.error('Error saving eligibility check:', checkError.code);
+        return NextResponse.json({ error: checkError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        check,
+        mode: 'realtime',
+        result: {
+          status: result.status,
+          payerName: result.payerName,
+          planName: result.planName,
+          memberId: result.memberId,
+          groupNumber: result.groupNumber,
+          effectiveDate: result.effectiveDate,
+          terminationDate: result.terminationDate,
+          copay: result.copay,
+          deductible: result.deductible,
+          summary: result.status === 'active'
+            ? `Active coverage${result.planName ? ` — ${result.planName}` : ''}`
+            : result.status === 'inactive'
+            ? 'No active coverage found'
+            : result.message || 'Unable to verify eligibility',
+          details: [],
+        },
+      }, { status: 201 });
+    } catch (error) {
+      // Log error code only — no PHI
+      const errorMessage = error instanceof AvailityError
+        ? error.message
+        : error instanceof Error ? error.message : 'Unknown error';
+
+      console.error('Availity eligibility check failed:', error instanceof AvailityError ? error.statusCode : 'unknown');
+
+      const { data: check } = await client
+        .from('eligibility_checks')
+        .insert({
+          clinic_id,
+          patient_id,
+          medicaid_id: effectiveMedicaidId,
+          patient_first_name: patient.first_name,
+          patient_last_name: patient.last_name,
+          patient_dob: patient.date_of_birth || null,
+          check_date: effectiveDate,
+          service_type: service_type || '30',
+          status: 'error',
+          error_message: errorMessage,
+          checked_by: checked_by || null,
+        })
+        .select()
+        .single();
+
+      return NextResponse.json({
+        check,
+        mode: 'realtime',
+        result: {
+          status: 'error',
+          summary: errorMessage,
+          details: [],
+          portalUrl: process.env.AVAILITY_PORTAL_URL || 'https://apps.availity.com',
+        },
+      }, { status: 201 });
+    }
   } catch (error) {
-    console.error('Error in POST /api/eligibility/check:', error);
+    console.error('Error in POST /api/eligibility/check:', error instanceof Error ? error.message : 'unknown');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -20,6 +20,7 @@ import {
   EligibilityCheck,
   EligibilityStatus,
   ELIGIBILITY_STATUS_COLORS,
+  ELIGIBILITY_STATUS_LABELS,
 } from '@/lib/types';
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { formatLocalDate, localNow, safeDate } from '@/lib/utils';
@@ -81,6 +82,7 @@ import {
   History,
   ChevronDown,
   ChevronRight,
+  ExternalLink,
 } from 'lucide-react';
 import { AuthorizationForm, AuthorizationFormData, AuthorizationRecord } from '@/components/authorizations/AuthorizationForm';
 import { AuthUsageHistory } from '@/components/authorizations/AuthUsageHistory';
@@ -725,28 +727,22 @@ export default function BillingPage() {
 
       const result = await res.json();
 
-      if (result.mode === 'realtime' && result.result) {
-        // Real-time Stedi result
+      if (result.mode === 'manual' && result.result) {
+        // Manual fallback — open Availity portal
         const r = result.result;
-        if (r.status === 'eligible') {
+        toast.info(r.message || 'Please check eligibility manually via Availity portal.');
+        if (r.portalUrl) {
+          window.open(r.portalUrl, '_blank', 'noopener,noreferrer');
+        }
+      } else if (result.mode === 'realtime' && result.result) {
+        const r = result.result;
+        if (r.status === 'active' || r.status === 'eligible') {
           toast.success(`Eligible: ${r.summary}`);
-        } else if (r.status === 'ineligible') {
+        } else if (r.status === 'inactive' || r.status === 'ineligible') {
           toast.error(`Ineligible: ${r.summary}`);
-        } else {
+        } else if (r.status === 'error') {
           toast.error(`Error: ${r.summary}`);
         }
-      } else if (result.edi_270_content) {
-        // File-based fallback - download 270
-        const blob = new Blob([result.edi_270_content], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `270_${eligibilityForm.medicaid_id || 'eligibility'}_${eligibilityForm.date_of_service}.edi`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        toast.success('270 EDI file downloaded. Upload to your clearinghouse to verify.');
       }
 
       setEligibilityDialogOpen(false);
@@ -1794,7 +1790,7 @@ export default function BillingPage() {
                   <div>
                     <CardTitle>Eligibility Verification</CardTitle>
                     <CardDescription>
-                      Check patient Medicaid eligibility and generate 270 EDI inquiries for TMHP
+                      Check patient insurance eligibility via Availity
                     </CardDescription>
                   </div>
                   <Dialog open={eligibilityDialogOpen} onOpenChange={setEligibilityDialogOpen}>
@@ -1806,9 +1802,9 @@ export default function BillingPage() {
                     </DialogTrigger>
                     <DialogContent className="max-w-lg">
                       <DialogHeader>
-                        <DialogTitle>Check Medicaid Eligibility</DialogTitle>
+                        <DialogTitle>Check Eligibility</DialogTitle>
                         <DialogDescription>
-                          Generate a 270 EDI eligibility inquiry for TMHP portal submission
+                          Verify patient insurance coverage via Availity
                         </DialogDescription>
                       </DialogHeader>
 
@@ -1835,9 +1831,9 @@ export default function BillingPage() {
                         </div>
 
                         <div className="space-y-2">
-                          <Label>Medicaid ID</Label>
+                          <Label>Medicaid / Member ID</Label>
                           <Input
-                            placeholder="Patient's Medicaid ID"
+                            placeholder="Patient's Medicaid or member ID"
                             value={eligibilityForm.medicaid_id}
                             onChange={(e) =>
                               setEligibilityForm((prev) => ({ ...prev, medicaid_id: e.target.value }))
@@ -1861,9 +1857,8 @@ export default function BillingPage() {
 
                         <div className="p-3 bg-blue-50 border border-blue-100 rounded-md">
                           <p className="text-sm text-blue-800">
-                            This will generate a HIPAA 270 eligibility inquiry file. Upload the file
-                            to the TMHP portal or submit through your clearinghouse to verify
-                            patient eligibility.
+                            This will check eligibility via Availity. If automated verification is not
+                            yet active, you will be directed to the Availity portal for manual lookup.
                           </p>
                         </div>
                       </div>
@@ -1876,7 +1871,7 @@ export default function BillingPage() {
                           onClick={handleEligibilityCheck}
                           disabled={submitting || !eligibilityForm.patient_id}
                         >
-                          {submitting ? 'Generating...' : 'Generate 270 & Check'}
+                          {submitting ? 'Checking...' : 'Check Eligibility'}
                         </Button>
                       </DialogFooter>
                     </DialogContent>
@@ -1891,7 +1886,7 @@ export default function BillingPage() {
                     <Shield className="h-10 w-10 mx-auto mb-3 text-slate-300" />
                     <p>No eligibility checks yet</p>
                     <p className="text-sm mt-1">
-                      Click &quot;Check Eligibility&quot; to verify a patient&apos;s Medicaid coverage
+                      Click &quot;Check Eligibility&quot; to verify a patient&apos;s coverage
                     </p>
                   </div>
                 ) : (
@@ -1901,7 +1896,7 @@ export default function BillingPage() {
                         <TableRow>
                           <TableHead>Date</TableHead>
                           <TableHead>Patient</TableHead>
-                          <TableHead>Medicaid ID</TableHead>
+                          <TableHead>Member ID</TableHead>
                           <TableHead>Service Date</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
@@ -1932,7 +1927,7 @@ export default function BillingPage() {
                                   variant="outline"
                                   className={ELIGIBILITY_STATUS_COLORS[check.status as EligibilityStatus] || ''}
                                 >
-                                  {check.status.charAt(0).toUpperCase() + check.status.slice(1)}
+                                  {ELIGIBILITY_STATUS_LABELS[check.status as EligibilityStatus] || check.status}
                                 </Badge>
                                 {check.response_data && 'parsed' in (check.response_data as object) ? (
                                   <p className="text-xs text-slate-600 max-w-[250px]">
@@ -1963,6 +1958,28 @@ export default function BillingPage() {
                                     Details
                                   </Button>
                                 ) : null}
+                                {check.status === 'manual_required' && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="gap-1"
+                                    onClick={() => window.open('https://apps.availity.com', '_blank', 'noopener,noreferrer')}
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                    Availity Portal
+                                  </Button>
+                                )}
+                                {(check.status === 'error' || check.status === 'ineligible') && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="gap-1"
+                                    onClick={() => window.open('https://apps.availity.com', '_blank', 'noopener,noreferrer')}
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                    Check Manually
+                                  </Button>
+                                )}
                                 {check.edi_270_content && (
                                   <Button
                                     variant="outline"

@@ -1198,13 +1198,14 @@ export interface ClaimLine {
   created_at: string;
 }
 
-export type EligibilityStatus = 'pending' | 'eligible' | 'ineligible' | 'error';
+export type EligibilityStatus = 'pending' | 'eligible' | 'ineligible' | 'error' | 'manual_required';
 
 export const ELIGIBILITY_STATUS_LABELS: Record<EligibilityStatus, string> = {
   pending: 'Pending',
   eligible: 'Eligible',
   ineligible: 'Ineligible',
   error: 'Error',
+  manual_required: 'Manual Check',
 };
 
 export const ELIGIBILITY_STATUS_COLORS: Record<EligibilityStatus, string> = {
@@ -1212,6 +1213,7 @@ export const ELIGIBILITY_STATUS_COLORS: Record<EligibilityStatus, string> = {
   eligible: 'bg-emerald-100 text-emerald-700 border-emerald-200',
   ineligible: 'bg-red-100 text-red-700 border-red-200',
   error: 'bg-slate-100 text-slate-700 border-slate-200',
+  manual_required: 'bg-blue-100 text-blue-700 border-blue-200',
 };
 
 export interface EligibilityCheck {

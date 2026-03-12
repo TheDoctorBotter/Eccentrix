@@ -30,7 +30,6 @@ interface BillingSettings {
   billing_state: string | null;
   billing_zip: string | null;
   submitter_id: string | null;
-  stedi_api_key: string | null;
   payer_trading_partner_id: string | null;
 }
 
@@ -48,7 +47,6 @@ export default function BillingSettingsPage() {
     billing_state: 'TX',
     billing_zip: '',
     submitter_id: '',
-    stedi_api_key: '',
     payer_trading_partner_id: 'TXMCD',
   });
 
@@ -72,7 +70,6 @@ export default function BillingSettingsPage() {
           billing_state: data.billing_state || 'TX',
           billing_zip: data.billing_zip || '',
           submitter_id: data.submitter_id || '',
-          stedi_api_key: data.stedi_api_key || '',
           payer_trading_partner_id: data.payer_trading_partner_id || 'TXMCD',
         });
       }
@@ -307,33 +304,19 @@ export default function BillingSettingsPage() {
               </CardContent>
             </Card>
 
-            {/* Stedi Clearinghouse Integration */}
+            {/* Availity Eligibility Integration */}
             <Card>
               <CardHeader>
-                <CardTitle>Stedi Clearinghouse Integration</CardTitle>
+                <CardTitle>Availity Eligibility Integration</CardTitle>
                 <CardDescription>
-                  Connect to Stedi for real-time eligibility verification and electronic claims submission.
-                  Without this, EDI files are generated for manual upload.
+                  Real-time eligibility verification is configured via server environment variables
+                  (AVAILITY_CLIENT_ID, AVAILITY_CLIENT_SECRET, AVAILITY_NPI, AVAILITY_TAX_ID).
+                  When not yet active, staff can check eligibility manually via the Availity portal.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="stedi_api_key">Stedi API Key</Label>
-                  <Input
-                    id="stedi_api_key"
-                    type="password"
-                    placeholder="Key xxxxxxxx..."
-                    value={form.stedi_api_key}
-                    onChange={(e) => setForm((prev) => ({ ...prev, stedi_api_key: e.target.value }))}
-                  />
-                  <p className="text-xs text-slate-500">
-                    Get your API key from{' '}
-                    <span className="font-medium">stedi.com</span> under Account Settings.
-                    When configured, eligibility checks and claim submissions will happen in real-time.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="payer_trading_partner_id">Payer Trading Partner ID</Label>
+                  <Label htmlFor="payer_trading_partner_id">Default Payer / Trading Partner</Label>
                   <Input
                     id="payer_trading_partner_id"
                     placeholder="TXMCD"
@@ -343,24 +326,25 @@ export default function BillingSettingsPage() {
                     }
                   />
                   <p className="text-xs text-slate-500">
-                    Stedi&apos;s trading partner service ID for TMHP/Texas Medicaid. Default: TXMCD
+                    Default trading partner ID for eligibility checks (e.g., TXMCD for Texas Medicaid).
+                    Supported payers: TMHP, BCBS, United, Aetna, Cigna, Humana, Molina, Superior, Driscoll.
                   </p>
                 </div>
-                {form.stedi_api_key ? (
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-md">
-                    <p className="text-sm text-emerald-800">
-                      Stedi integration is <strong>active</strong>. Eligibility checks and claim
-                      submissions will be processed in real-time.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
-                    <p className="text-sm text-amber-800">
-                      Stedi integration is <strong>not configured</strong>. EDI files will be
-                      generated for manual upload to your clearinghouse.
-                    </p>
-                  </div>
-                )}
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <p className="text-sm text-blue-800">
+                    Eligibility checks use the{' '}
+                    <a
+                      href="https://apps.availity.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium underline"
+                    >
+                      Availity Essentials
+                    </a>{' '}
+                    platform. Contact your administrator to enable automated verification
+                    via the AVAILITY_ENABLED environment variable.
+                  </p>
+                </div>
               </CardContent>
             </Card>
 
