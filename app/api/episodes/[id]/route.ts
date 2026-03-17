@@ -22,7 +22,7 @@ export async function GET(
       .from('episodes')
       .select(`
         *,
-        patient:patients(first_name, last_name, date_of_birth, gender, phone, email, address, primary_diagnosis, secondary_diagnoses, referring_physician, insurance_id, medicaid_id, allergies, precautions)
+        patient:patients(first_name, last_name, date_of_birth, gender, phone, email, address, primary_diagnosis, secondary_diagnoses, referring_physician, insurance_id, medicaid_id, allergies, precautions, caregiver_phone, caregiver_name, preferred_contact)
       `)
       .eq('id', id)
       .single();
@@ -54,6 +54,9 @@ export async function GET(
       medicaid_id: patient?.medicaid_id,
       allergies: patient?.allergies,
       precautions: patient?.precautions,
+      caregiver_phone: patient?.caregiver_phone,
+      caregiver_name: patient?.caregiver_name,
+      preferred_contact: patient?.preferred_contact,
       patient: undefined,
     };
 
