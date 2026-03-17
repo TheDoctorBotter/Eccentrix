@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Shield } from 'lucide-react';
 import { addWeeks } from 'date-fns';
 import { formatLocalDate, safeDate } from '@/lib/utils';
+import { getAuthStatus, AUTH_THRESHOLDS } from '@/lib/authorizations';
 
 interface AuthRecord {
   id: string;
@@ -102,8 +103,10 @@ export function VisitAuthSummary({ patientId, clinicId, discipline }: Props) {
         const daysToExpiry = endDate
           ? Math.ceil((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
           : Infinity;
-        const isLow = remaining <= 3;
-        const isWarning = daysToExpiry <= 30 || remaining <= 10;
+        const disc = (auth.discipline || 'PT').toUpperCase();
+        const authDisplayStatus = getAuthStatus(remaining, disc, auth.end_date);
+        const isLow = authDisplayStatus === 'critical' || authDisplayStatus === 'exhausted';
+        const isWarning = authDisplayStatus !== 'active';
 
         // Frequency projection: estimate based on common frequencies
         // Try to parse a simple "Nx/week" pattern if available

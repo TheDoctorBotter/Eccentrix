@@ -62,6 +62,7 @@ import {
 } from 'lucide-react';
 import { VisitAuthSummary } from '@/components/schedule/VisitAuthSummary';
 import { useAuth } from '@/lib/auth-context';
+import { AUTH_THRESHOLDS } from '@/lib/authorizations';
 import {
   Visit,
   Note,
@@ -1918,7 +1919,8 @@ export default function FullscreenSchedulePage() {
                         ? (auth.units_authorized ?? 0) - (auth.units_used ?? 0)
                         : auth.remaining_visits ?? ((auth.authorized_visits ?? 0) - auth.used_visits);
                       const isSelected = formData.auth_id === auth.id;
-                      const isLow = remaining <= 3;
+                      const disc = (auth.discipline || 'PT').toUpperCase() as keyof typeof AUTH_THRESHOLDS;
+                      const isLow = remaining <= (AUTH_THRESHOLDS[disc] || AUTH_THRESHOLDS.PT).critical;
                       return (
                         <button
                           key={auth.id}

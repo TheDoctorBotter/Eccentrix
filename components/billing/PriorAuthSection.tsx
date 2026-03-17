@@ -14,6 +14,7 @@ import {
 import { toast } from 'sonner';
 import { Plus, AlertTriangle, Clock, Pencil, Trash2, Upload, Download, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { formatLocalDate, safeDate } from '@/lib/utils';
+import { getAuthStatus, AUTH_THRESHOLDS } from '@/lib/authorizations';
 import { AuthorizationForm, AuthorizationFormData } from '@/components/authorizations/AuthorizationForm';
 import * as XLSX from 'xlsx';
 
@@ -334,7 +335,9 @@ export function PriorAuthSection({ patientId, clinicId, episodeId }: Props) {
               const remaining = isUnitBasedAuth
                 ? (auth.units_authorized ?? 0) - (auth.units_used ?? 0)
                 : auth.remaining_visits ?? ((auth.authorized_visits ?? 0) - auth.used_visits);
-              const isWarning = daysToExpiry <= 30 || remaining <= 10;
+              const disc = (auth.discipline || 'PT').toUpperCase();
+              const authDisplayStatus = getAuthStatus(remaining, disc, auth.end_date);
+              const isWarning = authDisplayStatus !== 'active';
               const isExpiring = daysToExpiry <= 0;
 
               return (
@@ -396,7 +399,7 @@ export function PriorAuthSection({ patientId, clinicId, episodeId }: Props) {
                         ? `${auth.units_used ?? 0} / ${auth.units_authorized ?? '?'}`
                         : `${auth.used_visits} / ${auth.authorized_visits ?? '?'}`}
                       {' '}
-                      <span className={remaining <= 3 ? 'text-red-600 font-bold' : ''}>
+                      <span className={authDisplayStatus === 'critical' || authDisplayStatus === 'exhausted' ? 'text-red-600 font-bold' : ''}>
                         ({remaining} remaining)
                       </span>
                     </div>

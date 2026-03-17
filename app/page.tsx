@@ -35,6 +35,7 @@ import {
 import { format } from 'date-fns';
 import { formatLocalDate, daysUntil, isValidDate } from '@/lib/utils';
 import { PAPER_MODE } from '@/lib/config';
+import { AUTH_THRESHOLDS } from '@/lib/authorizations';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 import { PTBotFolder } from '@/components/PTBotFolder';
@@ -88,7 +89,7 @@ export default function HomePage() {
 
   const fetchAuthAlerts = useCallback(async (clinicId: string) => {
     try {
-      const res = await fetch(`/api/authorizations?clinic_id=${clinicId}&status=approved`);
+      const res = await fetch(`/api/authorizations?clinic_id=${clinicId}&status=approved,exhausted`);
       if (!res.ok) return;
       const data = await res.json();
       if (!Array.isArray(data)) return;
@@ -148,7 +149,7 @@ export default function HomePage() {
 
   const fetchExpiringAuths = useCallback(async (clinicId: string) => {
     try {
-      const res = await fetch(`/api/authorizations?clinic_id=${clinicId}&status=approved`);
+      const res = await fetch(`/api/authorizations?clinic_id=${clinicId}&status=approved,exhausted`);
       if (!res.ok) return;
       const data = await res.json();
       if (!Array.isArray(data)) return;
@@ -197,7 +198,7 @@ export default function HomePage() {
 
   const fetchLowBalanceAuths = useCallback(async (clinicId: string) => {
     try {
-      const res = await fetch(`/api/authorizations?clinic_id=${clinicId}&status=approved`);
+      const res = await fetch(`/api/authorizations?clinic_id=${clinicId}&status=approved,exhausted`);
       if (!res.ok) return;
       const data = await res.json();
       if (!Array.isArray(data)) return;
@@ -208,8 +209,9 @@ export default function HomePage() {
         const disc = auth.discipline || 'PT';
 
         if (disc === 'ST') {
-          // ST: check remaining_visits
-          if (auth.remaining_visits != null && auth.remaining_visits <= 5) {
+          // ST: check remaining_visits against threshold
+          const threshold = AUTH_THRESHOLDS.ST.low;
+          if (auth.remaining_visits != null && auth.remaining_visits <= threshold && auth.remaining_visits > 0) {
             lowBalance.push({
               id: auth.id,
               patient_id: auth.patient_id,
@@ -222,12 +224,13 @@ export default function HomePage() {
             });
           }
         } else if (disc === 'PT' || disc === 'OT') {
-          // PT/OT: compute remaining units (no generated column in DB)
+          // PT/OT: compute remaining units against threshold
+          const threshold = AUTH_THRESHOLDS[disc as 'PT' | 'OT'].low;
           const unitsAuth = auth.units_authorized;
           const unitsUsed = auth.units_used ?? 0;
           if (unitsAuth != null) {
             const remainingUnits = unitsAuth - unitsUsed;
-            if (remainingUnits <= 16) {
+            if (remainingUnits <= threshold && remainingUnits > 0) {
               lowBalance.push({
                 id: auth.id,
                 patient_id: auth.patient_id,
