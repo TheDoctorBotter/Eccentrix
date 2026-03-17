@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
       subscriber_id,
       payer_name,
       payer_id,
+      payer_type,
       allergies,
       precautions,
     } = body;
@@ -99,6 +100,7 @@ export async function POST(request: NextRequest) {
         subscriber_id: subscriber_id || null,
         payer_name: payer_name || null,
         payer_id: payer_id || null,
+        payer_type: payer_type || null,
         allergies,
         precautions,
         is_active: true,

@@ -458,6 +458,7 @@ export interface Patient {
   medicaid_id?: string | null;
   allergies?: string | null;
   precautions?: string | null;
+  payer_type?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -630,6 +631,9 @@ export interface Visit {
   auth_id?: string | null;
   units_used?: number | null;
   auth_usage_applied?: boolean | null;
+  // Auth exemption fields
+  auth_exempt?: boolean | null;
+  auth_exempt_reason?: string | null;
   // SMS appointment fields (present when source === 'sms')
   sms_appointment_id?: string | null;
   sms_patient_phone?: string | null;

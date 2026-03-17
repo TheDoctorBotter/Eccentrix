@@ -185,6 +185,19 @@ export default function PatientRecordPage() {
                 <span className="text-slate-600">{patient.medicaid_id}</span>
               </div>
             )}
+            {patient.payer_type && (
+              <div className="mt-1 text-sm">
+                <span className="font-medium text-slate-700">Payer Type:</span>{' '}
+                <Badge variant="outline" className="ml-1 text-xs">
+                  {patient.payer_type === 'eci' ? 'ECI (Early Childhood Intervention)'
+                    : patient.payer_type === 'self_pay' ? 'Self Pay'
+                    : patient.payer_type === 'private_insurance' ? 'Private Insurance'
+                    : patient.payer_type === 'tricare' ? 'TRICARE'
+                    : patient.payer_type === 'chip' ? 'CHIP'
+                    : patient.payer_type.charAt(0).toUpperCase() + patient.payer_type.slice(1)}
+                </Badge>
+              </div>
+            )}
             {patient.allergies && (
               <div className="mt-3 text-sm">
                 <span className="font-medium text-red-600">Allergies:</span>{' '}

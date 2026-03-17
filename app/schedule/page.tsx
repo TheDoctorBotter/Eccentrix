@@ -59,6 +59,7 @@ import {
   Undo2,
   Info,
   AlertCircle,
+  Shield,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import { VisitAuthSummary } from '@/components/schedule/VisitAuthSummary';
@@ -78,6 +79,7 @@ import {
 } from '@/lib/types';
 import { toast } from 'sonner';
 import type { InsuranceRuleResult } from '@/lib/scheduling/insuranceRules';
+import { isAuthExempt, getAuthExemptReason, PAYER_TYPE_LABELS, type PayerType } from '@/lib/scheduling/authExemption';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -271,6 +273,9 @@ export default function SchedulePage() {
   const [eligibleTherapists, setEligibleTherapists] = useState<TherapistOption[]>([]);
   const [insuranceRule, setInsuranceRule] = useState<InsuranceRuleResult | null>(null);
   const [adminOverride, setAdminOverride] = useState(false);
+
+  // Clinic auth exemption data
+  const [clinicAuthExemptPayers, setClinicAuthExemptPayers] = useState<string[]>([]);
 
   // Drag-and-drop state
   const [draggingVisit, setDraggingVisit] = useState<Visit | null>(null);
@@ -486,6 +491,19 @@ export default function SchedulePage() {
     fetchTherapists();
   }, [fetchPatients, fetchTherapists]);
 
+  // Fetch clinic auth exemption config
+  useEffect(() => {
+    if (!currentClinic?.clinic_id) return;
+    fetch(`/api/clinics/${currentClinic.clinic_id}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.auth_exempt_payers) {
+          setClinicAuthExemptPayers(data.auth_exempt_payers);
+        }
+      })
+      .catch(() => {});
+  }, [currentClinic?.clinic_id]);
+
   // Scroll to 8am on mount
   useEffect(() => {
     if (scrollRef.current) {
@@ -684,61 +702,66 @@ export default function SchedulePage() {
           ? updated._createdVisit.id
           : visitId.replace(/^sms-/, '');
 
-        // Try to find the auth_id — from the visit record or auto-match by discipline
-        let authIdToDecrement = visit?.auth_id || (updated as Record<string, unknown>).auth_id;
+        // Skip auth deduction entirely for auth-exempt visits
+        const visitIsExempt = visit?.auth_exempt === true;
 
-        if (!authIdToDecrement && visit?.patient_id && visit?.discipline) {
-          // Auto-match: find the best active auth for this patient + discipline
-          try {
-            const params = new URLSearchParams({
-              patient_id: visit.patient_id,
-              clinic_id: currentClinic?.clinic_id || '',
-              status: 'approved',
-              discipline: visit.discipline,
-            });
-            const authRes = await fetch(`/api/authorizations?${params}`);
-            if (authRes.ok) {
-              const auths = await authRes.json();
-              if (Array.isArray(auths) && auths.length > 0) {
-                // Pick the auth with the nearest end_date that's still active
-                const now = new Date().toISOString().split('T')[0];
-                const active = auths.filter(
-                  (a: { start_date: string; end_date: string }) =>
-                    a.start_date <= now && a.end_date >= now
-                );
-                if (active.length > 0) {
-                  authIdToDecrement = active[0].id;
-                  toast.info('Auto-linked visit to active authorization');
+        if (!visitIsExempt) {
+          // Try to find the auth_id — from the visit record or auto-match by discipline
+          let authIdToDecrement = visit?.auth_id || (updated as Record<string, unknown>).auth_id;
+
+          if (!authIdToDecrement && visit?.patient_id && visit?.discipline) {
+            // Auto-match: find the best active auth for this patient + discipline
+            try {
+              const params = new URLSearchParams({
+                patient_id: visit.patient_id,
+                clinic_id: currentClinic?.clinic_id || '',
+                status: 'approved',
+                discipline: visit.discipline,
+              });
+              const authRes = await fetch(`/api/authorizations?${params}`);
+              if (authRes.ok) {
+                const auths = await authRes.json();
+                if (Array.isArray(auths) && auths.length > 0) {
+                  // Pick the auth with the nearest end_date that's still active
+                  const now = new Date().toISOString().split('T')[0];
+                  const active = auths.filter(
+                    (a: { start_date: string; end_date: string }) =>
+                      a.start_date <= now && a.end_date >= now
+                  );
+                  if (active.length > 0) {
+                    authIdToDecrement = active[0].id;
+                    toast.info('Auto-linked visit to active authorization');
+                  }
                 }
               }
-            }
-          } catch { /* non-critical */ }
-        }
+            } catch { /* non-critical */ }
+          }
 
-        if (authIdToDecrement && completedVisitId && !completedVisitId.startsWith('sms-')) {
-          try {
-            // Calculate units from actual duration using the 8-minute rule
-            // (8-22 min = 1 unit, each additional 15 min = +1 unit)
-            const durationMins = completionData?.actual_duration_minutes
-              ?? visit?.actual_duration_minutes
-              ?? visit?.total_treatment_minutes;
-            let unitsUsed = 1;
-            if (durationMins && durationMins >= 8) {
-              // 8-minute rule: first unit at 8 min, each subsequent at 15 min intervals
-              unitsUsed = Math.max(1, Math.floor((durationMins + 7) / 15));
-            }
+          if (authIdToDecrement && completedVisitId && !completedVisitId.startsWith('sms-')) {
+            try {
+              // Calculate units from actual duration using the 8-minute rule
+              // (8-22 min = 1 unit, each additional 15 min = +1 unit)
+              const durationMins = completionData?.actual_duration_minutes
+                ?? visit?.actual_duration_minutes
+                ?? visit?.total_treatment_minutes;
+              let unitsUsed = 1;
+              if (durationMins && durationMins >= 8) {
+                // 8-minute rule: first unit at 8 min, each subsequent at 15 min intervals
+                unitsUsed = Math.max(1, Math.floor((durationMins + 7) / 15));
+              }
 
-            await fetch('/api/authorizations/decrement', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                auth_id: authIdToDecrement,
-                visit_id: completedVisitId,
-                units_used: unitsUsed,
-                discipline: visit?.discipline ?? 'PT',
-              }),
-            });
-          } catch { /* non-critical — auth decrement is best-effort */ }
+              await fetch('/api/authorizations/decrement', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  auth_id: authIdToDecrement,
+                  visit_id: completedVisitId,
+                  units_used: unitsUsed,
+                  discipline: visit?.discipline ?? 'PT',
+                }),
+              });
+            } catch { /* non-critical — auth decrement is best-effort */ }
+          }
         }
 
         // For SMS appointments, use the auto-created Visit record ID
@@ -830,6 +853,12 @@ export default function SchedulePage() {
         const result = await res.json();
         toast.success(`Created ${result.count} recurring appointments`);
       } else {
+        // Check auth exemption for this patient
+        const selectedPatient = patients.find((p: Patient) => p.id === formData.patient_id);
+        const exempt = selectedPatient?.payer_type
+          ? isAuthExempt(selectedPatient.payer_type, clinicAuthExemptPayers)
+          : false;
+
         const res = await fetch('/api/visits', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -845,6 +874,10 @@ export default function SchedulePage() {
             notes: formData.notes || null,
             source: 'manual',
             auth_id: formData.auth_id || null,
+            auth_exempt: exempt,
+            auth_exempt_reason: exempt && selectedPatient?.payer_type
+              ? getAuthExemptReason(selectedPatient.payer_type)
+              : null,
           }),
         });
 
@@ -1484,6 +1517,11 @@ export default function SchedulePage() {
                                     App
                                   </span>
                                 )}
+                                {visit.auth_exempt && (
+                                  <span className="text-[8px] font-semibold px-1 py-px rounded bg-teal-100 text-teal-700">
+                                    No Auth
+                                  </span>
+                                )}
                                 {height > 40 && (
                                   <Badge
                                     variant="outline"
@@ -1609,6 +1647,11 @@ export default function SchedulePage() {
                                 {isPtbot && (
                                   <span className="text-[8px] font-semibold px-1 py-px rounded bg-indigo-100 text-indigo-600">
                                     App
+                                  </span>
+                                )}
+                                {visit.auth_exempt && (
+                                  <span className="text-[8px] font-semibold px-1 py-px rounded bg-teal-100 text-teal-700">
+                                    No Auth
                                   </span>
                                 )}
                                 {height > 40 && (
@@ -1795,6 +1838,11 @@ export default function SchedulePage() {
                                 App
                               </span>
                             )}
+                            {visit.auth_exempt && (
+                              <span className="text-[8px] font-semibold px-1 py-px rounded bg-teal-100 text-teal-700">
+                                No Auth
+                              </span>
+                            )}
                             {/* Status badge */}
                             {height > 40 && (
                               <Badge
@@ -1971,14 +2019,24 @@ export default function SchedulePage() {
                 )}
               </div>
 
-              {/* Auth summary (read-only) */}
-              {selectedVisit.patient_id && currentClinic?.clinic_id && (
+              {/* Auth summary or exemption notice */}
+              {selectedVisit.auth_exempt ? (
+                <div className="flex items-center gap-2 text-sm bg-teal-50 border border-teal-200 rounded-md p-2.5">
+                  <Shield className="h-4 w-4 text-teal-600 shrink-0" />
+                  <div>
+                    <span className="font-medium text-teal-800">Authorization: Exempt</span>
+                    {selectedVisit.auth_exempt_reason && (
+                      <p className="text-xs text-teal-600 mt-0.5">{selectedVisit.auth_exempt_reason}</p>
+                    )}
+                  </div>
+                </div>
+              ) : selectedVisit.patient_id && currentClinic?.clinic_id ? (
                 <VisitAuthSummary
                   patientId={selectedVisit.patient_id}
                   clinicId={currentClinic.clinic_id}
                   discipline={selectedVisit.discipline}
                 />
-              )}
+              ) : null}
 
               {/* Recurrence info */}
               {selectedVisit.recurrence_group_id && (
@@ -2560,11 +2618,28 @@ export default function SchedulePage() {
               </div>
             )}
 
-            {formData.patient_id && patientAuths.length === 0 && (
-              <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
-                No active authorizations found for this patient
-              </div>
-            )}
+            {formData.patient_id && patientAuths.length === 0 && (() => {
+              const selectedPat = patients.find((p: Patient) => p.id === formData.patient_id);
+              const exempt = selectedPat?.payer_type
+                ? isAuthExempt(selectedPat.payer_type, clinicAuthExemptPayers)
+                : false;
+              if (exempt && selectedPat?.payer_type) {
+                return (
+                  <div className="text-xs text-teal-700 bg-teal-50 border border-teal-200 rounded p-2 flex items-center gap-1.5">
+                    <Shield className="h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      <strong>{PAYER_TYPE_LABELS[selectedPat.payer_type as PayerType] || selectedPat.payer_type}</strong>
+                      {' '}&mdash; No authorization required
+                    </span>
+                  </div>
+                );
+              }
+              return (
+                <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
+                  No active authorizations found for this patient
+                </div>
+              );
+            })()}
 
             {/* Discipline — must come before visit type and therapist so
                 insurance rules can be determined */}

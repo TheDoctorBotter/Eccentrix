@@ -13,7 +13,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft, Building2, Loader2, Plus, Trash2, FileText, Monitor } from 'lucide-react';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, Building2, Loader2, Plus, Trash2, FileText, Monitor, Shield, X, AlertTriangle } from 'lucide-react';
+import { PAYER_TYPES, PAYER_TYPE_LABELS, type PayerType } from '@/lib/scheduling/authExemption';
 import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
 
@@ -32,6 +37,10 @@ export default function ClinicSettingsPage() {
     website: '',
     documentation_mode: 'emr' as 'emr' | 'paper',
   });
+
+  // Auth exemption state (managed separately to avoid sending with every save)
+  const [authExemptPayers, setAuthExemptPayers] = useState<string[]>([]);
+  const [addExemptPayerValue, setAddExemptPayerValue] = useState('');
 
   useEffect(() => {
     if (currentClinic) {
@@ -61,6 +70,7 @@ export default function ClinicSettingsPage() {
           website: clinic.website || '',
           documentation_mode: clinic.documentation_mode || 'emr',
         });
+        setAuthExemptPayers(Array.isArray(clinic.auth_exempt_payers) ? clinic.auth_exempt_payers : []);
       }
     } catch (error) {
       console.error('Error fetching clinic details:', error);
@@ -269,6 +279,97 @@ export default function ClinicSettingsPage() {
                     onChange={handleInputChange}
                     placeholder="https://buckeyept.com"
                   />
+                </div>
+
+                {/* Authorization Exemptions */}
+                <div className="space-y-3 pt-2 border-t">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-teal-600" />
+                    <Label className="text-base font-medium">Authorization Exemptions</Label>
+                  </div>
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>
+                      Payer types added here will not require prior authorization for scheduling or visit completion.
+                      Use only for programs that do not require insurance authorization (e.g. ECI, self-pay).
+                      This setting only affects <strong>{formData.name || 'this clinic'}</strong> — other clinics are not affected.
+                    </span>
+                  </div>
+                  {authExemptPayers.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {authExemptPayers.map((payer) => (
+                        <Badge key={payer} variant="outline" className="gap-1.5 pl-2.5 pr-1.5 py-1 text-sm bg-teal-50 text-teal-700 border-teal-200">
+                          {PAYER_TYPE_LABELS[payer as PayerType] || payer}
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const updated = authExemptPayers.filter((p) => p !== payer);
+                              setAuthExemptPayers(updated);
+                              // Save immediately
+                              try {
+                                await fetch(`/api/clinics/${currentClinic!.clinic_id}`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ auth_exempt_payers: updated }),
+                                });
+                                setMessage({ type: 'success', text: `Removed ${PAYER_TYPE_LABELS[payer as PayerType] || payer} from exemptions` });
+                              } catch {
+                                setMessage({ type: 'error', text: 'Failed to update exemptions' });
+                              }
+                            }}
+                            className="hover:text-red-600 transition-colors"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500">No payer type exemptions configured. All patients require prior authorization.</p>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={addExemptPayerValue}
+                      onValueChange={setAddExemptPayerValue}
+                    >
+                      <SelectTrigger className="w-64">
+                        <SelectValue placeholder="Add exempt payer type..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PAYER_TYPES.filter((pt) => !authExemptPayers.includes(pt)).map((pt) => (
+                          <SelectItem key={pt} value={pt}>
+                            {PAYER_TYPE_LABELS[pt]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!addExemptPayerValue}
+                      onClick={async () => {
+                        if (!addExemptPayerValue || authExemptPayers.includes(addExemptPayerValue)) return;
+                        const updated = [...authExemptPayers, addExemptPayerValue];
+                        setAuthExemptPayers(updated);
+                        setAddExemptPayerValue('');
+                        // Save immediately
+                        try {
+                          await fetch(`/api/clinics/${currentClinic!.clinic_id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ auth_exempt_payers: updated }),
+                          });
+                          setMessage({ type: 'success', text: `Added ${PAYER_TYPE_LABELS[addExemptPayerValue as PayerType] || addExemptPayerValue} to exemptions` });
+                        } catch {
+                          setMessage({ type: 'error', text: 'Failed to update exemptions' });
+                        }
+                      }}
+                      className="gap-1"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Documentation Mode */}
