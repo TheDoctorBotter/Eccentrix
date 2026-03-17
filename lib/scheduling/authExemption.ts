@@ -13,6 +13,7 @@ export const PAYER_TYPES = [
   'medicaid',
   'medicare',
   'private_insurance',
+  'bcbs_tx',
   'eci',
   'self_pay',
   'tricare',
@@ -27,6 +28,7 @@ export const PAYER_TYPE_LABELS: Record<PayerType, string> = {
   medicaid: 'Medicaid',
   medicare: 'Medicare',
   private_insurance: 'Private Insurance',
+  bcbs_tx: 'BCBS Texas',
   eci: 'ECI (Early Childhood Intervention)',
   self_pay: 'Self Pay',
   tricare: 'TRICARE',
@@ -63,6 +65,7 @@ export function getAuthExemptReason(payerType: string): string {
     private_pay: 'Private pay — no insurance authorization required',
     tricare: 'TRICARE — authorization exemption configured for this clinic',
     chip: 'CHIP — authorization exemption configured for this clinic',
+    bcbs_tx: 'BCBS Texas — does not require prior authorization for scheduled visits at this clinic',
   }
   return (
     reasons[payerType.toLowerCase()] ??
