@@ -67,6 +67,9 @@ export async function PATCH(
       'allergies',
       'precautions',
       'payer_type',
+      'caregiver_name',
+      'caregiver_phone',
+      'preferred_contact',
     ];
 
     const updates: Record<string, unknown> = {};

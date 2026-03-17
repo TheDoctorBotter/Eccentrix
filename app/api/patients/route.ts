@@ -72,6 +72,9 @@ export async function POST(request: NextRequest) {
       payer_type,
       allergies,
       precautions,
+      caregiver_name,
+      caregiver_phone,
+      preferred_contact,
     } = body;
 
     if (!clinic_id || !first_name || !last_name) {
@@ -103,6 +106,9 @@ export async function POST(request: NextRequest) {
         payer_type: payer_type || null,
         allergies,
         precautions,
+        caregiver_name: caregiver_name || null,
+        caregiver_phone: caregiver_phone || null,
+        preferred_contact: preferred_contact || 'caregiver',
         is_active: true,
       })
       .select()

@@ -22,6 +22,8 @@ import {
   ExternalLink,
   FileText,
   FilePlus,
+  Copy,
+  Plus,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import { PatientInsuranceSection } from '@/components/billing/PatientInsuranceSection';
@@ -29,6 +31,8 @@ import { PriorAuthSection } from '@/components/billing/PriorAuthSection';
 import { Patient, Visit, Note, APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_COLORS, Discipline, DISCIPLINE_LABELS, DISCIPLINE_COLORS, resolveDiscipline } from '@/lib/types';
 import { format, parseISO } from 'date-fns';
 import { formatLocalDate } from '@/lib/utils';
+import { formatPhoneDisplay } from '@/lib/phone-utils';
+import { toast } from 'sonner';
 
 export default function PatientRecordPage() {
   const params = useParams();
@@ -154,18 +158,6 @@ export default function PatientRecordPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {patient.phone && (
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <Phone className="h-4 w-4 text-slate-400" />
-                  {patient.phone}
-                </div>
-              )}
-              {patient.email && (
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <Mail className="h-4 w-4 text-slate-400" />
-                  {patient.email}
-                </div>
-              )}
               {patient.date_of_birth && (
                 <div className="flex items-center gap-2 text-sm text-slate-600">
                   <Calendar className="h-4 w-4 text-slate-400" />
@@ -176,6 +168,92 @@ export default function PatientRecordPage() {
                 <div className="flex items-center gap-2 text-sm text-slate-600">
                   <ClipboardList className="h-4 w-4 text-slate-400" />
                   {patient.primary_diagnosis}
+                </div>
+              )}
+              {/* Caregiver phone */}
+              {patient.caregiver_phone ? (
+                <div className="flex items-center gap-2 text-sm">
+                  <Phone className="h-4 w-4 text-slate-400" />
+                  <a
+                    href={`tel:${patient.caregiver_phone}`}
+                    className="text-blue-600 hover:underline"
+                  >
+                    {formatPhoneDisplay(patient.caregiver_phone)}
+                  </a>
+                  {patient.caregiver_name && (
+                    <span className="text-slate-500">{patient.caregiver_name}</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(formatPhoneDisplay(patient.caregiver_phone!));
+                      toast.success('Phone number copied');
+                    }}
+                    className="text-slate-400 hover:text-slate-600"
+                    title="Copy phone number"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : patient.phone ? (
+                <div className="flex items-center gap-2 text-sm">
+                  <Phone className="h-4 w-4 text-slate-400" />
+                  <a
+                    href={`tel:${patient.phone}`}
+                    className="text-blue-600 hover:underline"
+                  >
+                    {formatPhoneDisplay(patient.phone)}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(formatPhoneDisplay(patient.phone!));
+                      toast.success('Phone number copied');
+                    }}
+                    className="text-slate-400 hover:text-slate-600"
+                    title="Copy phone number"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-slate-400">
+                  <Phone className="h-4 w-4" />
+                  No phone number on file
+                  <Link href={`/patients/${patientId}/edit`} className="text-blue-600 hover:underline text-xs flex items-center gap-0.5">
+                    <Plus className="h-3 w-3" />
+                    Add
+                  </Link>
+                </div>
+              )}
+              {/* Patient phone (if caregiver phone is also present) */}
+              {patient.caregiver_phone && patient.phone && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Phone className="h-4 w-4 text-slate-400" />
+                  <a
+                    href={`tel:${patient.phone}`}
+                    className="text-blue-600 hover:underline"
+                  >
+                    {formatPhoneDisplay(patient.phone)}
+                  </a>
+                  <span className="text-slate-500">patient</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(formatPhoneDisplay(patient.phone!));
+                      toast.success('Phone number copied');
+                    }}
+                    className="text-slate-400 hover:text-slate-600"
+                    title="Copy phone number"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+              {patient.email && (
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <Mail className="h-4 w-4 text-slate-400" />
+                  {patient.email}
                 </div>
               )}
             </div>

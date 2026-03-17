@@ -459,6 +459,9 @@ export interface Patient {
   allergies?: string | null;
   precautions?: string | null;
   payer_type?: string | null;
+  caregiver_name?: string | null;
+  caregiver_phone?: string | null;
+  preferred_contact?: 'caregiver' | 'patient' | 'both';
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -501,6 +504,9 @@ export interface Episode {
   medicaid_id?: string;
   allergies?: string;
   precautions?: string;
+  phone?: string;
+  caregiver_phone?: string;
+  caregiver_name?: string;
 }
 
 export interface Document {

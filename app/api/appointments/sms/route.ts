@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     {
       let query = client
         .from('appointments')
-        .select('*, patients(id, first_name, last_name, phone)')
+        .select('*, patients(id, first_name, last_name, phone, caregiver_phone, preferred_contact)')
         .order('scheduled_at', { ascending: true });
 
       if (from) {
@@ -124,7 +124,14 @@ export async function GET(request: NextRequest) {
         if (patient.first_name || patient.last_name) {
           patientName = [patient.first_name, patient.last_name].filter(Boolean).join(' ');
         }
-        patientPhone = (patient.phone as string) || '';
+        // Resolve contact phone based on preferred_contact setting
+        const preferred = (patient.preferred_contact as string) || 'caregiver';
+        if (preferred === 'patient') {
+          patientPhone = (patient.phone as string) || (patient.caregiver_phone as string) || '';
+        } else {
+          // 'caregiver' or 'both' — prefer caregiver phone
+          patientPhone = (patient.caregiver_phone as string) || (patient.phone as string) || '';
+        }
       }
 
       // Map status
