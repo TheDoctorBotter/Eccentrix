@@ -400,6 +400,7 @@ export default function AddPatientPage() {
                         <SelectItem value="medicaid">Medicaid</SelectItem>
                         <SelectItem value="medicare">Medicare</SelectItem>
                         <SelectItem value="private_insurance">Private Insurance</SelectItem>
+                        <SelectItem value="bcbs_tx">BCBS Texas</SelectItem>
                         <SelectItem value="eci">ECI (Early Childhood Intervention)</SelectItem>
                         <SelectItem value="self_pay">Self Pay</SelectItem>
                         <SelectItem value="tricare">TRICARE</SelectItem>
