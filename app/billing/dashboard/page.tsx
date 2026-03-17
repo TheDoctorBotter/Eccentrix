@@ -12,6 +12,7 @@ import {
 import type { Invoice, ExtendedPriorAuth } from '@/lib/billing/types';
 import { format, parseISO } from 'date-fns';
 import { formatLocalDate, safeDate } from '@/lib/utils';
+import { getAuthStatus, AUTH_THRESHOLDS } from '@/lib/authorizations';
 import { Button } from '@/components/ui/button';
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
@@ -198,16 +199,13 @@ export default function BillingDashboard() {
 
   const expiringAuths = priorAuths.filter((a) => {
     if (a.status !== 'approved') return false;
-    const endDate = safeDate(a.end_date);
-    if (!endDate) return false;
-    const daysToExpiry = Math.ceil(
-      (endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-    );
-    const isUnitBased = a.auth_type === 'units' || ['PT', 'OT'].includes(a.discipline?.toUpperCase() ?? '');
+    const disc = (a.discipline || 'PT').toUpperCase();
+    const isUnitBased = a.auth_type === 'units' || ['PT', 'OT'].includes(disc);
     const remaining = isUnitBased
       ? (a.units_authorized ?? 0) - (a.units_used ?? 0)
       : (a.remaining_visits ?? (a.authorized_visits ?? 0) - (a.used_visits ?? 0));
-    return daysToExpiry <= 30 || (remaining !== null && remaining <= 10);
+    const status = getAuthStatus(remaining, disc, a.end_date);
+    return status !== 'active';
   });
 
   const openEditAuth = (auth: ExtendedPriorAuth) => {
@@ -500,11 +498,13 @@ export default function BillingDashboard() {
                           ? authorized - used
                           : (auth.remaining_visits ?? (authorized - used));
                         const balanceLabel = isUnitBased ? 'units' : 'visits';
+                        const disc = (auth.discipline || 'PT').toUpperCase();
+                        const authDisplayStatus = getAuthStatus(remaining, disc, auth.end_date);
                         const endDate = safeDate(auth.end_date);
                         const daysToExpiry = endDate
                           ? Math.ceil((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
                           : Infinity;
-                        const isWarning = daysToExpiry <= 30 || (remaining !== null && remaining <= 10);
+                        const isWarning = authDisplayStatus !== 'active';
 
                         return (
                           <React.Fragment key={auth.id}>
@@ -532,8 +532,8 @@ export default function BillingDashboard() {
                                   <AlertTriangle className="h-3 w-3" />
                                   <span className="inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">Exhausted</span>
                                 </span>
-                              ) : remaining <= 10 ? (
-                                <span className="text-amber-600 font-semibold flex items-center gap-1">
+                              ) : authDisplayStatus === 'critical' || authDisplayStatus === 'low' ? (
+                                <span className={`${authDisplayStatus === 'critical' ? 'text-red-600' : 'text-amber-600'} font-semibold flex items-center gap-1`}>
                                   <AlertTriangle className="h-3 w-3" />{remaining} / {authorized} {balanceLabel}
                                 </span>
                               ) : (

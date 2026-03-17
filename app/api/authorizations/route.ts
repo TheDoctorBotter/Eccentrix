@@ -36,7 +36,10 @@ export async function GET(request: NextRequest) {
       query = query.eq('clinic_id', clinicId);
     }
     if (status) {
-      query = query.eq('status', status);
+      const statuses = status.split(',').map(s => s.trim()).filter(Boolean);
+      query = statuses.length === 1
+        ? query.eq('status', statuses[0])
+        : query.in('status', statuses);
     }
     if (discipline) {
       query = query.eq('discipline', discipline);

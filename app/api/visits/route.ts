@@ -104,6 +104,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Resolve contact phone from patient record at booking time
+    let contactPhone: string | null = null;
+    if (patient_id) {
+      const { data: patientData } = await client
+        .from('patients')
+        .select('phone, caregiver_phone, preferred_contact')
+        .eq('id', patient_id)
+        .single();
+      if (patientData) {
+        const preferred = patientData.preferred_contact || 'caregiver';
+        if (preferred === 'patient') {
+          contactPhone = patientData.phone || patientData.caregiver_phone || null;
+        } else {
+          contactPhone = patientData.caregiver_phone || patientData.phone || null;
+        }
+      }
+    }
+
     const { data, error } = await client
       .from('visits')
       .insert({
@@ -122,6 +140,7 @@ export async function POST(request: NextRequest) {
         auth_id: auth_id || null,
         auth_exempt: auth_exempt || false,
         auth_exempt_reason: auth_exempt_reason || null,
+        contact_phone: contactPhone,
       })
       .select()
       .single();

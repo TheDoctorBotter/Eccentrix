@@ -13,6 +13,42 @@ import { calculateEightMinuteRule } from '@/lib/billing/eight-minute-rule';
 import { logAuthUsage } from '@/lib/authUsageLog';
 
 // ---------------------------------------------------------------------------
+// Authorization alert thresholds — single source of truth
+// ---------------------------------------------------------------------------
+
+export const AUTH_THRESHOLDS = {
+  PT: { low: 16, critical: 8 },   // units
+  OT: { low: 16, critical: 8 },   // units
+  ST: { low: 5, critical: 2 },    // visits
+} as const;
+
+export type AuthDisplayStatus = 'exhausted' | 'critical' | 'low' | 'expiring' | 'active';
+
+/**
+ * Determine the display status of an authorization based on remaining balance,
+ * discipline, and end date.
+ */
+export function getAuthStatus(
+  remaining: number,
+  discipline: string,
+  endDate: string | null,
+): AuthDisplayStatus {
+  if (remaining <= 0) return 'exhausted';
+  const key = discipline.toUpperCase() as keyof typeof AUTH_THRESHOLDS;
+  const thresholds = AUTH_THRESHOLDS[key] || AUTH_THRESHOLDS.PT;
+  if (remaining <= thresholds.critical) return 'critical';
+  if (remaining <= thresholds.low) return 'low';
+  if (endDate) {
+    const d = new Date(endDate);
+    if (!isNaN(d.getTime())) {
+      const daysLeft = Math.ceil((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      if (daysLeft <= 30) return 'expiring';
+    }
+  }
+  return 'active';
+}
+
+// ---------------------------------------------------------------------------
 // Unit calculation helper
 // ---------------------------------------------------------------------------
 

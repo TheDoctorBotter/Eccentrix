@@ -14,6 +14,8 @@ import { Clock, ChevronDown, ChevronUp, AlertTriangle, Upload, Download, Loader2
 import { formatLocalDate, safeDateTimestamp } from '@/lib/utils';
 import { toast } from 'sonner';
 import { AuthorizationForm, AuthorizationFormData, AuthorizationRecord } from '@/components/authorizations/AuthorizationForm';
+import { getAuthStatus, AUTH_THRESHOLDS } from '@/lib/authorizations';
+import type { AuthDisplayStatus } from '@/lib/authorizations';
 import * as XLSX from 'xlsx';
 
 interface ImportResultRow {
@@ -93,7 +95,7 @@ export function DashboardAuthSection({ clinicId }: Props) {
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/authorizations?clinic_id=${clinicId}&status=approved`
+        `/api/authorizations?clinic_id=${clinicId}&status=approved,exhausted`
       );
       if (!res.ok) return;
       const data = await res.json();
@@ -389,17 +391,58 @@ export function DashboardAuthSection({ clinicId }: Props) {
     }
   };
 
-  const filteredAuths = auths.filter((a) => {
+  // Enrich auths with computed fields for sorting and display
+  const enrichedAuths = auths.map((a) => {
+    const disc = (a.discipline || 'PT').toUpperCase();
+    const isUnitBased = a.auth_type === 'units' || ['PT', 'OT'].includes(disc);
+    const remaining = isUnitBased
+      ? (a.units_authorized ?? 0) - (a.units_used ?? 0)
+      : a.remaining_visits ?? (a.authorized_visits ?? 0) - a.used_visits;
+    const endTs = safeDateTimestamp(a.end_date, Date.now());
+    const daysToExpiry = Math.ceil((endTs - Date.now()) / (1000 * 60 * 60 * 24));
+    const displayStatus = getAuthStatus(remaining, disc, a.end_date);
+    return { ...a, _remaining: remaining, _daysToExpiry: daysToExpiry, _displayStatus: displayStatus, _isUnitBased: isUnitBased };
+  });
+
+  // Sort: active (expiring soonest) → low/critical → exhausted → expired
+  const STATUS_SORT_ORDER: Record<AuthDisplayStatus, number> = {
+    active: 0,
+    expiring: 1,
+    low: 2,
+    critical: 3,
+    exhausted: 4,
+  };
+  enrichedAuths.sort((a, b) => {
+    // Expired auths (end_date past) go to bottom
+    const aExpired = a._daysToExpiry <= 0;
+    const bExpired = b._daysToExpiry <= 0;
+    if (aExpired !== bExpired) return aExpired ? 1 : -1;
+    // Then sort by display status category
+    const aSortKey = STATUS_SORT_ORDER[a._displayStatus] ?? 5;
+    const bSortKey = STATUS_SORT_ORDER[b._displayStatus] ?? 5;
+    if (aSortKey !== bSortKey) return aSortKey - bSortKey;
+    // Within same category: exhausted by most recent end_date, others by expiring soonest
+    if (a._displayStatus === 'exhausted') return b._daysToExpiry - a._daysToExpiry;
+    if (a._displayStatus === 'low' || a._displayStatus === 'critical') return a._remaining - b._remaining;
+    return a._daysToExpiry - b._daysToExpiry;
+  });
+
+  const filteredAuths = enrichedAuths.filter((a) => {
     const disc = a.discipline || 'PT';
     if (disciplineFilter !== 'All' && disc !== disciplineFilter) return false;
     if (lastNameSearch) {
       const name = (a.patient_name || '').toLowerCase();
-      // patient_name is "Last, First" — match against the last name portion
       const lastName = name.split(',')[0].trim();
       if (!lastName.includes(lastNameSearch.toLowerCase())) return false;
     }
     return true;
   });
+
+  // Counts for summary badges
+  const activeCount = enrichedAuths.filter(a => a._displayStatus === 'active' || a._displayStatus === 'expiring').length;
+  const lowBalanceCount = enrichedAuths.filter(a => a._displayStatus === 'low' || a._displayStatus === 'critical').length;
+  const exhaustedCount = enrichedAuths.filter(a => a._displayStatus === 'exhausted').length;
+  const expiredCount = enrichedAuths.filter(a => a._daysToExpiry <= 0 && a._displayStatus !== 'exhausted').length;
 
   const totalPages = Math.ceil(filteredAuths.length / PAGE_SIZE);
   const pageAuths = filteredAuths.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -412,13 +455,30 @@ export function DashboardAuthSection({ clinicId }: Props) {
           className="flex items-center justify-between w-full text-left"
           onClick={() => setExpanded((e) => !e)}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Clock className="h-5 w-5 text-blue-500" />
             <CardTitle className="text-lg">Authorizations</CardTitle>
             {fetched && (
-              <Badge variant="outline" className="ml-1">
-                {auths.length}
-              </Badge>
+              <>
+                <Badge variant="outline" className="ml-1">
+                  {auths.length}
+                </Badge>
+                {activeCount > 0 && (
+                  <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px]">
+                    Active: {activeCount}
+                  </Badge>
+                )}
+                {lowBalanceCount > 0 && (
+                  <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-[10px]">
+                    Low Balance: {lowBalanceCount}
+                  </Badge>
+                )}
+                {exhaustedCount > 0 && (
+                  <Badge className="bg-red-100 text-red-700 border-red-200 text-[10px]">
+                    Exhausted: {exhaustedCount}
+                  </Badge>
+                )}
+              </>
             )}
           </div>
           {expanded ? (
@@ -499,6 +559,16 @@ export function DashboardAuthSection({ clinicId }: Props) {
             </div>
           )}
 
+          {/* Exhausted auths alert banner */}
+          {fetched && exhaustedCount > 0 && (
+            <div className="flex items-center gap-3 p-3 mb-3 rounded-lg bg-red-50 border border-red-200">
+              <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
+              <span className="text-sm text-red-700">
+                <strong>{exhaustedCount}</strong> authorization{exhaustedCount !== 1 ? 's are' : ' is'} exhausted and may need renewal.
+              </span>
+            </div>
+          )}
+
           {loading ? (
             <p className="text-sm text-muted-foreground py-4 text-center">
               Loading authorizations...
@@ -506,7 +576,7 @@ export function DashboardAuthSection({ clinicId }: Props) {
           ) : auths.length === 0 ? (
             <div className="text-center py-4">
               <p className="text-sm text-muted-foreground mb-3">
-                No approved authorizations found.
+                No authorizations found.
               </p>
               <Button
                 variant="outline"
@@ -526,17 +596,24 @@ export function DashboardAuthSection({ clinicId }: Props) {
             <>
               <div className="space-y-2">
                 {pageAuths.map((auth) => {
-                  const isUnitBasedAuth = auth.auth_type === 'units' || ['PT', 'OT'].includes(auth.discipline?.toUpperCase() ?? '');
-                  const remaining = isUnitBasedAuth
-                    ? (auth.units_authorized ?? 0) - (auth.units_used ?? 0)
-                    : auth.remaining_visits ??
-                      (auth.authorized_visits ?? 0) - auth.used_visits;
-                  const endTs = safeDateTimestamp(auth.end_date, Date.now());
-                  const daysToExpiry = Math.ceil(
-                    (endTs - Date.now()) /
-                      (1000 * 60 * 60 * 24)
-                  );
-                  const isWarning = daysToExpiry <= 30 || remaining <= 10;
+                  const { _remaining: remaining, _daysToExpiry: daysToExpiry, _displayStatus: displayStatus, _isUnitBased: isUnitBased } = auth;
+                  const authorized = isUnitBased ? (auth.units_authorized ?? 0) : (auth.authorized_visits ?? 0);
+                  const label = isUnitBased ? 'units' : 'visits';
+                  const isExpired = daysToExpiry <= 0;
+                  const isExhausted = displayStatus === 'exhausted';
+
+                  // Background styling based on status
+                  const cardBg = isExhausted
+                    ? 'bg-gray-50 opacity-75'
+                    : isExpired
+                      ? 'bg-gray-50 opacity-75'
+                      : displayStatus === 'critical'
+                        ? 'bg-red-50'
+                        : displayStatus === 'low'
+                          ? 'bg-amber-50'
+                          : displayStatus === 'expiring'
+                            ? 'bg-amber-50'
+                            : '';
 
                   return (
                     <div
@@ -549,11 +626,11 @@ export function DashboardAuthSection({ clinicId }: Props) {
                             : auth.discipline === 'ST'
                               ? 'border-l-4 border-l-purple-500'
                               : ''
-                      } ${isWarning ? 'bg-amber-50' : ''}`}
+                      } ${cardBg}`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium text-sm text-slate-900">
+                          <span className={`font-medium text-sm ${isExhausted || isExpired ? 'text-slate-500' : 'text-slate-900'}`}>
                             {auth.patient_name}
                           </span>
                           {auth.discipline && (
@@ -569,9 +646,29 @@ export function DashboardAuthSection({ clinicId }: Props) {
                               #{auth.auth_number}
                             </span>
                           )}
+                          {isExhausted && (
+                            <Badge className="bg-red-100 text-red-700 border-red-200 text-[10px]">
+                              Exhausted
+                            </Badge>
+                          )}
+                          {isExpired && !isExhausted && (
+                            <Badge className="bg-gray-100 text-gray-600 border-gray-200 text-[10px]">
+                              Expired
+                            </Badge>
+                          )}
+                          {displayStatus === 'critical' && (
+                            <Badge className="bg-red-100 text-red-700 border-red-200 text-[10px]">
+                              Critical
+                            </Badge>
+                          )}
+                          {displayStatus === 'low' && (
+                            <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 text-[10px]">
+                              Low
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
-                          {isWarning && (
+                          {(displayStatus === 'low' || displayStatus === 'critical' || displayStatus === 'expiring') && (
                             <AlertTriangle className="h-4 w-4 text-amber-500" />
                           )}
                           <Button
@@ -587,37 +684,20 @@ export function DashboardAuthSection({ clinicId }: Props) {
                       </div>
                       <div className="flex items-center gap-4 mt-1 text-xs text-slate-600">
                         <span className="flex items-center gap-1">
-                          {(() => {
-                            const isUnitBased = auth.auth_type === 'units' || ['PT', 'OT'].includes(auth.discipline?.toUpperCase() ?? '');
-                            const authorized = isUnitBased ? (auth.units_authorized ?? 0) : (auth.authorized_visits ?? 0);
-                            const label = isUnitBased ? 'units' : 'visits';
-                            return (
-                              <>
-                                <span
-                                  className={
-                                    remaining <= 0
-                                      ? 'text-red-600 font-bold'
-                                      : remaining <= 10
-                                        ? 'text-amber-600 font-semibold'
-                                        : 'text-emerald-600 font-semibold'
-                                  }
-                                >
-                                  {remaining} / {authorized}
-                                </span>
-                                {' '}{label} remaining
-                                {remaining <= 0 && (
-                                  <span className="ml-1 inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">
-                                    Exhausted
-                                  </span>
-                                )}
-                                {remaining > 0 && remaining <= 10 && (
-                                  <span className="ml-1 inline-flex items-center rounded-full bg-yellow-100 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-700">
-                                    Low
-                                  </span>
-                                )}
-                              </>
-                            );
-                          })()}
+                          <span
+                            className={
+                              remaining <= 0
+                                ? 'text-red-600 font-bold'
+                                : displayStatus === 'critical'
+                                  ? 'text-red-600 font-semibold'
+                                  : displayStatus === 'low'
+                                    ? 'text-amber-600 font-semibold'
+                                    : 'text-emerald-600 font-semibold'
+                            }
+                          >
+                            {remaining} / {authorized}
+                          </span>
+                          {' '}{label} remaining
                         </span>
                         <span>
                           {formatLocalDate(auth.start_date, 'MM/dd/yy')} –{' '}

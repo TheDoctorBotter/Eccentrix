@@ -26,6 +26,7 @@ import { ArrowLeft, UserPlus, Loader2 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import { useAuth } from '@/lib/auth-context';
 import { ICD10CodeInput, type ICD10Code } from '@/components/ICD10CodeInput';
+import { formatPhoneForStorage, formatPhoneOnBlur } from '@/lib/phone-utils';
 
 interface DisciplineFreq {
   enabled: boolean;
@@ -47,6 +48,9 @@ export default function AddPatientPage() {
     phone: '',
     email: '',
     address: '',
+    caregiver_name: '',
+    caregiver_phone: '',
+    preferred_contact: 'caregiver',
     primary_diagnosis: '',
     referring_physician: '',
     insurance_id: '',
@@ -123,7 +127,7 @@ export default function AddPatientPage() {
           last_name: formData.last_name,
           date_of_birth: formData.date_of_birth || null,
           gender: formData.gender || null,
-          phone: formData.phone || null,
+          phone: formData.phone ? formatPhoneForStorage(formData.phone) : null,
           email: formData.email || null,
           address: formData.address || null,
           primary_diagnosis: formData.primary_diagnosis || null,
@@ -134,6 +138,9 @@ export default function AddPatientPage() {
           payer_type: formData.payer_type || null,
           allergies: formData.allergies || null,
           precautions: formData.precautions || null,
+          caregiver_name: formData.caregiver_name || null,
+          caregiver_phone: formData.caregiver_phone ? formatPhoneForStorage(formData.caregiver_phone) : null,
+          preferred_contact: formData.preferred_contact || 'caregiver',
         }),
       });
 
@@ -301,15 +308,72 @@ export default function AddPatientPage() {
                 <h3 className="font-medium text-slate-900 mb-4">Contact Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone</Label>
+                    <Label htmlFor="caregiver_name">Caregiver Name</Label>
+                    <Input
+                      id="caregiver_name"
+                      name="caregiver_name"
+                      value={formData.caregiver_name}
+                      onChange={handleInputChange}
+                      placeholder="Mom / Dad / Guardian name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="caregiver_phone">Caregiver Phone</Label>
+                    <Input
+                      id="caregiver_phone"
+                      name="caregiver_phone"
+                      type="tel"
+                      value={formData.caregiver_phone}
+                      onChange={handleInputChange}
+                      onBlur={(e) => {
+                        if (e.target.value) {
+                          setFormData((prev) => ({
+                            ...prev,
+                            caregiver_phone: formatPhoneOnBlur(e.target.value),
+                          }));
+                        }
+                      }}
+                      placeholder="(956) 000-0000"
+                    />
+                    <p className="text-xs text-slate-500">
+                      This number will receive appointment reminders from Eccentrix Scheduler
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Patient Phone</Label>
                     <Input
                       id="phone"
                       name="phone"
                       type="tel"
                       value={formData.phone}
                       onChange={handleInputChange}
-                      placeholder="(614) 555-0100"
+                      onBlur={(e) => {
+                        if (e.target.value) {
+                          setFormData((prev) => ({
+                            ...prev,
+                            phone: formatPhoneOnBlur(e.target.value),
+                          }));
+                        }
+                      }}
+                      placeholder="(956) 000-0000"
                     />
+                    <p className="text-xs text-slate-400">For patients 18+</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="preferred_contact">Preferred Contact</Label>
+                    <Select
+                      value={formData.preferred_contact}
+                      onValueChange={(value) => handleSelectChange('preferred_contact', value)}
+                    >
+                      <SelectTrigger id="preferred_contact">
+                        <SelectValue placeholder="Select preferred contact" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="caregiver">Caregiver (default for pediatric)</SelectItem>
+                        <SelectItem value="patient">Patient</SelectItem>
+                        <SelectItem value="both">Both</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>

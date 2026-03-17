@@ -8,6 +8,7 @@
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { writeBillingAuditLog, writeBillingAuditLogBatch } from './audit';
 import { generateSourceKey, calculateEightMinuteRule } from './eight-minute-rule';
+import { AUTH_THRESHOLDS } from '@/lib/authorizations';
 import {
   confirmChargesSchema,
   generateClaimSchema,
@@ -119,7 +120,7 @@ export async function confirmCharges(input: unknown): Promise<{
       const remaining = activeAuth.remaining_visits ?? (activeAuth.authorized_visits - activeAuth.used_visits);
       if (remaining !== null && remaining <= 0) {
         warnings.push(`Prior authorization ${activeAuth.auth_number || activeAuth.id} has 0 remaining visits. Charges may be denied.`);
-      } else if (remaining !== null && remaining <= 3) {
+      } else if (remaining !== null && remaining <= (AUTH_THRESHOLDS[visitDiscipline as keyof typeof AUTH_THRESHOLDS] || AUTH_THRESHOLDS.PT).critical) {
         warnings.push(`Prior authorization ${activeAuth.auth_number || activeAuth.id} has only ${remaining} visits remaining.`);
       }
     }

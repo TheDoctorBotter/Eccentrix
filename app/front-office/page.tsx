@@ -33,12 +33,14 @@ import {
   ExternalLink,
   X,
   UserCog,
+  Phone,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import { AssignCareTeamModal } from '@/components/AssignCareTeamModal';
 import { Episode, DocumentationAlert } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { toast } from 'sonner';
+import { formatPhoneDisplay } from '@/lib/phone-utils';
 
 // ── Types for staff & care team data ──
 
@@ -644,9 +646,20 @@ export default function FrontOfficePage() {
 
                           return (
                             <TableRow key={episode.id}>
-                              <TableCell className="font-medium">
-                                {episode.last_name?.toUpperCase()},{' '}
-                                {episode.first_name}
+                              <TableCell>
+                                <div className="font-medium">
+                                  {episode.last_name?.toUpperCase()},{' '}
+                                  {episode.first_name}
+                                </div>
+                                {(episode.caregiver_phone || episode.phone) && (
+                                  <a
+                                    href={`tel:${episode.caregiver_phone || episode.phone}`}
+                                    className="flex items-center gap-1 text-xs text-slate-400 hover:text-blue-600 mt-0.5"
+                                  >
+                                    <Phone className="h-3 w-3" />
+                                    {formatPhoneDisplay(episode.caregiver_phone || episode.phone)}
+                                  </a>
+                                )}
                               </TableCell>
                               <TableCell>
                                 <Badge

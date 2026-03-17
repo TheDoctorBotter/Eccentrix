@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       .from('episodes')
       .select(`
         *,
-        patient:patients(first_name, last_name, date_of_birth, primary_diagnosis, referring_physician)
+        patient:patients(first_name, last_name, date_of_birth, primary_diagnosis, referring_physician, phone, caregiver_phone, caregiver_name)
       `);
 
     if (clinicId) {
@@ -101,6 +101,9 @@ export async function GET(request: NextRequest) {
         date_of_birth: patient?.date_of_birth,
         primary_diagnosis: patient?.primary_diagnosis,
         referring_physician: patient?.referring_physician,
+        phone: patient?.phone,
+        caregiver_phone: patient?.caregiver_phone,
+        caregiver_name: patient?.caregiver_name,
         patient: undefined,
       };
     });
