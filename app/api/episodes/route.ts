@@ -58,6 +58,10 @@ export async function GET(request: NextRequest) {
         date_of_birth: row.date_of_birth,
         primary_diagnosis: row.primary_diagnosis,
         referring_physician: row.referring_physician,
+        phone: row.phone,
+        caregiver_phone: row.caregiver_phone,
+        caregiver_name: row.caregiver_name,
+        preferred_contact: row.preferred_contact,
       }));
 
       return NextResponse.json(episodes);
