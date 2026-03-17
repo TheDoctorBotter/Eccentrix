@@ -52,6 +52,7 @@ export default function AddPatientPage() {
     insurance_id: '',
     medicaid_id: '',
     payer_name: '',
+    payer_type: '',
     allergies: '',
     precautions: '',
     // Episode fields
@@ -130,6 +131,7 @@ export default function AddPatientPage() {
           insurance_id: formData.insurance_id || null,
           medicaid_id: formData.medicaid_id || null,
           payer_name: formData.payer_name || null,
+          payer_type: formData.payer_type || null,
           allergies: formData.allergies || null,
           precautions: formData.precautions || null,
         }),
@@ -384,6 +386,27 @@ export default function AddPatientPage() {
                       onChange={handleInputChange}
                       placeholder="e.g., Texas Medicaid"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Payer Type</Label>
+                    <Select
+                      value={formData.payer_type}
+                      onValueChange={(val) => setFormData((prev) => ({ ...prev, payer_type: val }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select payer type..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="medicaid">Medicaid</SelectItem>
+                        <SelectItem value="medicare">Medicare</SelectItem>
+                        <SelectItem value="private_insurance">Private Insurance</SelectItem>
+                        <SelectItem value="eci">ECI (Early Childhood Intervention)</SelectItem>
+                        <SelectItem value="self_pay">Self Pay</SelectItem>
+                        <SelectItem value="tricare">TRICARE</SelectItem>
+                        <SelectItem value="chip">CHIP</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="allergies">Allergies</Label>

@@ -81,6 +81,8 @@ export async function PATCH(
       'shortened_visit_reason',
       'units_used',
       'auth_usage_applied',
+      'auth_exempt',
+      'auth_exempt_reason',
     ];
 
     const updateData: Record<string, unknown> = {};

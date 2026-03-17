@@ -59,6 +59,7 @@ export async function PATCH(
       'letterhead_url',
       'documentation_mode',
       'is_active',
+      'auth_exempt_payers',
     ];
 
     const updates: Record<string, unknown> = {};
