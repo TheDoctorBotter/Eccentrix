@@ -35,6 +35,7 @@ import {
   Loader2,
   Save,
   Pencil,
+  Phone,
 } from 'lucide-react';
 import { TopNav } from '@/components/layout/TopNav';
 import { DeletePatientDialog } from '@/components/DeletePatientDialog';
@@ -46,6 +47,7 @@ import {
   CLINICAL_DOC_TYPE_LABELS,
 } from '@/lib/types';
 import { formatLocalDate } from '@/lib/utils';
+import { formatPhoneDisplay } from '@/lib/phone-utils';
 
 interface PageProps {
   params: { episode_id: string };
@@ -486,6 +488,29 @@ export default function PatientChartPage({ params }: PageProps) {
                       <p className="text-xs text-slate-500">Gender</p>
                       <p className="text-sm font-medium text-slate-900">{episode.gender || '—'}</p>
                     </div>
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                      <p className="text-xs text-slate-500">Phone</p>
+                      {episode.phone ? (
+                        <a href={`tel:${episode.phone}`} className="flex items-center gap-1 text-sm font-medium text-slate-900 hover:text-blue-600">
+                          <Phone className="h-3 w-3" />
+                          {formatPhoneDisplay(episode.phone)}
+                        </a>
+                      ) : (
+                        <p className="text-sm font-medium text-slate-900">—</p>
+                      )}
+                    </div>
+                    {episode.caregiver_phone && (
+                      <div className="p-3 bg-slate-50 rounded-lg">
+                        <p className="text-xs text-slate-500">Caregiver Phone</p>
+                        <a href={`tel:${episode.caregiver_phone}`} className="flex items-center gap-1 text-sm font-medium text-slate-900 hover:text-blue-600">
+                          <Phone className="h-3 w-3" />
+                          {formatPhoneDisplay(episode.caregiver_phone)}
+                        </a>
+                        {episode.caregiver_name && (
+                          <p className="text-xs text-slate-400 mt-0.5">{episode.caregiver_name}</p>
+                        )}
+                      </div>
+                    )}
                     <div className="p-3 bg-slate-50 rounded-lg">
                       <p className="text-xs text-slate-500">Referring MD</p>
                       <p className="text-sm font-medium text-slate-900">{episode.referring_physician || '—'}</p>
