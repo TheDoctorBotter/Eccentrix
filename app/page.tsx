@@ -83,6 +83,7 @@ export default function HomePage() {
   const [expiringAuths, setExpiringAuths] = useState<{ id: string; patient_name: string; discipline: string; end_date: string; days_remaining: number }[]>([]);
   const [lowBalanceAlerts, setLowBalanceAlerts] = useState<LowBalanceAlert[]>([]);
   const [staleEquipmentCount, setStaleEquipmentCount] = useState(0);
+  const [bcbsAlertCount, setBcbsAlertCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [clinicLogoUrl, setClinicLogoUrl] = useState<string | null>(null);
   const prevClinicId = useRef<string | null>(null);
@@ -310,6 +311,38 @@ export default function HomePage() {
     }
   }, []);
 
+  const fetchBcbsAlerts = useCallback(async (clinicId: string) => {
+    try {
+      const res = await fetch(`/api/bcbs/benefits?clinic_id=${clinicId}&active_only=true`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!Array.isArray(data)) return;
+
+      const today = new Date().toISOString().split('T')[0];
+      let alertCount = 0;
+
+      for (const b of data) {
+        if (b.benefit_year_start > today || b.benefit_year_end < today) continue;
+        const endDate = new Date(b.benefit_year_end);
+        const daysLeft = Math.ceil((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+
+        if (b.benefit_type === 'pooled') {
+          const remaining = (b.total_visits_allowed ?? 0) - b.total_visits_used;
+          if (remaining <= 5 || daysLeft <= 30) alertCount++;
+        } else {
+          const ptRemaining = (b.pt_visits_allowed ?? 0) - b.pt_visits_used;
+          const otRemaining = (b.ot_visits_allowed ?? 0) - b.ot_visits_used;
+          const stRemaining = (b.st_visits_allowed ?? 0) - b.st_visits_used;
+          if (ptRemaining <= 5 || otRemaining <= 5 || stRemaining <= 5 || daysLeft <= 30) alertCount++;
+        }
+      }
+
+      setBcbsAlertCount(alertCount);
+    } catch (err) {
+      console.error('Error fetching BCBS alerts:', err);
+    }
+  }, []);
+
   useEffect(() => {
     if (currentClinic?.clinic_id) {
       fetchCaseload(currentClinic.clinic_id);
@@ -319,6 +352,7 @@ export default function HomePage() {
       if (PAPER_MODE) fetchExpiringAuths(currentClinic.clinic_id);
       fetchLowBalanceAuths(currentClinic.clinic_id);
       fetchStaleEquipment(currentClinic.clinic_id);
+      fetchBcbsAlerts(currentClinic.clinic_id);
 
       // Fetch clinic branding logo
       if (prevClinicId.current !== currentClinic.clinic_id) {
@@ -329,7 +363,7 @@ export default function HomePage() {
           .catch(() => setClinicLogoUrl(null));
       }
     }
-  }, [currentClinic, fetchAuthAlerts, fetchExpiringAuths, fetchLowBalanceAuths, fetchStaleEquipment]);
+  }, [currentClinic, fetchAuthAlerts, fetchExpiringAuths, fetchLowBalanceAuths, fetchStaleEquipment, fetchBcbsAlerts]);
 
   const fetchCaseload = async (clinicId: string) => {
     setLoading(true);
@@ -640,6 +674,33 @@ export default function HomePage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* BCBS Visit Limit Alert */}
+            {bcbsAlertCount > 0 && (
+              <Card>
+                <CardContent className="py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <AlertCircle className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900 text-sm">BCBS Visit Limits</p>
+                        <p className="text-sm text-blue-700">
+                          {bcbsAlertCount} BCBS patient{bcbsAlertCount !== 1 ? 's are' : ' is'} approaching their visit limit or benefit year end. Review BCBS Benefits.
+                        </p>
+                      </div>
+                    </div>
+                    <Link href="/bcbs">
+                      <Button size="sm" variant="outline" className="gap-1 text-blue-700 border-blue-200 hover:bg-blue-50">
+                        Review BCBS Benefits
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* 180-Day Authorization Alerts */}
             {authAlerts.length > 0 && (
