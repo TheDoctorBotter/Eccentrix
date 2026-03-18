@@ -201,7 +201,7 @@ export function TopNav() {
               )}
               <Link href="/">
                 <Button
-                  variant={isActive('/') && !isActive('/settings') && !isActive('/charts') && !isActive('/archived') && !isActive('/front-office') && !isActive('/schedule') && !isActive('/billing') && !isActive('/reports') && !isActive('/exercises') && !isActive('/goals') && !isActive('/outcome-measures') && !isActive('/cosign') && !isActive('/messages') && !isActive('/hep') && !isActive('/audit') && !isActive('/equipment') ? 'secondary' : 'ghost'}
+                  variant={isActive('/') && !isActive('/settings') && !isActive('/charts') && !isActive('/archived') && !isActive('/front-office') && !isActive('/schedule') && !isActive('/billing') && !isActive('/reports') && !isActive('/exercises') && !isActive('/goals') && !isActive('/outcome-measures') && !isActive('/cosign') && !isActive('/messages') && !isActive('/hep') && !isActive('/audit') && !isActive('/equipment') && !isActive('/bcbs') ? 'secondary' : 'ghost'}
                   size="sm"
                   className="gap-1.5 text-xs"
                 >
@@ -303,6 +303,16 @@ export function TopNav() {
                 >
                   <ClipboardList className="h-3.5 w-3.5" />
                   Equipment
+                </Button>
+              </Link>
+              <Link href="/bcbs">
+                <Button
+                  variant={isActive('/bcbs') ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                >
+                  <Shield className="h-3.5 w-3.5" />
+                  BCBS
                 </Button>
               </Link>
               {canSeeReports && (
@@ -415,6 +425,10 @@ export function TopNav() {
                 <Link href="/equipment" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/equipment') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
                   <ClipboardList className="h-4 w-4" />
                   Equipment
+                </Link>
+                <Link href="/bcbs" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/bcbs') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>
+                  <Shield className="h-4 w-4" />
+                  BCBS Benefits
                 </Link>
                 {canSeeReports && (
                 <Link href="/reports" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${isActive('/reports') ? 'bg-slate-100 font-medium' : 'hover:bg-slate-50'}`}>

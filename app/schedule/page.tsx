@@ -81,6 +81,7 @@ import {
 import { toast } from 'sonner';
 import type { InsuranceRuleResult } from '@/lib/scheduling/insuranceRules';
 import { isAuthExempt, getAuthExemptReason, PAYER_TYPE_LABELS, type PayerType } from '@/lib/scheduling/authExemption';
+import { BCBSSchedulingBanner } from '@/components/bcbs/BCBSSchedulingBanner';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -762,6 +763,56 @@ export default function SchedulePage() {
                 }),
               });
             } catch { /* non-critical — auth decrement is best-effort */ }
+          }
+        }
+
+        // ── BCBS Visit Limit Deduction (additive — runs alongside auth deduction) ──
+        if (completedVisitId && !completedVisitId.startsWith('sms-') && visit?.patient_id) {
+          const bcbsPatient = patients.find((p: Patient) => p.id === visit.patient_id);
+          const isBCBS = bcbsPatient?.payer_type === 'bcbs_tx';
+
+          if (isBCBS) {
+            try {
+              // Check for active BCBS benefit
+              const bcbsRes = await fetch(
+                `/api/bcbs/benefits?clinic_id=${currentClinic?.clinic_id}&patient_id=${visit.patient_id}&active_only=true`
+              );
+              if (bcbsRes.ok) {
+                const bcbsBenefits = await bcbsRes.json();
+                const today = new Date().toISOString().split('T')[0];
+                const activeBenefit = Array.isArray(bcbsBenefits)
+                  ? bcbsBenefits.find(
+                      (b: { benefit_year_start: string; benefit_year_end: string }) =>
+                        b.benefit_year_start <= today && b.benefit_year_end >= today
+                    )
+                  : null;
+
+                if (activeBenefit) {
+                  const deductRes = await fetch('/api/bcbs/deduct', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      benefit_id: activeBenefit.id,
+                      visit_id: completedVisitId,
+                      discipline: visit.discipline ?? 'PT',
+                      patient_id: visit.patient_id,
+                      clinic_id: currentClinic?.clinic_id,
+                      therapist_id: visit.therapist_user_id || null,
+                      date_of_service: visit.start_time?.split('T')[0] || today,
+                      created_by: null,
+                    }),
+                  });
+                  if (deductRes.ok) {
+                    const deductData = await deductRes.json();
+                    if (deductData.warning === 'BCBS visit limit reached (0 remaining)') {
+                      toast.warning('BCBS visit limit reached for this discipline. Visit completed but limit is exhausted. Verify patient benefits before next visit.');
+                    }
+                  }
+                } else {
+                  toast.warning('No active BCBS benefit period found. Visit was completed but no visit count was deducted. Please set up BCBS benefits for this patient.');
+                }
+              }
+            } catch { /* non-critical — BCBS deduction is best-effort */ }
           }
         }
 
@@ -2288,6 +2339,41 @@ export default function SchedulePage() {
                     });
                   } catch { /* non-critical — reversal is best-effort */ }
 
+                  // Reverse BCBS visit deduction if applicable
+                  if (selectedVisit.patient_id) {
+                    const bcbsPat = patients.find((p: Patient) => p.id === selectedVisit.patient_id);
+                    if (bcbsPat?.payer_type === 'bcbs_tx') {
+                      try {
+                        const bcbsRes = await fetch(
+                          `/api/bcbs/benefits?clinic_id=${currentClinic?.clinic_id}&patient_id=${selectedVisit.patient_id}&active_only=true`
+                        );
+                        if (bcbsRes.ok) {
+                          const bcbsBenefits = await bcbsRes.json();
+                          const today = new Date().toISOString().split('T')[0];
+                          const activeBenefit = Array.isArray(bcbsBenefits)
+                            ? bcbsBenefits.find(
+                                (b: { benefit_year_start: string; benefit_year_end: string }) =>
+                                  b.benefit_year_start <= today && b.benefit_year_end >= today
+                              )
+                            : null;
+                          if (activeBenefit) {
+                            await fetch('/api/bcbs/restore', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                benefit_id: activeBenefit.id,
+                                visit_id: selectedVisit.id,
+                                discipline: selectedVisit.discipline ?? 'PT',
+                                restored_by: null,
+                                note: 'Visit completion undone',
+                              }),
+                            });
+                          }
+                        }
+                      } catch { /* non-critical */ }
+                    }
+                  }
+
                   // Revert visit status to checked_in
                   const res = await fetch(`/api/visits/${selectedVisit.id}`, {
                     method: 'PATCH',
@@ -2641,6 +2727,13 @@ export default function SchedulePage() {
                   No active authorizations found for this patient
                 </div>
               );
+            })()}
+
+            {/* BCBS Visit Limit Display */}
+            {formData.patient_id && (() => {
+              const selectedPat = patients.find((p: Patient) => p.id === formData.patient_id);
+              if (selectedPat?.payer_type !== 'bcbs_tx') return null;
+              return <BCBSSchedulingBanner patientId={formData.patient_id} clinicId={currentClinic?.clinic_id || ''} discipline={formData.discipline || 'PT'} />;
             })()}
 
             {/* Discipline — must come before visit type and therapist so

@@ -28,6 +28,7 @@ import {
 import { TopNav } from '@/components/layout/TopNav';
 import { PatientInsuranceSection } from '@/components/billing/PatientInsuranceSection';
 import { PriorAuthSection } from '@/components/billing/PriorAuthSection';
+import { BCBSPatientSection } from '@/components/bcbs/BCBSPatientSection';
 import { Patient, Visit, Note, APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_COLORS, Discipline, DISCIPLINE_LABELS, DISCIPLINE_COLORS, resolveDiscipline } from '@/lib/types';
 import { format, parseISO } from 'date-fns';
 import { formatLocalDate } from '@/lib/utils';
@@ -297,6 +298,11 @@ export default function PatientRecordPage() {
             <PatientInsuranceSection patientId={patientId} clinicId={patient.clinic_id} />
             <PriorAuthSection patientId={patientId} clinicId={patient.clinic_id} episodeId={activeEpisodeId} />
           </div>
+        )}
+
+        {/* BCBS Visit Benefits — only for BCBS patients */}
+        {patient.clinic_id && patient.payer_type === 'bcbs_tx' && (
+          <BCBSPatientSection patientId={patientId} clinicId={patient.clinic_id} />
         )}
 
         {/* Visit History — grouped by discipline */}
